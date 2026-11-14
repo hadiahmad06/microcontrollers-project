@@ -23,13 +23,13 @@ import argparse
 import json
 import math
 import os
-import struct
 import sys
 import zlib
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import features_ref  # noqa: E402  (C3: NONNEG, FEATURES_VERSION; B3 says the exporter reads them)
 import infer_ref  # noqa: E402  (integer reference path, used to pick GM_CONF_SHIFT)
 
 
@@ -38,9 +38,40 @@ class BoundError(Exception):
 
 
 def _need(cond, bound, detail):
-    """Raise BoundError naming `bound` unless cond. Args: cond (bool); bound (str); detail (str)."""
+    """Raise BoundError naming `bound` unless cond (explicit raise, so it also holds under python -O).
+
+    Args: cond (bool); bound (str, the named C4 bound); detail (str). Returns: None."""
     if not cond:
         raise BoundError("%s violated: %s" % (bound, detail))
+
+
+def feature_defs():
+    """C3 feature definitions the exporter depends on (read from tools/features_ref.py, never
+    hard-coded).
+
+    Args: none. Returns: (nonneg, version): nonneg is a list of 60 bools (True = non-negative
+    energy feature, offset 0), version is features_ref.FEATURES_VERSION. Raises BoundError if
+    len(NONNEG) != 60.
+    """
+    _need(len(features_ref.NONNEG) == 60, "len(NONNEG) == 60", "len(NONNEG) = %d" % len(features_ref.NONNEG))
+    return list(features_ref.NONNEG), features_ref.FEATURES_VERSION
+
+
+def check_norm(off, sh, n_features):
+    """Validate a norm.json pair (C4: GM_IN_OFF int16, GM_IN_SH in 0..14, one entry per feature).
+
+    Args: off, sh (lists from norm.json); n_features (int, columns of the net). Returns: None.
+    Raises BoundError naming the bound (explicit checks, independent of assert / python -O).
+    """
+    _need(isinstance(off, list) and isinstance(sh, list) and len(off) == n_features and len(sh) == n_features,
+          "len(GM_IN_OFF) == len(GM_IN_SH) == GM_N_FEATURES",
+          "norm.json has %s offsets and %s shifts, net has %d features"
+          % (len(off) if isinstance(off, list) else "?", len(sh) if isinstance(sh, list) else "?", n_features))
+    for i, (o, s_) in enumerate(zip(off, sh)):
+        _need(isinstance(o, int) and not isinstance(o, bool) and isinstance(s_, int) and not isinstance(s_, bool),
+              "GM_IN_OFF / GM_IN_SH are integers", "feature %d: off=%r sh=%r" % (i, o, s_))
+        _need(-32768 <= o <= 32767, "GM_IN_OFF in int16", "feature %d off=%d" % (i, o))
+        _need(0 <= s_ <= 14, "GM_IN_SH <= 14", "feature %d sh=%d" % (i, s_))
 
 
 # --------------------------------------------------------------------------- recipe pieces
@@ -59,7 +90,7 @@ def mshift(scale):
     if m >= (1 << 15):
         _need(sh > 16, "scale in [2^-17, 0.5)", "scale %g >= 0.5 (SH would be < 16)" % scale)
         m, sh = m >> 1, sh - 1  # only reachable via rounding up to exactly 2^15
-        assert m == (1 << 14)
+        _need(m == (1 << 14), "2^14 <= M < 2^15", "M=%d after halving" % m)
     _need((1 << 14) <= m < (1 << 15), "2^14 <= M < 2^15", "M=%d" % m)
     _need(16 <= sh <= 31, "16 <= SH <= 31", "SH=%d" % sh)
     return m, sh
@@ -131,7 +162,10 @@ def quantize(W1, b1, W2, b2, K, off, sh, x8_calib):
     s_w2 = np.abs(W2).max() / 127.0
     W2q = np.rint(W2 / s_w2)
     b2r = np.rint(b2 / (s_h * s_w2))
-    _need(np.all(np.abs(b1r) < 2 ** 40) and np.all(np.abs(b2r) < 2 ** 40), "|B| < 2^29", "bias is astronomically large")
+    for lname, br in (("layer 1", b1r), ("layer 2", b2r)):
+        _need(np.all(np.abs(br) < (1 << 29)), "|B| < 2^29", "%s max |bias| = %.6g" % (lname, float(np.abs(br).max())))
+    for j in np.flatnonzero(~np.any(W1q != 0, axis=1)):  # I1: dead neuron (scale is per tensor, no bound applies)
+        print("warning: W1 row %d is all zero after quantization (dead hidden neuron)" % j, file=sys.stderr)
     q = {"GM_IN_OFF": [int(v) for v in off], "GM_IN_SH": [int(v) for v in sh],
          "GM_W1": W1q.astype(np.int64).tolist(), "GM_B1": b1r.astype(np.int64).tolist(),
          "GM_M1": [M] * W1q.shape[0], "GM_SH1": [S] * W1q.shape[0],
@@ -183,6 +217,40 @@ def choose_conf_shift(margins):
     return s
 
 
+def choose_default_reject(confs, max_share_pct=2):
+    """C5.2 rule for GM_DEFAULT_REJECT: the threshold min_conf (reject iff conf < min_conf) that
+    rejects at most `max_share_pct` % of the held-out true gestures.
+
+    Exact definition: with the n confidences sorted ascending as c[0..n-1] and
+    k = floor(n * max_share_pct / 100), min_conf = c[k]. Then #{conf < min_conf} <= k, so the
+    rejected share is <= max_share_pct %, and min_conf + 1 would reject at least k + 1 windows
+    (so this is the tightest such threshold; the literal "smallest" value would be 0, which rejects
+    nothing, so the rule is read as the largest threshold within the budget).
+
+    Args: confs (non-empty list of int MLP confidences 0..255 of held-out true-gesture windows,
+    label != 0); max_share_pct (int percent budget, default 2). Returns: (min_conf, rejected)
+    with rejected the number of windows with conf < min_conf. Raises BoundError if confs is empty.
+    """
+    _need(len(confs) > 0, "validation windows", "no held-out true-gesture window (label != 0)")
+    srt = sorted(confs)
+    k = len(srt) * max_share_pct // 100
+    mc = srt[k]
+    return mc, sum(1 for c in srt if c < mc)
+
+
+def fallback_needed(n, correct_float, correct_int, agree, z=1.645):
+    """C4.3 criterion (ported from quant_ref.py): fall back to int16 inputs iff agreement < 97 % or
+    (accuracy drop > 1 pt and the one-sided 95 % Wilson upper bound of the int accuracy < float accuracy).
+
+    Args: n (held-out windows, >= 500); correct_float, correct_int (counts of correct predictions);
+    agree (count where float and int argmax agree); z (1.645 for one-sided 95 %).
+    Returns: bool.
+    """
+    p = correct_int / n
+    up = (p + z * z / (2 * n) + z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
+    return agree / n < 0.97 or ((correct_float - correct_int) / n > 0.01 and up < correct_float / n)
+
+
 # --------------------------------------------------------------------------- header text
 def _c32(v):
     """int32 C literal portable to 16-bit int. Args: v (int). Returns: str."""
@@ -216,13 +284,18 @@ def _fmt_2d(rows, conv):
 
 
 def render_header(q, conf_shift, default_reject, logit_q32, odr_hz=100, range_g=4,
-                  n_samples=150, feature_version=1):
+                  n_samples=150, feature_version=None, provisional=False):
     """Render gesture_model.h text per the C4 header layout.
 
     Args: q (checked model dict); conf_shift (0..24); default_reject (0..255); logit_q32 (int,
-    round(real logit LSB * 2^32)); odr_hz, range_g, n_samples, feature_version (macros).
+    round(real logit LSB * 2^32)); odr_hz, range_g, n_samples (macros); feature_version (macro;
+    None = features_ref.FEATURES_VERSION); provisional (bool: True marks GM_CONF_SHIFT and
+    GM_DEFAULT_REJECT with the comment `PROVISIONAL: no validation data`).
     Returns: str (the full file).
     """
+    if feature_version is None:
+        feature_version = features_ref.FEATURES_VERSION
+    prov = " /* PROVISIONAL: no validation data */" if provisional else ""
     nh, nf = len(q["GM_W1"]), len(q["GM_W1"][0])
     nc = len(q["GM_W2"])
     h = model_hash(q)
@@ -243,8 +316,8 @@ def render_header(q, conf_shift, default_reject, logit_q32, odr_hz=100, range_g=
         u("GM_N_SAMPLES", n_samples, "capture window length (C1)"),
         u("GM_FEATURE_VERSION", feature_version, "C3 feature-definition version"),
         "#define GM_MODEL_HASH       0x%08XUL       /* CRC-32 (IEEE) over the little-endian bytes of all arrays below, in file order */" % h,
-        u("GM_CONF_SHIFT", conf_shift, "C5: conf = min(255, margin >> GM_CONF_SHIFT)"),
-        u("GM_DEFAULT_REJECT", default_reject, "C5: default min_conf"),
+        u("GM_CONF_SHIFT", conf_shift, "C5: conf = min(255, margin >> GM_CONF_SHIFT)") + prov,
+        u("GM_DEFAULT_REJECT", default_reject, "C5: default min_conf") + prov,
         "#define GM_LOGIT_SCALE_Q32  %dUL       /* info: real logit LSB * 2^32 */" % logit_q32,
         "",
         "/* XC16 v2.10 is GCC 4.5-based: _Static_assert is NOT supported; use this. */",
@@ -290,18 +363,30 @@ def render_header(q, conf_shift, default_reject, logit_q32, odr_hz=100, range_g=
 
 # --------------------------------------------------------------------------- commands
 def cmd_norm(args):
-    """`norm` subcommand: write norm.json from calibration features. Args: args (Namespace)."""
+    """`norm` subcommand: write norm.json from calibration features.
+
+    Args: args (Namespace with features, out, percentile). Returns: None. Raises BoundError /
+    ValueError (mapped to exit 3 / 2 by main)."""
+    nonneg, version = feature_defs()
     X = _as_int_features(np.load(args.features), "--features")
-    nonneg = [i % 2 == 1 for i in range(X.shape[1])]  # C3: odd index = energy = non-negative
+    if X.shape[1] != len(nonneg):
+        raise ValueError("--features has %d columns, features_ref.NONNEG has %d" % (X.shape[1], len(nonneg)))
     off, sh = choose_norm(X, nonneg, args.percentile)
     with open(args.out, "w") as f:
         json.dump({"n_features": X.shape[1], "percentile": args.percentile, "nonneg": nonneg,
-                   "off": off, "sh": sh}, f)
+                   "feature_version": version, "off": off, "sh": sh}, f)
     print("norm: %d features, %d windows -> %s (max shift %d)" % (X.shape[1], X.shape[0], args.out, max(sh)))
 
 
 def cmd_header(args):
-    """`header` subcommand: quantize, check bounds, write gesture_model.h. Args: args (Namespace)."""
+    """`header` subcommand: quantize, check bounds, write gesture_model.h.
+
+    Args: args (Namespace of the header options). Returns: None. Raises BoundError (exit 3) on any
+    bound violation and ValueError / KeyError / OSError (exit 2) on unusable input."""
+    _nonneg, fversion = feature_defs()
+    if args.feature_version is not None:
+        _need(args.feature_version == fversion, "GM_FEATURE_VERSION == features_ref.FEATURES_VERSION",
+              "--feature-version %d, features_ref says %d" % (args.feature_version, fversion))
     net = np.load(args.weights)
     K = float(net["K"]) if "K" in net.files else 1.0
     if args.k is not None:
@@ -313,12 +398,14 @@ def cmd_header(args):
     with open(args.norm) as f:
         nj = json.load(f)
     off, sh = nj["off"], nj["sh"]
+    if "feature_version" in nj:
+        _need(nj["feature_version"] == fversion, "GM_FEATURE_VERSION == features_ref.FEATURES_VERSION",
+              "norm.json was made for feature version %r, features_ref says %d" % (nj["feature_version"], fversion))
     W1, b1, W2, b2 = (net[k] for k in ("W1", "b1", "W2", "b2"))
     H, F, C = W1.shape[0], W1.shape[1], W2.shape[0]
     if not (W1.shape == (H, F) and b1.shape == (H,) and W2.shape == (C, H) and b2.shape == (C,)):
         raise ValueError("inconsistent weight shapes W1%s b1%s W2%s b2%s" % (W1.shape, b1.shape, W2.shape, b2.shape))
-    if len(off) != F or len(sh) != F:
-        raise ValueError("norm.json has %d features, net has %d" % (len(off), F))
+    check_norm(off, sh, F)  # BEFORE any normalize(): a bad norm must be exit 3, not a traceback
     _need(C <= 16, "GM_N_CLASSES <= 16", "%d classes" % C)
     calib = _as_int_features(np.load(args.calib), "--calib")
     if calib.shape[1] != F:
@@ -327,9 +414,14 @@ def cmd_header(args):
     x8c = np.array([infer_ref.normalize(r, nm) for r in calib])
     q = quantize(W1, b1, W2, b2, K, off, sh, x8c)
     logit_q32 = int(round(q["logit_scale"] * 2.0 ** 32))
-    _need(0 <= logit_q32 < 2 ** 32, "GM_LOGIT_SCALE_Q32 in uint32", "value %d" % logit_q32)
-    _need(0 <= args.default_reject <= 255, "GM_DEFAULT_REJECT in 0..255", "value %d" % args.default_reject)
+    if logit_q32 >= 2 ** 32:  # info-only macro, not a C4 bound: saturate it and say so
+        print("warning: GM_LOGIT_SCALE_Q32 saturated to 0xFFFFFFFF (logit LSB >= 1.0 real unit; info-only macro)",
+              file=sys.stderr)
+        logit_q32 = 2 ** 32 - 1
+    default_reject = 64 if args.default_reject is None else args.default_reject
+    _need(0 <= default_reject <= 255, "GM_DEFAULT_REJECT in 0..255", "value %d" % default_reject)
     conf_shift = args.conf_shift
+    provisional = args.val is None
     if args.val is not None:
         if args.val_labels is None:
             raise ValueError("--val needs --val-labels")
@@ -339,23 +431,38 @@ def cmd_header(args):
             raise ValueError("--val/--val-labels shape mismatch")
         # integer path on the quantized model (hash/CLI fields are not needed for the stages)
         mm = dict(q, GM_CONF_SHIFT=0)
-        ok, margins, agree = 0, [], 0
+        ok, ok_f, agree, margins, rows = 0, 0, 0, [], []
         for r, lab in zip(V, y):
             res = infer_ref.forward(r, mm)
             x8 = np.array(res["x8"], dtype=np.float64)
             lf = (W2 @ np.maximum((W1 / K) @ x8 + b1, 0.0)) + b2
             agree += int(np.argmax(lf)) == res["top1"]
+            ok_f += int(np.argmax(lf)) == lab
+            rows.append((int(lab), res["margin"]))
             if res["top1"] == lab:
                 ok += 1
                 margins.append(res["margin"])
         conf_shift = choose_conf_shift(margins)
         print("val: %d windows, int accuracy %.1f%%, float-vs-int argmax agreement %.1f%%, GM_CONF_SHIFT=%d"
               % (len(y), 100.0 * ok / len(y), 100.0 * agree / len(y), conf_shift))
+        if len(y) < 500:
+            print("warning: only %d validation windows (< 500): the C4.3 int8-vs-int16 fallback criterion cannot be assessed"
+                  % len(y), file=sys.stderr)
+        elif fallback_needed(len(y), ok_f, ok, agree):
+            print("warning: C4.3 fallback criterion is MET (agreement < 97 %% or significant accuracy drop): "
+                  "consider int16 inputs (option d)", file=sys.stderr)
+        if args.default_reject is None:
+            confs = [infer_ref.mlp_conf(mg, conf_shift) for lab, mg in rows if lab != 0]
+            default_reject, nrej = choose_default_reject(confs)
+            print("val: GM_DEFAULT_REJECT=%d chosen by the C5.2 rule: rejects %d of %d held-out true gestures "
+                  "(%.2f %%, budget 2 %%)" % (default_reject, nrej, len(confs), 100.0 * nrej / len(confs)))
     else:
-        print("warning: no validation data; GM_CONF_SHIFT=%d is the --conf-shift default (provisional)" % conf_shift)
+        print("warning: no validation data; GM_CONF_SHIFT=%d and GM_DEFAULT_REJECT=%d are PROVISIONAL defaults"
+              % (conf_shift, default_reject), file=sys.stderr)
     _need(0 <= conf_shift <= 24, "GM_CONF_SHIFT <= 24", "value %d" % conf_shift)
-    text = render_header(q, conf_shift, args.default_reject, logit_q32, args.odr_hz, args.range_g,
-                         args.n_samples, args.feature_version)
+    _need(0 <= default_reject <= 255, "GM_DEFAULT_REJECT in 0..255", "value %d" % default_reject)
+    text = render_header(q, conf_shift, default_reject, logit_q32, args.odr_hz, args.range_g,
+                         args.n_samples, fversion, provisional)
     infer_ref.parse_header(text)  # round-trip: shapes, ranges and GM_MODEL_HASH must parse back
     with open(args.out, "w") as f:
         f.write(text)
@@ -363,7 +470,8 @@ def cmd_header(args):
 
 
 def main(argv=None):
-    """CLI entry. Args: argv (list or None). Returns: process exit code (0 ok, 2 bad input, 3 bound violation)."""
+    """CLI entry. Args: argv (list or None). Returns: process exit code (0 ok, 2 bad input, 3 bound violation).
+    A violation of any C4 bound prints a message naming the bound to stderr and never a traceback."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("norm", help="compute GM_IN_OFF / GM_IN_SH from calibration features")
@@ -378,11 +486,13 @@ def main(argv=None):
     h.add_argument("--val-labels", help=".npy integer class labels for --val")
     h.add_argument("--k", type=float, help="conditioning constant: net trained on x8 / K")
     h.add_argument("--conf-shift", type=int, default=6, help="used only without --val (provisional)")
-    h.add_argument("--default-reject", type=int, default=64)
+    h.add_argument("--default-reject", type=int, default=None,
+                   help="GM_DEFAULT_REJECT; default: chosen by the C5.2 rule with --val, else provisional 64")
     h.add_argument("--odr-hz", type=int, default=100)
     h.add_argument("--range-g", type=int, default=4)
     h.add_argument("--n-samples", type=int, default=150)
-    h.add_argument("--feature-version", type=int, default=1)
+    h.add_argument("--feature-version", type=int, default=None,
+                   help="must equal features_ref.FEATURES_VERSION (default)")
     h.add_argument("--out", required=True, help="gesture_model.h")
     args = ap.parse_args(argv)
     try:
