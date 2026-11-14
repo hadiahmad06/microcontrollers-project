@@ -21,8 +21,32 @@ Record as your decision: "Accept every recommendation in docs/agent/hadi/proposa
 - Conflicts with CONTRACTS.md or other top-level docs: none.
 Unblocks: UART driver + TX pump (WP1), PC recorder tool (WP2).
 
-### Q2. Trigger rule (C1.9): accept proposal C1b? (fix round S2-2F running; ask after it lands)
-Will be posted here with the final numbers once S2-2F is merged. Unblocks the capture state machine.
+### Q2. Trigger rule (CONTRACTS C1.9): accept proposal C1b? (ready: reviewed S2-2R, fix round S2-2F applied)
+Record as your decision: "Accept every recommendation in docs/agent/hadi/proposals/C1b_trigger.md (decisions 1-8, as fixed after review S2-2R)."
+- Statistic EMA-L1: sum over 3 axes of |x − (base >> 3)| (baseline time constant 80 ms, gravity cancels in any orientation), debounce N = 2 consecutive samples.
+- `gesture_set_trigger(threshold_mg)`: L1 mg at 2 mg/count; **default 250 mg**; 0 disables; recommended range 200..400 mg; >= 24567 clamps to a value that can still fire.
+- t = the sample that completes the debounce (trig_idx = 15, window t−15 … t+134, no RAM change).
+- Re-arm after release: 30 consecutive samples below thr/2; warm-up 32 samples after boot; baseline never frozen.
+- Bit-exact C/Python (405 streams). Synthetic, UNVERIFIED: 0 % false triggers on rest/tilt/tremor, 100 % detection,
+  0 % tilt false triggers on 1000 fresh seeds (vs 47 % for S=4/300 mg).
+- **Risks to know:** slow-tilt peak 216 mg is close to 250 mg; tremor peak (122-132 mg) is close to the re-arm level (126 mg). Real recordings decide.
+Unblocks: capture integration and the `gesture.c` API (3.7).
+
+### Q3. ⚠️ Conflicts with a top-level doc (the proposal's sub-question Q5 in C1b §6)
+You would be asked to say: "On a FIFO overrun while idle, also call trigger_resync()."
+`docs/agent/CONTRACTS.md` C1.6 says: "OVRN while idle: count only." (decided 2026-11-14 by Hadi)
+Options: **(1) Overrule** (C1.6 becomes "count, empty the ring and resync the trigger"), or **(2) Keep C1.6**: the trigger proposal works
+either way (with `quiet >= 16` a later release is safe). Agent recommendation: (2), keep C1.6 as is; capture.c already empties the ring on any overrun.
+
+### Q4. Contract wording: GM_DEFAULT_REJECT rule (CONTRACTS C5.2)
+C5.2 says: "exporter rule: smallest value with ≤ ~2 % of held-out true gestures rejected". Read literally that is always 0.
+The exporter (W2-1F) implements the evident intent: the **largest** min_conf that still rejects ≤ 2 % of held-out windows with
+label ≠ 0. Record as your decision: "GM_DEFAULT_REJECT = the largest min_conf that rejects at most 2 % of held-out true gestures (label ≠ 0)." (yes/no)
+
+### Q5. Contract wording erratum: conditioning constant K (CONTRACTS C4.3)
+C4.3 says the float net is trained on x8 "optionally divided by a constant for conditioning, multiplied back into W1 by the exporter".
+A net trained on x8/K has effective weights W1/K on x8, so the exporter must **divide** W1 by K (the tool does; e2e passes).
+Record as your decision: "C4.3: the exporter divides W1 by K." (yes/no)
 
 ## Hardware / bench (only you or the team can answer)
 - S2-0b: rerun `make selftest` in `docs/agent/hadi/spikes/sim` on your Mac (XC16 + MDB).
