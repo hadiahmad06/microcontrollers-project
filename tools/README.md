@@ -67,3 +67,36 @@ shape (ragged arrays are refused), literal-only `GM_*` macros and the hash, rais
 Quantization scheme: Jacob et al. 2018, arXiv:1712.05877; reference spec
 `docs/agent/hadi/spikes/quant/quant_ref.py` (our own spike).
 <!-- [END AI-GENERATED] -->
+
+<!-- [AI-GENERATED: Claude Code] -->
+## train.py and synth_dataset.py: dataset to trained header (W2-2)
+
+Dataset format (WP2 tools): one `.npz` with `windows` int16 `[N,150,3]` (C1 wand frame, values in
+[-2048, 2047]), `labels` uint8 `[N]` (0..8, C5), optional `subject` uint8 `[N]` and `session` uint16
+`[N]` for grouped splits, optional scalar `synthetic` (1 stamps the report as synthetic). The recorder
+(C2, undecided) will write this format.
+
+```
+python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1   # SYNTHETIC, pipeline test only
+python3 tools/train.py --data ds.npz --out-dir DIR [--seed S] [--hidden 16] [--epochs 60] \
+        [--val-frac 0.2] [--group subject|session|none] [--k 64] [--eval-every 5]
+python3 tools/train.py --selftest        # prints "train selftest PASS"
+```
+Pipeline: features (`features_ref`, cached in `DIR/features.npy`) -> split (stratified, or whole
+subjects/sessions to validation with `--group`; seeded) -> `export_model.py norm` on TRAIN features
+only -> `x8 = infer_ref.normalize` -> float 60-H-9 MLP in numpy (ReLU, softmax cross-entropy, Adam,
+trained on `x8 / K`, default K = 64) -> every `--eval-every` epochs a candidate header is exported
+with `export_model.py header --val ...` and scored with `infer_ref.forward` on the validation set;
+the best integer accuracy wins (patience 6 candidates). Per C4.3 every reported accuracy comes from
+the integer path; float accuracy and float-vs-int agreement are diagnostic. The validation set also
+picks the checkpoint, so its integer accuracy is slightly optimistic.
+
+Outputs in `DIR`: `gesture_model.h`, `norm.json`, `net.npz` (with `K`), `report.json`, `report.md`
+(accuracies, per-class confusion matrix, C4.3 fallback verdict with the n >= 500 check,
+`GM_CONF_SHIFT`, `GM_DEFAULT_REJECT` and its rejection rate), plus `split.npz`, `features.npy` and a
+`work/` scratch folder. Exit codes: 0 ok, 2 bad input, 3 exporter refusal (message names the bound).
+
+`synth_dataset.py` shapes are adapted from our own spike `docs/agent/hadi/spikes/trigger/synth.py`;
+the data is invented and must never be quoted as an accuracy result. Adam: Kingma and Ba 2015,
+arXiv:1412.6980 (textbook algorithm, no code borrowed).
+<!-- [END AI-GENERATED] -->
