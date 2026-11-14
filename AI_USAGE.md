@@ -77,3 +77,59 @@ which person.
 | firmware/test/features/gen_sstable.py | `find` | Search a 15-sample segment with a given SS | 2026-11-14 | agent |
 | firmware/test/features/gen_sstable.py | `main` | Generate ss_table.h / ss_table.py | 2026-11-14 | agent |
 | firmware/test/features/ss_table.h, ss_table.py | (generated data) | 72 segments with SS = k²-1, k², k²+1 | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_model_info` | Copy model identity fields from gesture_model.h | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_normalize` | Stage 0: offset, rounding shift, clamp to int8 x8 | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_requant` | Split-multiply requant + ReLU clamp [0,127], no int64 | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_layer1` | Dense int8 layer 1 into acc1, requant into h | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_layer2` | Dense int8 layer 2 into int32 logits | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_top2` | Argmax (lowest index on ties), runner-up, margin | 2026-11-14 | agent |
+| firmware/src/mlp.c | `mlp_forward` | All MLP stages; returns top1, fills x8 and logits | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `to_s32` | Reinterpret unsigned as signed | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `to_s16` | Reinterpret unsigned as signed | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `XorShift32.__init__` | xorshift32 PRNG mirrored in C | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `XorShift32.next` | xorshift32 PRNG mirrored in C | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `rshift_r` | Spec RSHIFT_R, SAT, exact big-int requant | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `sat` | Spec RSHIFT_R, SAT, exact big-int requant | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `requant` | Spec RSHIFT_R, SAT, exact big-int requant | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `normalize` | Stage-by-stage independent MLP oracle | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `layer1` | Stage-by-stage independent MLP oracle | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `layer2` | Stage-by-stage independent MLP oracle | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `top2` | Stage-by-stage independent MLP oracle | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `forward` | Stage-by-stage independent MLP oracle | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `random_features` | Mirror of the driver's feature generator | 2026-11-14 | agent |
+| firmware/test/mlp/oracle.py | `requant_sweep` | Requant sweep cases | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `check_bounds` | Assert C4 exporter bounds | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `rnd_weight` | Random valid model, 5 variants | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `make_model` | Random valid model, 5 variants | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `model_bytes` | Little-endian array bytes for CRC-32 | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `lit32` | Emit gesture_model.h with portable literals | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `lit16` | Emit gesture_model.h with portable literals | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `arr1` | Emit gesture_model.h with portable literals | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `arr2` | Emit gesture_model.h with portable literals | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `write_header` | Emit gesture_model.h with portable literals | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `edge_vectors` | Edge feature vectors as edge_vectors.h | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `write_edge` | Edge feature vectors as edge_vectors.h | 2026-11-14 | agent |
+| firmware/test/mlp/gen_model.py | `main` | Generator CLI | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `report` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `run` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `build` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `execute` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `parse` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `check_output` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `coverage` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/run_tests.py | `main` | Build, run and compare MLP suite | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `rng` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `gen_feat` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `print_i8` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `print_i32` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `run_vector` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `requant_sweep` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/driver.c | `main` | MLP test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `rshift_r` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_model_info` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_normalize` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_requant` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_layer1` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_layer2` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_top2` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/test/mlp/standin/mlp.c | `mlp_forward` | Test-only stand-in from the spec | 2026-11-14 | agent |

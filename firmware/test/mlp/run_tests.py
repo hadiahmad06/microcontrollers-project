@@ -42,7 +42,7 @@ def build(kind, impl, mdir, out, seed_vec, n_rand):
     seed_vec: PRNG seed; n_rand: random vector count. Returns: (ok, compiler messages)."""
     cc = os.environ["HOST_CC" if kind == "host" else "AVR_CC"]
     flags = shlex.split(os.environ["HOST_CFLAGS" if kind == "host" else "AVR_CFLAGS"])
-    cmd = ([cc, "-I" + mdir, "-I" + impl] + flags +
+    cmd = ([cc, "-iquote", mdir, "-iquote", impl] + flags +
            ["-DVEC_SEED=%du" % seed_vec, "-DN_RAND=%du" % n_rand, "-o", out,
             os.path.join(HERE, "driver.c"), os.environ["SIM16_SRC"], os.path.join(impl, "mlp.c")])
     p = run(cmd)
