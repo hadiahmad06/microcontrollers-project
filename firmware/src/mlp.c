@@ -1,4 +1,4 @@
-/* [AI-GENERATED: Claude Code] */
+// [AI-GENERATED: Claude Code]
 /**
  * @file mlp.c
  * @brief Integer MLP inference, normative spec: docs/agent/hadi/proposals/C4_model_header.md §2.
@@ -103,4 +103,4 @@ uint8_t mlp_forward(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES
     mlp_layer2(h, logits);
     return mlp_top2(logits, margin);
 }
-/* [END AI-GENERATED] */
+// [END AI-GENERATED]

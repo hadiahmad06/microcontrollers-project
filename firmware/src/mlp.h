@@ -1,4 +1,4 @@
-/* [AI-GENERATED: Claude Code] */
+// [AI-GENERATED: Claude Code]
 /**
  * @file mlp.h
  * @brief Integer-only MLP inference (60 -> 16 -> 9) per docs/agent/hadi/proposals/C4_model_header.md.
@@ -84,4 +84,4 @@ uint8_t mlp_forward(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES
                     int32_t logits[MLP_N_CLASSES], int32_t *margin);
 
 #endif /* MLP_H */
-/* [END AI-GENERATED] */
+// [END AI-GENERATED]
