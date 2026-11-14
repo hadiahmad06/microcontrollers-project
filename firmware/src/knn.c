@@ -21,7 +21,12 @@ static uint8_t  s_count[GESTURE_MAX_LEARNED];   /* templates stored per class */
 static uint8_t  s_next[GESTURE_MAX_LEARNED];    /* round-robin slot to write next */
 static uint16_t s_radius[GESTURE_MAX_LEARNED];  /* valid when s_count >= 2 */
 
-/** Map a class id to its index 0..NCLS-1; returns NCLS if invalid. */
+/**
+ * Map a class id to its index in the per-class arrays.
+ *
+ * @param class_id Class id; valid learned ids are GESTURE_LEARNED_BASE .. GESTURE_LEARNED_BASE + NCLS - 1.
+ * @return Index 0..NCLS-1, or NCLS if class_id is not a learned class id.
+ */
 static uint8_t cls_index(uint8_t class_id)
 {
     if (class_id < GESTURE_LEARNED_BASE) {
@@ -33,7 +38,14 @@ static uint8_t cls_index(uint8_t class_id)
     return (uint8_t)(class_id - GESTURE_LEARNED_BASE);
 }
 
-/** Recompute R_c of class index c from its stored templates (C5.2 per-class radius). */
+/**
+ * Recompute the acceptance radius R_c of one class from its stored templates (C5.2 per-class radius):
+ * clamp(2 * lower median of the pairwise L1 distances, MIN, MAX), or the default for fewer than 2 templates.
+ * Writes s_radius[c]; called whenever the templates of the class change (learn, import).
+ *
+ * @param c Class index 0..NCLS-1 (not a class id; the caller has validated it).
+ * @return None.
+ */
 static void recompute_radius(uint8_t c)
 {
     uint16_t d[NPAIR];
@@ -72,7 +84,13 @@ static void recompute_radius(uint8_t c)
     s_radius[c] = (uint16_t)r;
 }
 
-/** CRC-16/IBM-3740 update with one byte (poly 0x1021, MSB first). */
+/**
+ * CRC-16/IBM-3740 update with one byte (poly 0x1021, MSB first, no reflection).
+ *
+ * @param crc Running CRC so far (0xFFFF to start a new one).
+ * @param b   Next data byte.
+ * @return CRC after folding b in.
+ */
 static uint16_t crc16_byte(uint16_t crc, uint8_t b)
 {
     uint8_t i;
@@ -87,7 +105,13 @@ static uint16_t crc16_byte(uint16_t crc, uint8_t b)
     return crc;
 }
 
-/** CRC-16/IBM-3740 of len bytes starting at p, init 0xFFFF. */
+/**
+ * CRC-16/IBM-3740 of a byte range (init 0xFFFF, xorout 0); check("123456789") = 0x29B1.
+ *
+ * @param p   First byte (must not be NULL when len > 0).
+ * @param len Number of bytes.
+ * @return CRC-16 of the len bytes.
+ */
 static uint16_t crc16(const uint8_t *p, uint16_t len)
 {
     uint16_t crc = 0xFFFFu;
@@ -98,6 +122,7 @@ static uint16_t crc16(const uint8_t *p, uint16_t len)
     return crc;
 }
 
+/* Documented in knn.h. */
 void knn_reset(void)
 {
     uint8_t c, s, i;
@@ -113,6 +138,7 @@ void knn_reset(void)
     }
 }
 
+/* Documented in knn.h. */
 int8_t knn_learn(uint8_t class_id, const int8_t x8[KNN_DIM])
 {
     uint8_t c = cls_index(class_id);
@@ -133,12 +159,14 @@ int8_t knn_learn(uint8_t class_id, const int8_t x8[KNN_DIM])
     return (int8_t)s_count[c];
 }
 
+/* Documented in knn.h. */
 uint8_t knn_count(uint8_t class_id)
 {
     uint8_t c = cls_index(class_id);
     return (c >= NCLS) ? 0u : s_count[c];
 }
 
+/* Documented in knn.h. */
 uint8_t knn_total(void)
 {
     uint8_t c, t = 0u;
@@ -148,6 +176,7 @@ uint8_t knn_total(void)
     return t;
 }
 
+/* Documented in knn.h. */
 uint16_t knn_radius(uint8_t class_id)
 {
     uint8_t c = cls_index(class_id);
@@ -157,6 +186,7 @@ uint16_t knn_radius(uint8_t class_id)
     return (s_count[c] < 2u) ? (uint16_t)GESTURE_KNN_RADIUS_DEFAULT : s_radius[c];
 }
 
+/* Documented in knn.h. */
 uint16_t knn_l1(const int8_t a[KNN_DIM], const int8_t b[KNN_DIM])
 {
     uint16_t sum = 0u;
@@ -171,6 +201,7 @@ uint16_t knn_l1(const int8_t a[KNN_DIM], const int8_t b[KNN_DIM])
     return sum;
 }
 
+/* Documented in knn.h. */
 bool knn_query(const int8_t x8[KNN_DIM], knn_result_t *out)
 {
     uint16_t best[GESTURE_MAX_LEARNED];   /* nearest distance per class (valid when count > 0) */
@@ -222,6 +253,7 @@ bool knn_query(const int8_t x8[KNN_DIM], knn_result_t *out)
     return true;
 }
 
+/* Documented in knn.h. */
 uint16_t knn_export(uint8_t *buf, uint16_t cap)
 {
     uint16_t n = 0u;
@@ -252,6 +284,7 @@ uint16_t knn_export(uint8_t *buf, uint16_t cap)
     return n;
 }
 
+/* Documented in knn.h. */
 int8_t knn_import(const uint8_t *buf, uint16_t len)
 {
     uint16_t crc, n;

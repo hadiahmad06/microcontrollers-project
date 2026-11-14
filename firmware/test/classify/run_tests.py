@@ -37,11 +37,23 @@ LITERAL_Q = {
 }
 LITERAL_T = {"rmin_eq": (9, 255), "rmin_over": (-1, 0), "rdef_eq": (9, 255), "rdef_over": (-1, 0),
              "rmax_eq": (9, 255), "rmax_over": (-1, 0), "rmid_eq": (9, 255), "rmid_over": (-1, 0)}
+# Metadata import cases: 3 directed io_tests calls x 4 classes x 8 cases (6 repaired-CRC -> -2, 2 unrepaired -> -3).
+META_EXPECTED = 3 * 4 * 8
 LITERAL_LINES = ["G 10673", "DX 15240", "DR 600", "DR 1200", "DR 4000", "DR 2000"]
 
 
 def compare(label, got, exp, fails):
-    """Compare line lists; report up to 5 mismatches with the scenario they occur in."""
+    """Compare line lists; report up to 5 mismatches with the scenario they occur in.
+
+    Args:
+        label: target name for messages.
+        got: lines printed by the program.
+        exp: lines expected by the oracle.
+        fails: list that receives mismatch descriptions.
+
+    Returns:
+        Number of mismatching lines.
+    """
     bad = 0
     scen = "directed"
     for i in range(max(len(got), len(exp))):
@@ -57,10 +69,30 @@ def compare(label, got, exp, fails):
 
 
 def literal_checks(label, got, fails):
-    """Check the C5 table and a few hand-computed values directly on the program output."""
+    """Check the C5 table and a few hand-computed values directly on the program output (independent of oracle.py).
+
+    Args:
+        label: target name for messages.
+        got: lines printed by the program.
+        fails: list that receives failure descriptions.
+
+    Also checks the per-class metadata import cases (review 3.5R F1) against the spec, not the oracle: every
+    "X meta_*" line must be -3 for a *_norepair case (CRC checked first) and -2 otherwise, with the store
+    unchanged (same == 1), and there must be exactly META_EXPECTED of them.
+
+    Returns:
+        Number of metadata import lines checked.
+    """
     lastq = None
     seen_t = set()
+    nmeta = 0
     for ln in got:
+        if ln.startswith("X meta_"):
+            f = ln.split()
+            want = -3 if "norepair" in f[1] else -2
+            nmeta += 1
+            if (int(f[2]), int(f[3])) != (want, 1):
+                fails.append("%s: metadata case %s got rc %s same %s, expected rc %d same 1" % (label, f[1], f[2], f[3], want))
         if ln.startswith("Q "):
             lastq = ln
         elif ln.startswith("T "):
@@ -80,10 +112,21 @@ def literal_checks(label, got, fails):
     for lit in LITERAL_LINES:
         if lit not in got:
             fails.append("%s: expected line '%s' not found" % (label, lit))
+    if nmeta != META_EXPECTED:
+        fails.append("%s: %d metadata import lines, expected %d" % (label, nmeta, META_EXPECTED))
+    return nmeta
 
 
 def run(cmd, timeout):
-    """Run a command; return (exit code, stdout lines) or (None, []) on timeout."""
+    """Run a command with a timeout and keep its non-empty output lines (SIM16_EXIT markers dropped).
+
+    Args:
+        cmd: argument list.
+        timeout: seconds.
+
+    Returns:
+        (exit code, stdout lines, stderr text), or (None, [], "") on timeout.
+    """
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -92,7 +135,18 @@ def run(cmd, timeout):
 
 
 def check(label, cmd, seed, nscen, timeout):
-    """Run one target and compare it with the oracle. Returns True on PASS."""
+    """Run one target and compare its output with the oracle; print PASS or FAIL lines.
+
+    Args:
+        label: target name (host or sim16).
+        cmd: argument list of the program.
+        seed: run seed.
+        nscen: scenarios the program replays.
+        timeout: seconds.
+
+    Returns:
+        True on PASS.
+    """
     exp = oracle.expected(seed, nscen)
     res = run(cmd, timeout)
     fails = []
@@ -103,17 +157,24 @@ def check(label, cmd, seed, nscen, timeout):
     if rc != 0:
         fails.append("%s: exit code %d %s" % (label, rc, err.strip()[:300]))
     nbad = compare(label, got, exp, fails)
-    literal_checks(label, got, fails)
+    nmeta = literal_checks(label, got, fails)
     if fails:
         print("FAIL %s: %d mismatching lines of %d" % (label, nbad, len(exp)))
         for f in fails[:12]:
             print("  " + f)
         return False
+    print("PASS %s: metadata import checks, %d cases (count > 5, next >= 5, count < 5 with next != count -> -2; "
+          "flip without CRC repair -> -3; store unchanged)" % (label, nmeta))
     print("PASS %s: directed cases + %d scenarios, %d lines match the oracle" % (label, nscen, len(exp)))
     return True
 
 
 def main():
+    """Parse the command line, run the host and sim16 targets, print the verdict.
+
+    Returns:
+        Process exit code: 0 on "classify suite PASS", 1 otherwise.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", required=True)
     ap.add_argument("--elf", required=True)

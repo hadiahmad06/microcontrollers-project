@@ -243,14 +243,75 @@ static void T_case(const char *name, const int8_t *win, uint8_t top1, int32_t ma
 }
 
 /**
+ * Import the blob in g_blob2 (optionally with its CRC repaired first), then re-export the store and
+ * compare it with the snapshot in g_blob1. Prints "X name rc same" (same = 1 if the store is unchanged).
+ *
+ * @param name   Case name.
+ * @param size   Blob length in bytes (KNN_BLOB_SIZE).
+ * @param repair true to recompute the CRC of g_blob2 before importing, so only the mutated byte is wrong.
+ * @return None.
+ */
+static void blob_case(const char *name, uint16_t size, bool repair)
+{
+    int8_t rc;
+    uint16_t n, same;
+    if (repair) {
+        uint16_t c = crc16(g_blob2, (uint16_t)(size - 2u));
+        g_blob2[size - 2u] = (uint8_t)(c & 0xFFu);
+        g_blob2[size - 1u] = (uint8_t)(c >> 8);
+    }
+    rc = knn_import(g_blob2, size);
+    n = knn_export(g_blob2, KNN_BLOB_SIZE);
+    same = (n == size && memcmp(g_blob2, g_blob1, size) == 0) ? 1u : 0u;
+    printf("X %s %ld %ld\n", name, L(rc), L(same));
+}
+
+/**
+ * Per-class metadata cases (review 3.5R F1), on the snapshot in g_blob1, for each class 0..3:
+ * with a repaired CRC, count > 5, next >= 5, and count < 5 with next != count (expect -2); with the CRC
+ * NOT repaired, a flipped count byte and a flipped next byte (expect -3, since the CRC is checked first).
+ * The store must be unchanged after every case. No PRNG draws.
+ *
+ * @param size Blob length in bytes (KNN_BLOB_SIZE).
+ * @return None.
+ */
+static void meta_tests(uint16_t size)
+{
+    static const char *const KIND[8] = {"cnt6", "cnt255", "nxt5", "nxt255", "lt_hi", "lt_lo",
+                                        "cnt_norepair", "nxt_norepair"};
+    uint8_t c, kd;
+    char name[32];
+    for (c = 0u; c < GESTURE_MAX_LEARNED; c++) {
+        uint16_t oc = (uint16_t)(4u + 2u * c);   /* count byte of class c; next-slot byte is oc + 1 */
+        for (kd = 0u; kd < 8u; kd++) {
+            memcpy(g_blob2, g_blob1, size);
+            g_blob2[size] = 0u; g_blob2[size + 1u] = 0u;
+            switch (kd) {
+            case 0: g_blob2[oc] = 6u; break;                                   /* count > 5 */
+            case 1: g_blob2[oc] = 255u; break;                                 /* count > 5 */
+            case 2: g_blob2[oc + 1u] = 5u; break;                              /* next >= 5 */
+            case 3: g_blob2[oc + 1u] = 255u; break;                            /* next >= 5 */
+            case 4: g_blob2[oc] = 2u; g_blob2[oc + 1u] = 3u; break;            /* count < 5, next != count */
+            case 5: g_blob2[oc] = 3u; g_blob2[oc + 1u] = 2u; break;            /* count < 5, next != count */
+            case 6: g_blob2[oc] ^= 0x08u; break;                               /* flip, old CRC */
+            default: g_blob2[oc + 1u] ^= 0x04u; break;                         /* flip, old CRC */
+            }
+            (void)snprintf(name, sizeof name, "meta_%s_c%u", KIND[kd], (unsigned)c);
+            blob_case(name, size, kd < 6u);
+        }
+    }
+}
+
+/**
  * Error-path and round-trip tests of knn_export / knn_import on the current store.
  * Prints "X name rc same" lines (same = 1 if the store re-exports identically afterwards) and finally
  * the round trip: reset, junk learn, import, then N/R/E again and one more learn.
  *
- * @param amp Noise amplitude used for the learn after the import (draws nothing when 0).
+ * @param amp  Noise amplitude used for the learn after the import (draws nothing when 0).
+ * @param meta Non-zero to also run meta_tests() (directed calls only, to keep the scenario runs short).
  * @return None.
  */
-static void io_tests(uint8_t amp)
+static void io_tests(uint8_t amp, uint8_t meta)
 {
     uint16_t size = knn_export(g_blob1, KNN_BLOB_SIZE);
     uint16_t idx;
@@ -294,6 +355,7 @@ static void io_tests(uint8_t amp)
         same = (n == size && memcmp(g_blob2, g_blob1, size) == 0) ? 1u : 0u;
         printf("X %s %ld %ld\n", name, L(rc), L(same));
     }
+    if (meta != 0u) { meta_tests(size); }
     /* round trip: other content first, so import must replace everything including next-slot */
     knn_reset();
     v_mk(g_a, 3, 7, -9);
@@ -381,7 +443,7 @@ static void scenario(uint32_t seed, uint32_t s)
             emit_decide("D", top1, margin, sh, mc, (have && fl != 0u) ? &r : NULL);
         }
     }
-    io_tests(amp);
+    io_tests(amp, 0u);
 }
 
 /**
@@ -493,7 +555,7 @@ static void directed(void)
         v_dist(g_win, GROW[i], 1);
         T_case("gr", g_win, 3u, 0, 0u, 1u);
     }
-    io_tests(3u);
+    io_tests(3u, 1u);
     /* cross-class tie: identical templates in class 10 (learned first) and class 9 -> kid 9 */
     knn_reset();
     v_mk(g_a, 5, 20, -33);
@@ -520,7 +582,7 @@ static void directed(void)
     T_case("ex_m", g_win, 3u, 0, 0u, 64u);
     v_mk(g_win, 127, 20, -127);
     T_case("ex_far", g_win, 3u, 0, 0u, 0u);
-    io_tests(60u);
+    io_tests(60u, 1u);
     for (i = 0u; i < GESTURE_MAX_LEARNED; i++) { v_base(g_base[i]); }
     /* all four classes full and wrapped, then I/O */
     knn_reset();
@@ -531,7 +593,7 @@ static void directed(void)
         }
     }
     report_state("w");
-    io_tests(8u);
+    io_tests(8u, 1u);
 }
 
 /**
