@@ -29,7 +29,8 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 | review-2 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-3R | running |
 | spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; standing by for fixes |
 | review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | running |
-| research-display | Sonnet 5.5 / medium | researcher | S1-5 | running |
+| research-display | Sonnet 5.5 / medium | researcher | S1-5 | done; standing by for fixes |
+| review-5 | Sonnet 5.5 / medium (worktree) | fact-checker and cross-proposal reconciler | S1-5R | running |
 | impl-guard, qa-guard | - | - | S1-6 | retired; S1-6 was scrapped |
 
 ## Sprint 0: Framework (carried over)
@@ -49,7 +50,7 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 | S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | fix round: T and R passed and are merged. Fixes: the energy shift by 11 is too coarse (it compares shift 6–8 vs isqrt RMS), an XC16 const-pointer warning, and test-harness nits | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
 | S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | in review: main agent reran `quant_ref.py`; the requantization self-test passes on 200k cases. Several facts are still marked UNVERIFIED | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
 | S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | in review: works. Main agent reran `make demo`: PASS, 1130 cycles, about 7 s | `spikes/sim/**` | S1-4R: reproduce from the README |
-| S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | in progress | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
+| S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | in review: committed `c4a2859`. Found that no single WS2812 waveform satisfies both chip revisions, and that the matrix needs a 5 V level shifter. review-5 is also reconciling all seven proposals | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
 | S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
 | S1-7 | Hadi decides C1–C7, and the decisions go into `docs/agent/CONTRACTS.md` | main + Hadi | blocked by S1-1 to S1-5 | top-level docs | – |
 
