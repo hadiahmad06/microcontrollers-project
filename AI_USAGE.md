@@ -32,3 +32,4 @@ which person.
 | docs/agent/hadi/spikes/sim_qa/vals.c, hang.c, order.c | `main`, `sim_*` | Simulator runner edge-case programs (signs, 16-bit bug, arrays, hangs, breakpoint order) | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/sim_qa/check_vals.py | `s16` | Host oracle for vals.c | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/sim_qa/cyc.sh, run_sim_mktemp.sh | scripts | Cycle-table runner; proposed per-run temp-dir runner | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/sim/run_sim.sh, selftest.sh | `sym_addr`, `check`, scripts | Breakpoint-order check, per-run temp dir, simulator self-test | 2026-11-14 | agent |

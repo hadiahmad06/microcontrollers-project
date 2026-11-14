@@ -27,10 +27,10 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 | review-1 | Sonnet 5.5 / medium (worktree) | reviewer | S1-2R | done, merged: APPROVE WITH NITS |
 | research-quant | Sonnet 5.5 / medium | researcher | S1-3 | done; fixes merged |
 | review-2 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-3R | done, merged: REQUEST CHANGES (3 major) |
-| spike-sim | Sonnet 5.5 / medium | implementer | S1-4 fix round | running in its own worktree, branch `s1-4-fixes` |
+| spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; fixes merged |
 | review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | done, merged: APPROVE WITH NITS. Cycle counts verified exact |
 | research-display | Sonnet 5.5 / medium | researcher | S1-5 | done; fixes merged |
-| sheet-writer | Sonnet 5.5 / medium (worktree) | integrator | S1-8 | running |
+| sheet-writer | Sonnet 5.5 / medium (worktree) | integrator | S1-8 | done, merged |
 | review-5 | Sonnet 5.5 / medium (worktree) | fact-checker and cross-proposal reconciler | S1-5R | done, merged: REQUEST CHANGES (3 high, all documentation) |
 | impl-guard, qa-guard | - | - | S1-6 | retired; S1-6 was scrapped |
 
@@ -50,10 +50,10 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 | S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | **done**, merged `9b4a6a5`. Adds the drain-loop rule, a capture-path RAM total of 1188 B, the required config-word list, and the WS2812 pin conflict flagged for Hadi | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
 | S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | **done**, merged `9c8a414`. Main agent reran: all 6 energy variants PASS, QA OVERALL PASS, XC16 clean. Recommends isqrt energy; the default stays at shift 11 until Hadi decides (D4) | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
 | S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | **done**: all 15 review findings fixed and merged. Main agent reran: ALL PASS, with float-vs-int agreement at 99.3% when training on x8 directly. Ready for Hadi's decisions | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
-| S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | fix round: cycle counts verified against ISA timings, catches the 16-bit int bug, and reads back 60-element arrays. Fixing F1 (breakpoint order not checked) and F2 (parallel runs collide), and adding `make selftest` | `spikes/sim/**` | S1-4R: reproduce from the README |
+| S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | **done**: checks breakpoint order (exit code 7), uses a temp dir per run, `make demo` asserts 1130 cycles, `make selftest` passes. Main agent did NOT rerun the selftest | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | **done**, merged `d822a43`. RAM is 3,660 B (44.7%). Flash is 21.9 KB (33.5%) without persistence, or 28.0 KB with 4-block persistence | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
 | S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
-| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | sheet-writer | in progress | `DECISION_SHEET.md` | main agent checks it against the sources |
+| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | sheet-writer | **done**: `DECISION_SHEET.md`. The main agent has NOT checked it against the sources yet | `DECISION_SHEET.md` | main agent checks it against the sources |
 | S1-7 | Hadi decides C1–C7, and the decisions go into `docs/agent/CONTRACTS.md` | main + Hadi | blocked by S1-8 | top-level docs | – |
 
 Paths are relative to `docs/agent/hadi/` unless they start with `.`.
@@ -78,6 +78,15 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (n), **SPRINT 1 STOPPING POINT / HANDOFF**
+  - **Done:** S1-1 to S1-5 and S1-8 are merged on main. S1-6 was scrapped.
+  - **Next session:**
+    1. Check DECISION_SHEET.md against the proposals. The sheet-writer flagged 8 inconsistencies, now in Part B: B1 pin wording, B2 trigger source, B3 nonneg flag, B7 staging size, B8–B10 have no recommendation, and B11 is API deltas. C3 also quotes ms at 4 MIPS rather than 16.
+    2. Rerun `make selftest` in spikes/sim.
+    3. Hadi works through the sheet (S1-7). Write the agreed contracts to `docs/agent/CONTRACTS.md`.
+    4. Sprint 2: C2 proposal, then 3.3–3.8.
+  - **Housekeeping:** about 14 stale `run_sim.*` dirs in `$TMPDIR`. Delete the no-op stub `.claude/hooks/guard_docs.py` once this session ends.
+  - **Remote:** not used yet, on Hadi's instruction.
 - 2026-11-14 (m): **Done:** S1-5 fix round merged. All 7 proposals are final on main. **Next:** S1-8 decision sheet (sheet-writer), S1-4 fix round (spike-sim). **Then:** the sprint stopping point; Hadi plans a handoff to a cloud session.
 - 2026-11-14 (l): **Done:** S1-4R merged. **Next:** the S1-4 and S1-5 fix rounds are running in parallel. When both are merged, a Sonnet agent compiles the decision sheet (S1-7 prep). **Env note:** the zoxide banner from `~/.zshrc` appears in every shell output. It's harmless; setting `_ZO_DOCTOR=0` silences it.
 - 2026-11-14 (k): **Done:** S1-5R merged with verdict REQUEST CHANGES. Its reconciliation table covers all 7 proposals. **Next:** the S1-5 fix round, and S1-4R (still running). Then the decision sheet.
