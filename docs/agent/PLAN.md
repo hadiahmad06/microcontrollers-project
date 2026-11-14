@@ -1,8 +1,9 @@
 # Project plan: compartmentalized work packages
 
-> Agent draft for `hadi`, 2026-11-14. Hadi hasn't approved it yet. Once Hadi says to use it,
-> it moves to `docs/agent/PLAN.md` (AGENTS.md §5A).
+> Team plan. Drafted by Hadi's agent; adopted by Hadi 2026-11-14 (moved from `docs/agent/hadi/PLAN.md`).
+> - Decided: 2026-11-14 by Hadi. Not contested.
 > Sources: `docs/archive/proposal.pdf`, `docs/archive/INITIAL_OVERVIEW.md`, `docs/human/TEAM_PROCESS.md`.
+> Locked contracts: `docs/agent/CONTRACTS.md`. Repo layout: `docs/human/REPO_LAYOUT.md`.
 > **Everyone owns everything.** The work packages below organize the *work*. They don't assign
 > owners. Anyone, or anyone's agent, can pick up any ticket.
 
@@ -110,8 +111,8 @@ These are tracked in `BOARD.md` (AGENTS.md §6).
 | 3.3 | `features.c`: integer feature extraction per C3 | Sonnet | C1, C3 locked | Host test: matches `features_ref.py` on all test vectors, bit for bit |
 | 3.4 | `mlp.c`: int8×int8→int32 dense, requant, ReLU, argmax per C4 | Sonnet | C4 locked | Host test: logits match `infer_ref.py`, bit for bit |
 | 3.5 | Reject logic: top1−top2 margin → uint8 confidence → `GESTURE_UNKNOWN` | Sonnet | 3.4, C5 | Unit tests at the boundary margins |
-| 3.6 | `knn.c`: template store, L1 distance on template vectors (int8 normalized per the C5 proposal, pending Hadi's decision), learn and classify | Sonnet | 3.3 | Unit tests. Templates fit the RAM budget in §4 |
-| 3.7 | `gesture.c`: public API wrapper, the 7 functions with doc comments | Sonnet | 3.3–3.6, WP1 API | Compiles with XC16 at `-Wall -Wconversion` with no warnings |
+| 3.6 | `knn.c`: template store, L1 distance on int8 `x8` template vectors (C5), learn and classify | Sonnet | 3.3 | Unit tests. Templates fit the RAM budget in §4 |
+| 3.7 | `gesture.c`: public API wrapper, the 8 public functions (CONTRACTS.md, API) with doc comments | Sonnet | 3.3–3.6, WP1 API | Compiles with XC16 at `-Wall -Wconversion` with no warnings |
 | 3.8 | Host harness: build C with host gcc, run vectors, diff against Python | Sonnet | 3.3, 3.4 | One command, `make test`, prints PASS/FAIL per vector |
 | 3.9 | On-target verification: run the same vectors on the PIC24 (or the MPLAB simulator), stream results over UART, diff | Hadi + Main | 3.8, WP1 UART | 100% match on target, not just on host |
 | 3.10 | Measure cycles (Timer1 or a pin toggle), RAM (map file), flash | Hadi | 3.9 | Numbers recorded in the report |

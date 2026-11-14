@@ -86,3 +86,23 @@ This file is append-only. See AGENTS.md §4.
 - Statement: "Please use a distinct name for your git identity. id say hadi ahmad claude or something"
 - Context: Agent commits now use the name `Hadi Ahmad (Claude)` with Hadi's email, plus the Co-Authored-By trailer (AGENTS.md §7 still holds: it is Hadi's identity). Commit 1 of this session went out under plain "Hadi Ahmad"; it was left as is, not rewritten.
 - Supersedes: none
+
+## 2026-11-14: Contracts C1, C3-C7: accept every Part A recommendation
+- Statement: "Accept every recommendation in DECISION_SHEET.md Part A (46 items, C1-D1 through C7-D6) as written." (answered "Yes, accept all")
+- Context: S1-7 decision round. The contract text comes from each proposal's own recommendation (the sheet is a summary). FYI conflicts with INITIAL_OVERVIEW (footnotes 1-7 of the sheet) were shown in the question. The bulb method (C6b D5) was not part of Part A and stays open.
+- Supersedes: none
+
+## 2026-11-14: Cross-contract choices B1-B11
+- Statement: "Accept the Part B recommendations in docs/agent/hadi/S1-7_DECISION_ROUND.md (B1-B11) as written." (answered "Yes, accept B1-B11")
+- Context: S1-7 decision round. Includes pin layout (a) provisional on the lab-board check, software trigger with the rule in follow-up S2-2, isqrt energy, 96 B staging, 100 Hz/±4 g lock for v1, interrupt priorities, tap-in-window ignored, `int8_t gesture_init`.
+- Supersedes: none
+
+## 2026-11-14: Repository layout
+- Statement: "Product code lives in firmware/src/ (one .c/.h pair per module), host tests in firmware/test/, Python tools in tools/ (features_ref, infer_ref, export_model, recorder); spikes stay in docs/agent/hadi/spikes/." (answered "Yes")
+- Context: PLAN WP5 had only proposed it.
+- Supersedes: none
+
+## 2026-11-14: Adopt the plan
+- Statement: "Adopt docs/agent/hadi/PLAN.md as the team plan; it moves to docs/agent/PLAN.md." (answered "Yes, adopt it")
+- Context: Sprint 2 follows its tickets 3.3-3.8.
+- Supersedes: none
