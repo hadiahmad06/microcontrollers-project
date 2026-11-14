@@ -8,7 +8,7 @@
 - XC16 v2.10: `/Applications/microchip/xc16/v2.10/bin/xc16-gcc -mcpu=24FJ64GA002`. Compiles and links. ✅
 - MPLAB X v6.35 simulator: `/Applications/microchip/mplabx/v6.35/mplab_platform/bin/mdb.sh`. Headless use not yet proven (S1-4).
 - Host tools: Apple clang 16, python 3.12 + numpy 1.26, make. arm64 macOS.
-- Git: local repo on `master`, no remote yet (S0-1).
+- Git: branch `main`. Hadi added a GitHub remote on 2026-11-14; agents do not push or fetch until told to.
 
 ## Working rules (Hadi's decisions, 2026-11-14)
 - New subagents run in **git worktrees** (`isolation: worktree`), each committing on its own branch.
@@ -18,23 +18,24 @@
 ## Roster
 _Agent IDs only work inside the session that started them. After a handoff, start new subagents and give them the ticket and its files._
 
-| Name | Model | Role | Current ticket | Status |
-|------|-------|------|----------------|--------|
-| research-sensor | Sonnet 5.5 / medium | researcher | S1-1 | running (started 2026-11-14) |
-| spike-features | Sonnet 5.5 / medium | implementer | S1-2 | done; standing by for fixes |
-| test-features | Sonnet 5.5 / medium (worktree) | tester | S1-2T | running |
-| review-1 | Sonnet 5.5 / medium (worktree) | reviewer | S1-2R | running |
+| Name | Model | Role | Ticket | Status |
+|------|-------|------|--------|--------|
+| research-sensor | Sonnet 5.5 / medium | researcher | S1-1 | done; standing by for fixes |
+| review-3 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-1R | running |
+| spike-features | Sonnet 5.5 / medium | implementer | S1-2 fix round | running in its own worktree, branch `s1-2-fixes` |
+| test-features | Sonnet 5.5 / medium (worktree) | tester | S1-2T | done, merged: 0 mismatches over 28k windows plus every possible segment sum |
+| review-1 | Sonnet 5.5 / medium (worktree) | reviewer | S1-2R | done, merged: APPROVE WITH NITS |
 | research-quant | Sonnet 5.5 / medium | researcher | S1-3 | done; standing by for fixes |
-| review-2 | Sonnet 5.5 / medium (worktree) | reviewer / fact-checker | S1-3R | running |
-| spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | running (started 2026-11-14) |
-| research-display | Sonnet 5.5 / medium | researcher | S1-5 | running (started 2026-11-14) |
-| impl-guard | Sonnet 5.5 / medium | implementer | S1-6 | done; standing by for fixes |
-| qa-guard | Sonnet 5.5 / medium | tester + reviewer | S1-6T, S1-6R | running |
+| review-2 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-3R | running |
+| spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; standing by for fixes |
+| review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | running |
+| research-display | Sonnet 5.5 / medium | researcher | S1-5 | running |
+| impl-guard, qa-guard | - | - | S1-6 | retired; S1-6 was scrapped |
 
 ## Sprint 0: Framework (carried over)
 | ID | Title | Assignee | Status | Notes |
 |----|-------|----------|--------|-------|
-| S0-1 | Add shared git remote | Hadi | backlog | Hadi is adding it |
+| S0-1 | Add shared git remote | Hadi | done | Don't interact with the remote yet |
 | S0-4 | Fill in the unknowns (pins, I2C bus and address, bulb method, deadlines) | Hadi | backlog | XC16 version is now known: v2.10. The S1 proposals will narrow the rest down to concrete questions |
 
 ## Sprint 1: Contract proposals and verification setup (started 2026-11-14)
@@ -44,12 +45,12 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | in progress | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
-| S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | in review: main agent reran `make test` (PASS 10062/10062). XC16 build has 0 warnings, 228 B flash | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
+| S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | in review: delivered and committed. It reported 4 contradictions between sources, which review-3 is settling | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
+| S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | fix round: T and R passed and are merged. Fixes: the energy shift by 11 is too coarse (it compares shift 6–8 vs isqrt RMS), an XC16 const-pointer warning, and test-harness nits | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
 | S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | in review: main agent reran `quant_ref.py`; the requantization self-test passes on 200k cases. Several facts are still marked UNVERIFIED | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
-| S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | in progress | `spikes/sim/**` | S1-4R: reproduce from the README |
+| S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | in review: works. Main agent reran `make demo`: PASS, 1130 cycles, about 7 s | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | in progress | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
-| S1-6 | Write-guard hook with a per-person `ME` setting | impl-guard | in review: all 11 acceptance cases pass. The hook is live in this session | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
+| S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
 | S1-7 | Hadi decides C1–C7, and the decisions go into `docs/agent/CONTRACTS.md` | main + Hadi | blocked by S1-1 to S1-5 | top-level docs | – |
 
 Paths are relative to `docs/agent/hadi/` unless they start with `.`.
@@ -74,6 +75,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (f): **Done:** S1-6 scrapped on Hadi's decision. S1-1, S1-3 and S1-4 delivered and committed. S1-2T and S1-2R merged, and their worktrees removed. **Next:** S1-2 fix round, reviews S1-1R, S1-3R and S1-4R, and S1-5 delivery. Then a sprint review with Hadi (S1-7 decisions) and the handoff to a cloud session. **Blocked:** none.
 - 2026-11-14 (e): **Done:** S1-3 delivered. It confirmed `ug.txt` was its file: a failed `cd` made `pdftotext` write to the project root. The file has been moved out. Added `.claude/worktrees/` to `.gitignore`. Fixed the PLAN 3.6 int16/int8 inconsistency that research-quant flagged. **Next:** review-2 is checking S1-3. **Lesson for future briefs:** tell agents to `cd` with quoted absolute paths and to check that the `cd` succeeded before writing output files.
 - 2026-11-14 (d): **Done:** base commit `ea537f2` on master, so worktree mode is on. S1-2 implemented. Main agent's review: the code matches its spec. Open concern: the `>>11` energy scale may be too coarse for small motions. `ug.txt` is gone. **Next:** S1-2T and S1-2R are running in worktrees. Once qa-guard reports, fix the hook's worktree bypass: paths under `.claude/worktrees/<name>/docs/...` are not checked. **Note:** the guard's Bash heuristic blocked the main agent's own commit because the commit message mentioned the archive folder. That is the documented false positive; the workaround is to put the message in a file (`git commit -F`).
 - 2026-11-14 (c): **Done:** S1-6 implemented. Main agent read the diff and found one small issue: the shebang, module docstring and `__main__` guard sit outside the AI markers. **Next:** qa-guard is writing independent tests and reviewing it. One test plus review agent was used because the ticket is small. **Issue:** a 985 KB XC16 user-guide text dump (`ug.txt`) appeared in the project root, outside every subagent's allowed paths. research-quant is the likely source; it has been asked to confirm and remove it. Don't commit it.
