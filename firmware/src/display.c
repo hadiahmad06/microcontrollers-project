@@ -42,10 +42,7 @@ void display_get(uint8_t row, uint8_t col, uint8_t rgb[3])
 {
     uint16_t o;
     if (row >= DISPLAY_H || col >= DISPLAY_W) {
-        rgb[0] = 0u;
-        rgb[1] = 0u;
-        rgb[2] = 0u;
-        return;
+        return;   /* out of range: rgb left unchanged (main-agent ruling, WP4-a/WP4-aT) */
     }
     o = (uint16_t)(((uint16_t)row * DISPLAY_W + col) * 3u);
     rgb[0] = g_fb[o];

@@ -332,3 +332,59 @@ which person.
 | docs/agent/hadi/spikes/trigger/evaluate.py | `rearm` | Re-arm failure rate vs threshold on tremor | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/trigger/evaluate.py | `fresh` | Tilt false triggers and margins on fresh seeds | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/trigger/evaluate.py | `header_defaults` | Parse TRIG_DEFAULT_* from trigger.h for the defaults check | 2026-11-14 | agent |
+| firmware/src/display.c | `cap_channel` | Applies the compile-time cap to one raw channel value. @return 0..DISPLAY_CAP. | 2026-11-14 | agent |
+| firmware/src/display.c | `display_clear` | Zero the 192 B framebuffer | 2026-11-14 | agent |
+| firmware/src/display.c | `display_set` | Store raw RGB for one pixel (out of range ignored) | 2026-11-14 | agent |
+| firmware/src/display.c | `display_get` | Read raw RGB of one pixel (out of range: unchanged) | 2026-11-14 | agent |
+| firmware/src/display.c | `display_draw_bitmap` | Clear, then set lit bits of an 8x8 bitmap to one colour | 2026-11-14 | agent |
+| firmware/src/display.c | `display_units` | Sum of capped channel values (current estimate units) | 2026-11-14 | agent |
+| firmware/src/display.c | `display_render` | Capped + limited GRB wire bytes; returns estimated mA | 2026-11-14 | agent |
+| firmware/src/icons.c | `icon_index` | Maps an id to a table index; unsupported ids map to UNKNOWN. | 2026-11-14 | agent |
+| firmware/src/icons.c | `icon_bitmap` | 8-byte bitmap for a class id (UNKNOWN fallback) | 2026-11-14 | agent |
+| firmware/src/icons.c | `icon_color` | RGB colour for a class id | 2026-11-14 | agent |
+| firmware/src/icons.c | `icon_show` | Draw the icon for a class id | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `rnd` | xorshift32 PRNG (13, 17, 5); mirrored bit for bit in oracle.py. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `cap_of` | Spec cap formula c_cap = (c * cap + 127) / 255. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `load` | Write every channel of the framebuffer from a 192-byte R,G,B row-major array via display_set. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `noise` | Fill the whole framebuffer with a constant noise colour (to prove later calls overwrite/clear). | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `emit` | Print one frame record: render + units + guard check + display_get check against expect. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `frame_target` | Build a frame whose capped sum is exactly `target` (as far as 192 channels allow): channels at | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `build_frame` | Build directed frame k (names in FRAME_NAME); mirrored in oracle.py. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `bitmap_case` | Directed bitmap cases: noise first (draw_bitmap must clear), draw, emit. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `scenario_frame` | Pseudo-random framebuffer for scenario i: mode i%4 = uniform / sparse 255 / small / mostly bright. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `icon_section` | Icon section: for each id print the bitmap/colour and the rendered icon_show result. | 2026-11-14 | agent |
+| firmware/test/display/test_display.c | `main` | Program entry: prints CFG, directed cases, scenarios, the icon section and END. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `Rng` | xorshift32 (13, 17, 5), identical to rnd() in test_display.c. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `cap_of` | Spec cap formula. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `limit_of` | Spec limiter threshold in units. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `render` | Reference of display_render() and display_units(). | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `frame_target` | Frame whose capped sum is `target`: 255s first, then the smallest input for the remainder. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `build_frame` | Directed frame k (same order as FRAME_NAMES / build_frame() in the driver). | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `bitmap_frame` | Framebuffer after display_draw_bitmap (byte 0 = top row, bit 7 = leftmost column). | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `scenario_frame` | Pseudo-random framebuffer of scenario i (mode i%4), consuming 192 draws. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `case_lines` | The 4 text lines the driver prints for one frame (guard and get checks expected to be 1). | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `expected` | Every line the driver prints before the ICONS marker. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `__init__` | Seed the generator; 0 is mapped to 1 like the driver. | 2026-11-14 | agent |
+| firmware/test/display/oracle.py | `next` | Advance and return the next 32-bit value. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `run` | Run a command and return its non-empty output lines. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `bitmap_ascii` | Render an 8-byte bitmap as 8 strings of '#' and '.'. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `check_frames` | Compare the frame section of the output (up to the ICONS marker) with the oracle. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `parse_icons` | Parse the ICONS section. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `lit` | Number of lit pixels of a bitmap. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `check_icons` | Check the icon properties (not exact shapes) and that icon_show matches the spec render. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `print_art` | Print every icon as ASCII art into the log. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `check` | Run one target and verify frames + icons. Returns True on PASS. | 2026-11-14 | agent |
+| firmware/test/display/run_tests.py | `main` | Parse arguments and run all configurations on host and sim16. | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_clear` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_set` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_get` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_draw_bitmap` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `cap_of` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_units` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/display.c | `display_render` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/icons.c | `icon_bitmap` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/icons.c | `icon_color` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/display/standin/icons.c | `icon_show` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `blob_case` | Import a blob (optionally CRC-repaired), re-export, print result | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `meta_tests` | 32 per-class metadata import cases (-2/-3 paths) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `Replay.meta_tests` | Expected lines for the metadata import cases | 2026-11-14 | agent |

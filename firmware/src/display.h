@@ -49,7 +49,7 @@ void display_set(uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b);
 /**
  * Reads back the raw stored colour of one pixel.
  * @param row 0..7. @param col 0..7.
- * @param rgb output, 3 bytes R,G,B. Out-of-range row/col yields {0,0,0}.
+ * @param rgb output, 3 bytes R,G,B. Out-of-range row/col: rgb is left unchanged.
  */
 void display_get(uint8_t row, uint8_t col, uint8_t rgb[3]);
 
