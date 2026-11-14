@@ -106,7 +106,7 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | S2-1F | C2 fix round (main-agent rulings on F-02..F-10) | research-uart (2nd instance) | **done**, merged; ALL PASS (main reran). **Waiting for Hadi (open_questions Q1)** | same as S2-1 | – |
 | S2-2 | Trigger rule proposal C1b + spike | research-trigger | **done**, merged; ALL PASS (main reran) | `proposals/C1b_trigger.md`, `spikes/trigger/**` | S2-2R, S2-2F |
 | S2-2R | Review trigger proposal | review-12 | **done**, merged: REQUEST CHANGES (code defaults S4/300 mg ≠ proposal S3/250 mg; tremor re-arm; unsourced numbers; saturation) | `reviews/S2-2R.md` | – |
-| S2-2F | Trigger fix round | research-trigger (2nd instance) | in progress | same as S2-2 | then Hadi (Q2) |
+| S2-2F | Trigger fix round | research-trigger (2nd instance) | **done**, merged; ALL PASS (main reran); defaults = proposal (S3, 250 mg). **Waiting for Hadi (Q2, Q3)** | same as S2-2 | – |
 | S2-3 | Repo skeleton + sim16 16-bit-int harness (avr-gcc + simavr) | main | **done**; `common.mk` now searches IMPL_DIR first (3.3R L1) | `Makefile`, `firmware/test/{common.mk,sim16}` | – |
 | 3.3 / 3.3T | `features.c` + `tools/features_ref.py` / features suite | impl-features / test-features | **done**, merged | `firmware/src/features.*`, `tools/features_ref.py`, `firmware/test/features/**` | – |
 | 3.3R | Review 3.3 + 3.3T | review-8 | **done**, merged: APPROVE WITH NITS (0 high, 0 medium, 5 low); 9/9 logic mutations caught | `reviews/3.3R.md` | low items in backlog |
@@ -114,18 +114,22 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | 3.4R | Review 3.4 + 3.4T | review-9 | **done**, merged: APPROVE WITH NITS; F1 (marker form) fixed by main; F4 (GM_FEATURE_VERSION == FEATURES_VERSION assert) goes to 3.7 | `reviews/3.4R.md` | – |
 | 3.5/3.6 + T | `classify.c`, `knn.c`, `gesture_ids.h` / classify suite | impl-classify / test-classify | **done**, merged; knn RAM 1216 B (= C7 budget) | `firmware/src/{knn,classify,gesture_ids}.*`, `firmware/test/classify/**` | – |
 | 3.5R | Review classify/knn | review-10 | **done**, merged: APPROVE WITH NITS (untested -2 import path, missing docstrings) | `reviews/3.5R.md` | 3.5F |
-| 3.5F | classify/knn fix round (docs + -2 tests) | fix-classify | in progress | `firmware/test/classify/**`, doc comments in `knn.c`/`classify.c` | – |
+| 3.5F | classify/knn fix round (docs + -2 tests) | fix-classify | **done**, merged (96 metadata import cases; firmware/src object code byte-identical). F4 (knn_import ignores non-zero unused slots / NULL) → backlog | `firmware/test/classify/**`, doc comments | – |
 | W2-1 | `tools/infer_ref.py` + `tools/export_model.py` | impl-wp2 | **done**, merged; selftest PASS | `tools/**` | W2-1R, W2-1F |
 | W2-1R | Review tools | review-11 | **done**, merged: APPROVE WITH NITS; **0 mismatches / 3000** C mlp vs infer_ref | `reviews/W2-1R.md` | – |
-| W2-1F | Tools fix round (nonneg from features_ref, exit-3 on every bound, GM_DEFAULT_REJECT rule, header bound checks) | impl-wp2 (2nd instance) | in progress | `tools/**` | – |
+| W2-1F | Tools fix round | impl-wp2 (2nd instance) | **done**, merged; selftest PASS also under -O; e2e PASS. Raised Q4, Q5 (contract wording) | `tools/**` | – |
 | 3.8 | End-to-end bit-exact harness (C vs tools, host + sim16) | impl-e2e | **done**, merged: **gate G2 met** (every stage, 3 exporter models, host + sim16); all 5 suites PASS (main reran) | `firmware/test/e2e/**` | 3.8R |
-| 3.8R | Review e2e harness | review-13 | in progress | `reviews/3.8R.md` | – |
+| 3.8R | Review e2e harness | review-13 | **done**, merged: APPROVE WITH NITS (4 medium: boundary coverage incidental, skewed models, few sim16 windows) | `reviews/3.8R.md` | 3.8F |
+| 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | in progress | `firmware/test/e2e/**` | – |
+| W2-2 | `tools/train.py` + `tools/synth_dataset.py` (training pipeline, integer-path evaluation) | impl-train | in progress | `tools/{train,synth_dataset}.py` | review |
 | 3.7 | `gesture.c` public API (8 functions) | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
-| WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock (trigger flag is an input) | impl-capture | in progress | `firmware/src/capture.*` | WP1-aT, review |
+| WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock (trigger flag is an input) | impl-capture | code done (branch); main read diff: OK; waits for WP1-aT | `firmware/src/capture.*` | WP1-aT, review |
 | WP1-aT | Capture suite (host + sim16) | test-capture | in progress | `firmware/test/capture/**` | – |
-| WP4-a | `display.c` + `icons.c`: framebuffer, icons, cap 32 + 300 mA limiter, GRB serialisation (no asm) | impl-display | in progress | `firmware/src/{display,icons}.*` | WP4-aT, review |
-| WP4-aT | Display suite (host + sim16) | test-display | in progress | `firmware/test/display/**` | – |
-| WP1-b | `lis3dh.c` register config + drain loop over an I2C HAL, tested on a fake sensor | – | backlog (next) | `firmware/src/lis3dh.*` | – |
+| WP4-a | `display.c` + `icons.c` (no asm) | impl-display | **done**, merged; main applied ruling: out-of-range `display_get` leaves rgb unchanged (briefs had disagreed) | `firmware/src/{display,icons}.*` | WP4-aR |
+| WP4-aT | Display suite (host + sim16) | test-display | **done**, merged; display suite PASS (6 suites total) | `firmware/test/display/**` | – |
+| WP4-aR | Review display | review-14 | in progress | `reviews/WP4-aR.md` | – |
+| WP1-b | `lis3dh.c` over an I2C HAL | impl-lis3dh | code done (branch); open: FSS at 32 unread, -2048 sign flip clamp | `firmware/src/{lis3dh,lis3dh_hal,board_axes}.*` | WP1-bT, review |
+| WP1-bT | Fake LIS3DH + driver suite | test-lis3dh | in progress | `firmware/test/lis3dh/**` | – |
 | WP4-b | WS2812 asm bit-bang + chunked masking | – | blocked: needs XC16 (Mac) and a scope | – | – |
 
 **Lessons (this sprint):** keep a subagent's worktree until its fix round is done (removing it made research-uart unresumable).
@@ -150,6 +154,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (r): **Done:** S2-2F, W2-1F, 3.5F, 3.8R, WP4-a + T (6 suites PASS), WP1-a and WP1-b code. **Next:** WP1-aT, WP1-bT, 3.8F, W2-2, WP4-aR running. **Waiting for Hadi:** Q1-Q5 in open_questions.md. **Blocked:** G3, S2-0b (Mac).
 - 2026-11-14 (q): **Done:** 3.3R, 3.4R, 3.5/3.6 (+T, R), W2-1 (+R), S2-2 (+R), 3.8 → **gate G2 met on host and sim16**; 5 suites PASS. Two container restarts survived (work was committed). **Next:** S2-2F, W2-1F, 3.5F, 3.8R running. **Waiting for Hadi:** Q1 (C2), then Q2 (trigger). **Blocked:** S2-0b, G3 (Mac/hardware).
 - 2026-11-14 (p): **Done:** S1-7 (Hadi accepted everything; CONTRACTS.md, PLAN adopted, repo layout), S2-0R, S2-1 + S2-1R, sim16 harness, 3.3 + 3.3T (suite PASS on host and sim16, nothing skipped). **Next:** 3.3R, 3.4T, 3.5/3.6 (+T), W2-1, S2-1F all running. **Blocked:** S2-0b (Mac). C2 waits for its fix round, then Hadi.
 - 2026-11-14 (o), **SPRINT 2 START (cloud session)**. **Done:** host suites rerun (all PASS), sheet checked by main agent, Hadi's push/PR/merge and git-name decisions recorded. **Next:** review-6 (S2-0R) and research-uart (S2-1) running; decision round S1-7 once S2-0R reports. **Blocked:** S2-0b `make selftest` needs Hadi's Mac (no XC16/MDB here).
