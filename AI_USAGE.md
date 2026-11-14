@@ -7,8 +7,15 @@ which person.
 
 | File | Function | What it does | Date | Author |
 |------|----------|--------------|------|--------|
-| .claude/hooks/guard_docs.py | `project_root` | Finds the project root from CLAUDE_PROJECT_DIR or the script location | 2026-11-14 | agent |
-| .claude/hooks/guard_docs.py | `resolve_me` | Works out which person the agent is acting for, from the ME env var or settings.local.json | 2026-11-14 | agent |
-| .claude/hooks/guard_docs.py | `check_path` | Blocks file-tool writes to other people's docs folders and to docs/archive | 2026-11-14 | agent |
-| .claude/hooks/guard_docs.py | `check_bash` | Heuristic that blocks shell commands writing to forbidden docs paths | 2026-11-14 | agent |
-| .claude/hooks/guard_docs.py | `main` | Hook entry point: reads JSON from stdin, exits 2 to block; on bad input it allows and warns | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/features.c | `features_extract` | 150×3 int16 window → 60 int16 features (spike for C3) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/features.c | `segment_features` | Mean and energy for one 15-sample segment on one axis | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/host_runner.c | `main` | Reads windows file, writes features file | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/div15_check.c | `main` | Exhaustive check that the multiply-shift equals `/15` | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/features_ref.py | `c_div_trunc`, `shr_nonneg`, `check_int16`, `mean_mulshift`, `extract` | Integer-only Python reference for the features | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/gen_vectors.py | `edge_cases`, `main` | Test-window generator | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/features/compare.py | `main` | Exact C-vs-Python comparison | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/quant/quant_ref.py | `rshift_r`, `sat`, `normalize`, `requant_big`, `requant_split`, `dense`, `infer`, `top2`, `confidence`, `mshift`, `selftest_requant`, `demo` | Integer quantization reference and self-tests (spike for C4/C5) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/sim/demo.c | `sim_start`, `sim_end`, `sim_done`, `init_data`, `checksum32`, `dot32`, `main` | Simulator demo program with breakpoint markers | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/sim/expected.py | `s16`, module body | Host-side expected values for the simulator demo | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/sim/run_sim.sh | whole script | Runs the MPLAB simulator headlessly, parses values and the cycle count | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/sim/Makefile | `demo` target | Build, simulate, compare | 2026-11-14 | agent |

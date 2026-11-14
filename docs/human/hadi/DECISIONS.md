@@ -71,3 +71,8 @@ This file is append-only. See AGENTS.md §4.
 - Statement: chose "I merge after review (Recommended)": the main agent merges locally once a ticket is done, meaning the tests it ran itself pass and the review findings are fixed. Visible on the board and in git log.
 - Context: Answer to a direct question about who merges worktree branches.
 - Supersedes: none
+
+## 2026-11-14: Scrap the docs write-guard
+- Statement: "Fully scrap qa-guard. We have git commit history for a reason. I'll setup the remote in just a second. continue without worrying about stuff like that"
+- Context: The PreToolUse write-guard hook and its test suite were removed. Accountability comes from git history, not from enforcement tooling.
+- Supersedes: none

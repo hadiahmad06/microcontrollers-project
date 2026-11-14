@@ -14,6 +14,11 @@ code in the repo. Git commit history records who made each change.
 Reading is allowed anywhere in the repo, for humans and agents.
 - Decided: 2026-11-14 by Hadi. Not contested.
 
+## Enforcement
+Folder rules aren't enforced by tooling; there is no write-guard hook. Git commit history
+is the accountability mechanism.
+- Decided: 2026-11-14 by Hadi. Not contested.
+
 ## AI usage log
 `AI_USAGE.md` is one shared file at the repo root. It only needs to tell **agent-written**
 code apart from **human-written** code. Which agent, or which person's agent, can be worked

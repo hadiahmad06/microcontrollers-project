@@ -23,13 +23,13 @@ can't see changes and conflict checks can't pull. *Remaining fix:*
 - Add the remote and use a branch per person or feature.
 - Pull before every conflict check. Merge through PRs.
 
-**F3 🔴 The rules are only advisory.** Nothing physically stops an agent writing into
+**F3 ~~The rules are only advisory~~. Decided 2026-11-14: Hadi scrapped the write-guard; git history is the accountability.** Old note: Nothing physically stops an agent writing into
 `docs/human/`, a top-level doc, or another person's folder. *Fix:* a Claude Code
 `PreToolUse` hook that blocks writes to `docs/*/<not-$ME>/**`, with each person setting `ME`
 in their own gitignored `.claude/settings.local.json`. It doesn't need to guard top-level
 docs, since §5 allows writing them.
 
-**F4 🟠 Identity isn't bound to the session.** Same fix as F3, using `ME`.
+**F4 Identity isn't bound to the session.** Agents ask who they're working for (AGENTS.md §1), and git author shows the human.
 
 **F6 🟠 Secondhand decisions** still end up in `docs/agent/{me}/` until the person who made
 the decision confirms it to their own agent. That's less of a problem now, because any
