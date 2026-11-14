@@ -61,11 +61,16 @@ Convention for test programs (see `demo.c`): three `noinline` empty functions `s
 `sim_end()`, `sim_done()`. Breakpoints are by function name. Results go in global variables
 (use `volatile` or make sure they are not optimised away).
 
+Parse an array on the host: `[int(t) for t in line.split("=",1)[1].strip("{}").split(",")]`.
+
+`make selftest` checks the runner itself: wrong order (rc 7), never-ending program (rc 3 or 4), two parallel runs (rc 0).
+`make demo` also asserts `cycles=1130` exactly (`EXPECT_CYCLES` in the Makefile; the simulator is deterministic).
+
 Chosen results mechanism: **breakpoint + `print` of globals** (no UART needed). UART-to-file was not tried.
 
 ## Timing
 
-- One run (`make demo` incl. compile): about 6.6 s wall; `run_sim.sh` alone about 6 s.
+- One run: `run_sim.sh` alone about 6 s; `make demo` about 6.3 s warm (ELF already built) and about 11.5 s cold (includes the xc16 compile).
   Almost all of it is JVM + MDB startup and device load; the simulation itself is milliseconds.
   Only one MDB launch per program, so batch many test cases into one ELF.
 - A bare `help` script takes about 5 s.
@@ -87,11 +92,13 @@ Chosen results mechanism: **breakpoint + `print` of globals** (no UART needed). 
   file ...seggerjlink` lines. Harmless. The login-shell zoxide banner in this environment also lands
   in the log (set `_ZO_DOCTOR=0` to silence).
 - `print` format is `name=` newline `value`. Default is decimal (signed for signed types);
-  `print /x` is hex. 32-bit values print correctly. Arrays/structs not tested (use `x` or `print` per element).
+  `print /x` is hex. 32-bit values print correctly. Arrays work: `print arr` gives `arr=` then `{v0, v1, ...}` on one line (60 x int16 verified; not static, must survive -O1).
 - An unknown symbol does not abort the script; run_sim.sh detects a missing value and fails.
 - If the program never reaches a breakpoint, `Wait 60000` times out per Run; run_sim.sh then fails
   (halt count != 3). The wall-clock watchdog kills MDB after `SIM_TIMEOUT`.
-- Do not run two `run_sim.sh` at once in the same directory (shared `build/run.mdb` / `run.log`).
+- Parallel runs are safe: each run uses its own `mktemp -d` dir (`$TMPDIR/run_sim.XXXXXX`), deleted on success and kept on failure (the error message names the log). A harmless `SEVERE ... BindException` websocket message can appear in the log when two MDBs start at once; it does not affect results, so the runner does not treat it as an error.
+- In XC16 inline asm `;` starts a comment; separate instructions with `\n` (a `nop;nop;nop` silently assembles to one nop).
+- Exit code 7: halts did not occur at sim_start, sim_end, sim_done in that order (addresses resolved with `xc16-nm`); e.g. a test calling `sim_start` twice or skipping `sim_end`.
 - Java: the bundled `zulu8...` JRE is used automatically (`common-vars.sh`); no system Java needed.
   Native arm64, no Rosetta involved.
 - The simulator is the MPLAB X software model, not cycle-exact for peripherals/flash wait states;

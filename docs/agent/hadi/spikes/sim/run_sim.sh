@@ -4,6 +4,7 @@
 # Usage: ./run_sim.sh <elf> [symbols...]
 #   Program must define sim_start(), sim_end(), sim_done() (see demo.c).
 #   cycles = instruction cycles from breakpoint sim_start to sim_end.
+# Exit 7 = breakpoints hit in wrong order/count (or marker symbol missing).
 # Output: name=value lines, then cycles=<n>. Non-zero exit on any failure.
 # Env: MDB (path to mdb.sh), DEVICE, SIM_TIMEOUT (wall seconds, default 120),
 #      RUN_WAIT_MS (per-Run Wait limit, default 60000).
@@ -15,7 +16,10 @@ DEVICE=${DEVICE:-PIC24FJ64GA002}
 SIM_TIMEOUT=${SIM_TIMEOUT:-120}
 RUN_WAIT_MS=${RUN_WAIT_MS:-60000}
 HERE=$(cd "$(dirname "$0")" && pwd)
-BUILD="$HERE/build"; mkdir -p "$BUILD"
+# per-run work dir: removed on success, kept on failure so "see $LOG" stays valid
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/run_sim.XXXXXX")
+trap '[ $? -eq 0 ] && rm -rf "$BUILD"' EXIT
+NM=${NM:-/Applications/microchip/xc16/v2.10/bin/xc16-nm}
 ELF=$(cd "$(dirname "$ELF")" && pwd)/$(basename "$ELF")
 SCRIPT="$BUILD/run.mdb"; LOG="$BUILD/run.log"
 
@@ -39,16 +43,29 @@ SCRIPT="$BUILD/run.mdb"; LOG="$BUILD/run.log"
 PID=$!
 ( exec >/dev/null 2>&1; sleep "$SIM_TIMEOUT"; pkill -P $PID; kill $PID ) &
 WD=$!
-wait $PID; RC=$?
+wait $PID 2>/dev/null; RC=$?
 pkill -P $WD 2>/dev/null; kill $WD 2>/dev/null; wait $WD 2>/dev/null
 if [ $RC -ge 128 ]; then echo "ERROR: MDB timed out/killed (rc=$RC), see $LOG" >&2; exit 3; fi
 
 HALTS=$(grep -c "Simulator halted" "$LOG")
-if [ "$HALTS" -ne 3 ] || grep -q -i -E "^(Error|Exception|SEVERE)|Unknown (symbol|command)|(Could not|Unable to) (load|find|open) (the )?(program|file|symbol)" "$LOG"; then
+if [ "$HALTS" -ne 3 ] || grep -q -i -E "^(Error|Exception)|Unknown (symbol|command)|(Could not|Unable to) (load|find|open) (the )?(program|file|symbol)" "$LOG"; then
   echo "ERROR: simulation did not halt at 3 markers (halts=$HALTS), see $LOG" >&2; exit 4
 fi
 
-CYC=$(sed -n 's/^Stopwatch cycle count = \([0-9]*\).*/\1/p' "$LOG" | head -1)
+# F1: the three halts must be at sim_start, sim_end, sim_done, in that order
+sym_addr() { "$NM" "$ELF" | awk -v s="$1" '$3=="_"s {print $1; exit}'; }
+EXP=""; for f in sim_start sim_end sim_done; do
+  a=$(sym_addr $f); [ -n "$a" ] || { echo "ERROR: symbol $f not found in $ELF" >&2; exit 7; }
+  EXP="$EXP $((16#$a))"
+done
+GOT=""; for a in $(sed -n 's/^Single breakpoint: @0x\([0-9A-Fa-f]*\).*/\1/p' "$LOG"); do GOT="$GOT $((16#$a))"; done
+if [ "$(echo $GOT)" != "$(echo $EXP)" ]; then
+  echo "ERROR: breakpoint order wrong: halted at [$(echo $GOT)], expected sim_start/sim_end/sim_done at [$(echo $EXP)] (decimal addrs), see $LOG" >&2; exit 7
+fi
+
+NSW=$(grep -c '^Stopwatch cycle count = ' "$LOG")
+[ "$NSW" -eq 1 ] || { echo "ERROR: expected exactly 1 stopwatch line, got $NSW, see $LOG" >&2; exit 5; }
+CYC=$(sed -n 's/^Stopwatch cycle count = \([0-9]*\).*/\1/p' "$LOG")
 [ -n "$CYC" ] || { echo "ERROR: no cycle count in $LOG" >&2; exit 5; }
 
 # values: MDB prints "name=" then the value on the next non-blank line

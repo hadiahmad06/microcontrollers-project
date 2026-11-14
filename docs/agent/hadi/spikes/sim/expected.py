@@ -12,7 +12,7 @@ def s16(x):
 A = [s16(i * 1000 + 12345 - i * 7) for i in range(N)]
 B = [s16(30000 - s16(i * 997)) for i in range(N)]
 checksum = sum((a & 0xFFFF) * (i + 1) for i, a in enumerate(A)) & 0xFFFFFFFF
-dot = s16_32 = sum(a * b for a, b in zip(A, B))
+dot = sum(a * b for a, b in zip(A, B))
 dot = ((dot + 2**31) % 2**32) - 2**31
 
 if __name__ == "__main__":
