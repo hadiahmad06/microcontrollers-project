@@ -1,6 +1,6 @@
 # [AI-GENERATED: Claude Code]
 # QA for S1-2 features. The implementation is read from IMPL (read-only), copied into build/.
-IMPL   ?= /Users/hadiahmad/Documents/Academic/ee2361/project/docs/agent/hadi/spikes/features
+IMPL   ?= ../features
 CC     := clang
 XC16   ?= /Applications/microchip/xc16/v2.10/bin
 PY     ?= python3
