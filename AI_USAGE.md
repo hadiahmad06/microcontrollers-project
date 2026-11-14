@@ -258,3 +258,65 @@ which person.
 | tools/export_model.py | `cmd_norm` | `norm` subcommand: write norm.json from calibration features. Args: args (Namespace). | 2026-11-14 | agent |
 | tools/export_model.py | `cmd_header` | `header` subcommand: quantize, check bounds, write gesture_model.h. Args: args (Namespace). | 2026-11-14 | agent |
 | tools/export_model.py | `main` | CLI entry. Args: argv (list or None). Returns: process exit code (0 ok, 2 bad input, 3 bound violation). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `rng_next` | xorshift32 step (13, 17, 5). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `rnd` | Random integer in [0, n). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `clamp12` | Clamp to the C1 sample range [-2048, 2047]. | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `rest_orientation` | Pick a rest orientation: gravity of about 512 counts split over the three axes. | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `gen_base` | Generate one window of a randomly chosen base kind (rest x3, burst x2, extreme, uniform). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `print_mlp_stage` | Print the W/F/X/G lines of a window (everything up to the MLP). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `round_trip` | Export, reset, import and verify the template store survives (CRC trailer, counts, radii). | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `run_all` | Run the whole plan: 7 scenarios, each learning its templates then answering nper queries. | 2026-11-14 | agent |
+| firmware/test/e2e/test_e2e.c | `main` | Entry point on sim16: runs the plan with the compile-time seed and count. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `report` | Print one PASS/FAIL line and remember failures. Args: ok: bool; name: check name; | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `Rng` | xorshift32 (13, 17, 5), identical to rng_next() in test_e2e.c. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `clamp12` | Clamp to [-2048, 2047]. Args: v: int. Returns: int. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `rest_orientation` | Mirror of rest_orientation() in C. Args: r: Rng. Returns: list of 3 per-axis offsets. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `gen_base` | Mirror of gen_base() in C (rest x3, burst x2, extreme, uniform). Args: r: Rng (advanced). | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `expected` | Run the whole plan with the Python tools. Args: m: model dict (infer_ref.load_header); | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `s16` | Args: h: hex string of 16 bits. Returns: signed int. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `s8` | Args: h: hex string of 8 bits. Returns: signed int. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `s32` | Args: h: hex string of 32 bits. Returns: signed int. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `parse_c` | Parse the output of test_e2e.c. Args: text: program output. Returns: (dict idx -> record, | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `knn_tuple` | Args: k: dict from infer_ref.knn_query or None. Returns: tuple in the C print order | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `compare` | Compare one C run with the expected records and report every stage. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `run` | Run a command. Args: cmd: argv list; timeout: seconds. Returns: CompletedProcess with text. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `export_model` | Create model m with the real exporter. Args: m: model number; mdir: output dir; tools: tools dir. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `build` | Compile test_e2e.c with the module sources for host or sim16. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `main` | Entry point. Returns: process exit code (0 all pass, 1 any failure). | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `__init__` | Args: seed: int; 0 is replaced by 1 (as in C). Returns: None. | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `next` | Advance one step. Returns: the new state (uint32). | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `rnd` | Args: n: int > 0. Returns: next() % n (as rnd() in C). | 2026-11-14 | agent |
+| firmware/test/e2e/run_e2e.py | `stages` | Features and MLP stages of one window. Args: win. Returns: (feat, forward dict). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_statistic` | Compute the statistic of one sample and update baseline and previous sample. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `abs32` | Absolute value of an int32 (helper for the L1 statistic) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_mg_to_counts` | Convert threshold_mg to counts: (mg + 1) >> 1, saturating | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_resync` | Re-seed the baseline and restart the warm-up after a stream gap | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_set_threshold_mg` | Set the trigger threshold in mg (0 disables) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_init` | Initialise the trigger state with a config (or defaults) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_feed` | Feed one sample; returns true on the sample that completes the trigger | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger.c | `trigger_release` | Start the hysteresis re-arm after the capture buffer is released | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_cli.c | `fnv_word` | FNV-1a hash step for the per-sample state hash | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_cli.c | `main` | Host CLI: run the trigger on a sample stream, print decisions and state hash | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `mg_to_counts` | Convert threshold_mg to counts: (mg + 1) >> 1, clamped to 12285; 0 stays 0. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `Trigger` | Mirror of trigger_t. Fields have the same names and meaning as in trigger.h. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `run` | Run the trigger over a whole stream like trigger_cli.c does. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `__init__` | Initialise like trigger_init(). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `resync` | Restart after a gap (trigger_resync): re-seed from the next sample, warm up again. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `set_threshold_mg` | Set the threshold (trigger_set_threshold_mg); 0 disables triggering. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `_statistic` | Compute the statistic and update baseline/previous sample (trigger_statistic). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `feed` | Feed one drained sample (trigger_feed). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `release` | Buffer released or window dropped (trigger_release): LOCKED -> REARM. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/trigger_ref.py | `hash_words` | State words hashed after every sample (same order as trigger_cli.c). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/synth.py | `_clip` | Round to int and clip to the 12-bit range [-2048, 2047]. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/synth.py | `_unit` | Random unit vector (uniform on the sphere). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/synth.py | `_rot` | Rotate vector v about unit axis by ang radians (Rodrigues). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/synth.py | `_smooth` | Smoothstep 0..1. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/synth.py | `make_stream` | Generate one synthetic stream. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `cfg_tuple` | Config dict to the tuple order of the CLI header (stat shift debounce quiet warm). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `run_c` | Run many streams through the C harness. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `compare` | Check C and Python agree on trigger indices and per-sample internal state. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `pct` | Percentage string. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `table` | Print the rate table (computed with the C code) for the rules in RULES. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `per_gesture` | Print per-gesture detection rate and latency for one rule. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `margins` | Print the largest statistic seen on non-event streams versus the weakest gesture peak. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `selfcheck` | Assert the rule properties claimed in the proposal (Python mirror, equal to C). | 2026-11-14 | agent |
