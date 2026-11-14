@@ -29,6 +29,11 @@
 
 #define C2_TYPE_HELLO       0x01u   /* wand -> PC: capabilities and model hash   */
 #define C2_TYPE_WINDOW      0x02u   /* wand -> PC: one 150-sample capture window */
+/* Reserved, NOT accepted by a v1 decoder (it accepts only HELLO and WINDOW, each with its exact
+ * LEN; any other TYPE is a bad header). Proposal sections 3.7, 3.8, 3.10.
+ *   0x03 RESULT  wand -> PC, test-vector results      0x04 SAMPLES wand -> PC, bring-up chunk
+ *   0x10 CMD     PC -> wand                            0x11 VECTOR  PC -> wand
+ */
 
 #define C2_N_SAMPLES        150u
 #define C2_N_AXES           3u
@@ -43,14 +48,15 @@
 
 /* Window metadata (the first 14 payload bytes). */
 typedef struct {
-    uint16_t window_id;    /* windows since boot, wraps at 65536                        */
+    uint16_t window_id;    /* windows SENT since reset (dropped ones take no id), wraps  */
     uint8_t  trig_idx;     /* index of the trigger sample in the window (= P, C1 D5)    */
     uint16_t overruns;     /* cumulative capture_overruns counter (C1 D6)               */
     uint32_t model_hash;   /* GM_MODEL_HASH (C4), 0 if no model is built in             */
     uint8_t  flags;        /* C2_FLAG_*                                                 */
     int8_t   class_id;     /* C5 class id, -1 = GESTURE_UNKNOWN; valid iff RESULT_VALID */
     uint8_t  conf;         /* C5 confidence 0..255; valid iff RESULT_VALID              */
-    uint8_t  events;       /* C5 gesture_events() bits; valid iff RESULT_VALID          */
+    uint8_t  events;       /* event bits latched while THIS window was captured (internal
+                            per-window latch, NOT gesture_events()); valid iff RESULT_VALID */
 } c2_window_meta_t;
 
 /* HELLO payload fields. */
@@ -87,11 +93,12 @@ uint16_t c2_crc16(const uint8_t *data, uint16_t len);
  * @param out_cap size of out in bytes; must be at least C2_WINDOW_FRAME_LEN
  * @param seq     frame sequence number (wraps at 256)
  * @param meta    window metadata, must not be NULL
- * @param samples C2_N_SAMPLES rows of {x, y, z} in wand frame (C1), sample-major, must not be NULL
+ * @param samples C2_N_SAMPLES rows of {x, y, z} in wand frame (C1), sample-major, must not be NULL;
+ *                non-const on purpose (CONTRACTS C3 convention for 2-D window parameters); never written
  * @return number of bytes written (C2_WINDOW_FRAME_LEN), or 0 on a NULL argument or short buffer
  */
 uint16_t c2_encode_window(uint8_t *out, uint16_t out_cap, uint8_t seq,
-                          const c2_window_meta_t *meta, const int16_t samples[][C2_N_AXES]);
+                          const c2_window_meta_t *meta, int16_t (*samples)[C2_N_AXES]);
 
 /**
  * Encode one HELLO frame into a caller-provided buffer.
