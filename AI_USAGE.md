@@ -388,3 +388,64 @@ which person.
 | firmware/test/classify/test_classify.c | `blob_case` | Import a blob (optionally CRC-repaired), re-export, print result | 2026-11-14 | agent |
 | firmware/test/classify/test_classify.c | `meta_tests` | 32 per-class metadata import cases (-2/-3 paths) | 2026-11-14 | agent |
 | firmware/test/classify/oracle.py | `Replay.meta_tests` | Expected lines for the metadata import cases | 2026-11-14 | agent |
+| firmware/src/capture.c | `ring_push` | Push one sample into the ring, overwriting the oldest entry when full. | 2026-11-14 | agent |
+| firmware/src/capture.c | `window_start` | Copy the whole (full) ring, oldest first and trigger sample last, to the buffer start; open the window. | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_init` | Reset to IDLE, empty ring, zero stats | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_arm` | IDLE to ARMED | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_disarm` | ARMED/CAPTURING to IDLE, drop open window | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_push` | One sample: ring push, trigger test, window append | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_overrun` | Count overrun, empty ring; drop an open window | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_release` | READY to ARMED | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_state` | Current state | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_ring_count` | Ring fill 0..16 | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_stats` | Copy the counters out | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `rnd` | xorshift32 PRNG (13, 17, 5); mirrored bit for bit in oracle.py (class Rng). | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `make_sample` | Build the sample for stream index n; x and y carry the index, z mixes it. Mirrors oracle.sample. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `report` | Print the observable state after an event, plus the locked buffer while READY. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `ev` | Execute one event on the API and report it. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `begin` | Start a scenario: print its header and reset the per-scenario bookkeeping. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `run_script` | Run one directed script (grammar in oracle.py): op letter plus optional decimal repeat count. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `run_random` | Run one random episode: init, then 150..400 random events, optionally ending in a disarm. | 2026-11-14 | agent |
+| firmware/test/capture/test_capture.c | `main` | Entry point: directed scripts, then NEP random episodes. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `ScriptError` | A script asks for a behaviour the spec leaves open. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `sample` | Return the 3-axis sample for stream index n (unique per n below 2**24, axes differ). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `_build_directed` | Build the list of (name, script, dump) directed scenarios from the ticket's mandatory list. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `parse` | Split a script into (op, count) pairs. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `Rng` | xorshift32 (13, 17, 5), identical to test_capture.c. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `Model` | The capture state machine as written in the spec and the main-agent rulings. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `_checksum` | Order-sensitive 32-bit checksum of all 450 buffer values (mirror of the C driver). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `_tri` | Format up to three samples as 'x,y,z x,y,z x,y,z'. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `Replay` | Mirror of the event executor and reporter of test_capture.c; collects the output lines. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `expected` | Expected program output for `seed` and `nep` random episodes (directed scripts first). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `emit_header` | Print build/scripts.h: the directed scripts as C data (single source of truth). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `add` | Append one directed scenario. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `__init__` | Seed the generator exactly like the C driver. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `next` | Return the next 32-bit value. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `__init__` | Start in the post-init state. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `init` | capture_init: IDLE, ring empty, no window, statistics zero (assumption, see report). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `ring_count` | Ring fill count, or None when unknown (see module docstring). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `push` | capture_push: ring push, trigger test (ARMED only), window append, strictly in order. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `overrun` | capture_overrun: count it, empty the ring, drop an open window (CAPTURING -> ARMED). | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `release` | capture_release: READY -> ARMED returning True, anything else False with no change. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `arm` | capture_arm: IDLE -> ARMED only. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `disarm` | capture_disarm: any state except READY -> IDLE, an open window is dropped, no count. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `__init__` | Create an empty replay. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `begin` | Start a scenario: print its header and reset the per-scenario state. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `ev` | Execute one event on the model and append its report lines. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `script` | Run one directed script. | 2026-11-14 | agent |
+| firmware/test/capture/oracle.py | `episode` | Run random episode k, mirroring run_random() in test_capture.c exactly. | 2026-11-14 | agent |
+| firmware/test/capture/run_tests.py | `same` | True when line `got` equals `exp`, treating a '*' field of `exp` as a wildcard. | 2026-11-14 | agent |
+| firmware/test/capture/run_tests.py | `compare` | Compare line lists; record up to 5 mismatches with the scenario they occur in. | 2026-11-14 | agent |
+| firmware/test/capture/run_tests.py | `run` | Run a command; return (exit code, stdout lines, stderr) or (None, [], '') on timeout. | 2026-11-14 | agent |
+| firmware/test/capture/run_tests.py | `check` | Run one target and compare it with the oracle. Returns True on PASS. | 2026-11-14 | agent |
+| firmware/test/capture/run_tests.py | `main` | Parse arguments, run host and sim16 targets, print the final verdict. | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `start_window` | Start a window: copy the ring (oldest first), which already holds the trigger sample last. | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_init` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_arm` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_disarm` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_push` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_overrun` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_release` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_state` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_ring_count` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/capture/standin/capture.c | `capture_stats` | test stand-in (doc in its header) | 2026-11-14 | agent |
