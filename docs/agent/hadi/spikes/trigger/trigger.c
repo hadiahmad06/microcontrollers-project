@@ -60,8 +60,8 @@ uint16_t trigger_mg_to_counts(uint16_t mg)
     if (mg == 0u) {
         return 0u;
     }
-    if (c > TRIG_STAT_MAX_COUNTS) {
-        c = TRIG_STAT_MAX_COUNTS;
+    if (c > TRIG_THR_MAX_COUNTS) {
+        c = TRIG_THR_MAX_COUNTS; /* 12285 could never fire (stat > thr), so stop at 12284 */
     }
     return (uint16_t)c;
 }
@@ -81,7 +81,7 @@ void trigger_set_threshold_mg(trigger_t *t, uint16_t mg)
     int32_t c = (int32_t)trigger_mg_to_counts(mg);
     t->thr_mg = mg;
     if (t->cfg.stat == TRIG_STAT_MAG2) {
-        c = c * ((int32_t)1 << TRIG_MAG2_SCALE); /* <= 12285 * 1024 = 12.58e6 */
+        c = c * ((int32_t)1 << TRIG_MAG2_SCALE); /* <= 12284 * 1024 = 12.58e6 */
     }
     t->thr = c;
     t->lo = (c + 1) >> 1; /* hysteresis level, never 0 for a non-zero threshold */
@@ -98,6 +98,18 @@ void trigger_init(trigger_t *t, const trigger_cfg_t *cfg)
         t->cfg.debounce = TRIG_DEFAULT_DEBOUNCE;
         t->cfg.quiet = TRIG_DEFAULT_QUIET;
         t->cfg.warm = TRIG_DEFAULT_WARM;
+    }
+    if (t->cfg.stat > TRIG_STAT_MAG2) {
+        t->cfg.stat = TRIG_STAT_EMA_L1;
+    }
+    if (t->cfg.shift < 1u) {
+        t->cfg.shift = 1u;
+    }
+    if (t->cfg.shift > 8u) {
+        t->cfg.shift = 8u; /* keeps every shift of int32 well defined */
+    }
+    if (t->cfg.quiet < TRIG_MIN_QUIET) {
+        t->cfg.quiet = TRIG_MIN_QUIET; /* REARM must outlast the 16-sample ring (S2-2R F-06) */
     }
     if (t->cfg.debounce < 1u) {
         t->cfg.debounce = 1u;
