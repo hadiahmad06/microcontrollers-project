@@ -76,3 +76,8 @@ This file is append-only. See AGENTS.md §4.
 - Statement: "Fully scrap qa-guard. We have git commit history for a reason. I'll setup the remote in just a second. continue without worrying about stuff like that"
 - Context: The PreToolUse write-guard hook and its test suite were removed. Accountability comes from git history, not from enforcement tooling.
 - Supersedes: none
+
+## 2026-11-14: Agents may push, open PRs and merge PRs
+- Statement: "You may push to remote as you will, and open PR's as you will. As the orchestrator, you may even merge PR's as you will. But, i recommend and urge you to take precautionary measures before merging."
+- Context: Cloud session. The earlier "don't push" note dated from before the remote existed. Hadi expects Sonnet subagent reviews before any merge.
+- Supersedes: none (replaces the informal "agents do not push or fetch until told to" note in BOARD.md)
