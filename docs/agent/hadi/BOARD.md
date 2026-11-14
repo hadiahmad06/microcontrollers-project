@@ -20,9 +20,9 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 
 | Name | Model | Role | Ticket | Status |
 |------|-------|------|--------|--------|
-| research-sensor | Sonnet 5.5 / medium | researcher | S1-1 | done; standing by for fixes |
-| review-3 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-1R | running |
-| spike-features | Sonnet 5.5 / medium | implementer | S1-2 fix round | running in its own worktree, branch `s1-2-fixes` |
+| research-sensor | Sonnet 5.5 / medium | researcher | S1-1 fix round | running in its own worktree, branch `s1-1-fixes` |
+| review-3 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-1R | done, merged: APPROVE WITH NITS (3 medium) |
+| spike-features | Sonnet 5.5 / medium | implementer | S1-2 | done; fixes merged |
 | test-features | Sonnet 5.5 / medium (worktree) | tester | S1-2T | done, merged: 0 mismatches over 28k windows plus every possible segment sum |
 | review-1 | Sonnet 5.5 / medium (worktree) | reviewer | S1-2R | done, merged: APPROVE WITH NITS |
 | research-quant | Sonnet 5.5 / medium | researcher | S1-3 | done; fixes merged |
@@ -46,8 +46,8 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | in review: delivered and committed. It reported 4 contradictions between sources, which review-3 is settling | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
-| S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | fix round: T and R passed and are merged. Fixes: the energy shift by 11 is too coarse (it compares shift 6–8 vs isqrt RMS), an XC16 const-pointer warning, and test-harness nits | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
+| S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | fix round: all 4 contradictions between sources resolved. Fixing the FIFO watermark stall, the staging-buffer RAM count, and the JTAGEN config-word list | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
+| S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | **done**, merged `9c8a414`. Main agent reran: all 6 energy variants PASS, QA OVERALL PASS, XC16 clean. Recommends isqrt energy; the default stays at shift 11 until Hadi decides (D4) | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
 | S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | **done**: all 15 review findings fixed and merged. Main agent reran: ALL PASS, with float-vs-int agreement at 99.3% when training on x8 directly. Ready for Hadi's decisions | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
 | S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | in review: works. Main agent reran `make demo`: PASS, 1130 cycles, about 7 s | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | in review: committed `c4a2859`. Found that no single WS2812 waveform satisfies both chip revisions, and that the matrix needs a 5 V level shifter. review-5 is also reconciling all seven proposals | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
@@ -76,6 +76,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (i): **Done:** S1-2 fixes merged; S1-1R merged (APPROVE WITH NITS). **Next:** S1-1 fix round; S1-4R and S1-5R are still running. After that, the decision sheet. **Note:** review-3's worktree had also started from a stale commit; it fast-forwarded to `main` itself.
 - 2026-11-14 (h): **Done:** S1-3 fix round merged (`154a01e`). The demo is now a self-guarding acceptance test: the wrong-sign fold scores 83% and fails the 97% threshold. **Next:** S1-1R, S1-4R, S1-5R and the S1-2 fix round.
 - 2026-11-14 (g): **Done:** S1-3R merged, verdict REQUEST CHANGES; research-quant is now fixing in its worktree. **Issue:** review-5's worktree was created from a stale commit (`1150592`), so it was told to read the proposals from the main checkout. **Lesson:** check each worktree's base commit right after the agent starts.
 - 2026-11-14 (f): **Done:** S1-6 scrapped on Hadi's decision. S1-1, S1-3 and S1-4 delivered and committed. S1-2T and S1-2R merged, and their worktrees removed. **Next:** S1-2 fix round, reviews S1-1R, S1-3R and S1-4R, and S1-5 delivery. Then a sprint review with Hadi (S1-7 decisions) and the handoff to a cloud session. **Blocked:** none.
