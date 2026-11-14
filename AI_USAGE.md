@@ -133,3 +133,128 @@ which person.
 | firmware/test/mlp/standin/mlp.c | `mlp_layer2` | Test-only stand-in from the spec | 2026-11-14 | agent |
 | firmware/test/mlp/standin/mlp.c | `mlp_top2` | Test-only stand-in from the spec | 2026-11-14 | agent |
 | firmware/test/mlp/standin/mlp.c | `mlp_forward` | Test-only stand-in from the spec | 2026-11-14 | agent |
+| firmware/src/knn.c | `cls_index` | Map a class id to its index 0..NCLS-1; returns NCLS if invalid. | 2026-11-14 | agent |
+| firmware/src/knn.c | `recompute_radius` | Recompute R_c of class index c from its stored templates (C5.2 per-class radius). | 2026-11-14 | agent |
+| firmware/src/knn.c | `crc16_byte` | CRC-16/IBM-3740 update with one byte (poly 0x1021, MSB first). | 2026-11-14 | agent |
+| firmware/src/knn.c | `crc16` | CRC-16/IBM-3740 of len bytes starting at p, init 0xFFFF. | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_reset` | Erase all templates, counts and round-robin indices | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_learn` | Store one x8 template (round-robin overwrite); stored count or GESTURE_LEARN_ERR_ID | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_count` | Templates stored for a learned class | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_total` | Templates stored over all classes | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_radius` | Current per-class radius R_c | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_l1` | L1 distance over 60 int8 values | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_query` | Nearest template, d1, d2, c_k, radius | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_export` | Write the flat template blob (version, counts, data, CRC16) | 2026-11-14 | agent |
+| firmware/src/knn.c | `knn_import` | Validate and load a template blob; store unchanged on error | 2026-11-14 | agent |
+| firmware/src/classify.c | `classify_mlp_conf` | MLP confidence min(255, margin >> shift) | 2026-11-14 | agent |
+| firmware/src/classify.c | `classify_decide` | C5.2 decision: MLP vs k-NN override, reject | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `rnd` | xorshift32 PRNG (13, 17, 5); mirrored bit for bit in oracle.py. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `rng_seed` | Seed the PRNG for scenario s: state = seed + (s + 1) * 0x9E3779B9 (0 becomes 1), then 3 draws dropped. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `crc16` | CRC-16/IBM-3740 (poly 0x1021, init 0xFFFF, no reflection, xorout 0), the C7 blob checksum. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `v_base` | Fill a vector with a random "base" pattern: style 0 uniform [-127,127], 1 extremes +-127, 2 small [-20,20]. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `v_noisy` | out = clamp(base + uniform noise in [-amp, amp], -127, 127). No PRNG draws when amp == 0. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `v_dist` | Vector with L1 distance d (<= 7620) from the zero vector: entries of sign*127 filled first, remainder next. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `v_mk` | Vector of `fill` with the first n entries set to val. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `report_state` | Print N (counts), R (radii) and E (export size / crc / self-check / short-cap / zero-cap) lines. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `emit_query` | Print one "Q" line for a knn_query result. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `emit_decide` | Run classify_decide with a conf pointer and with NULL, print one line "<tag> ...". | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `T_case` | Directed case: print the Q line for the window and one T line with the decision. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `io_tests` | Error-path and round-trip tests of knn_export / knn_import on the current store. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `scenario` | One pseudo-random scenario: learns (some with bad ids), state report, queries, decisions, I/O tests. | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `directed` | Directed cases: C5 §2 table, min_conf sweeps, d2 == 0, radius boundaries and clamps, template growth and | 2026-11-14 | agent |
+| firmware/test/classify/test_classify.c | `main` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `Rng` | xorshift32 (13, 17, 5), identical to test_classify.c. | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `v_base`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `v_noisy`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `v_dist`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `v_mk`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `crc16` | CRC-16/IBM-3740: poly 0x1021, init 0xFFFF, no reflection, xorout 0. | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `l1`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `Knn` | Spec model of knn.c. Slots are ordered class-major, then slot (ruling of the main agent). | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `mlp_conf`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `decide` | classify_decide per C5.2. q is a query tuple or None. Returns (id, conf). | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `Replay` | Mirrors the C driver call for call and collects the expected lines. | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `expected` | Return the list of expected output lines (without the final 'DONE'). | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `__init__`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `seed`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `next`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `__init__`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `reset`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `copy_from`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `valid`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `learn`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `count`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `total`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `radius`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `query` | Return None if empty else (kid, d1, d2, has_other, c_k, radius). | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `export`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `__init__`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `p`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `report_state`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `emit_query`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `emit_decide`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `T_case`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `io_tests`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `scenario`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/oracle.py | `directed`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/run_tests.py | `compare` | Compare line lists; report up to 5 mismatches with the scenario they occur in. | 2026-11-14 | agent |
+| firmware/test/classify/run_tests.py | `literal_checks` | Check the C5 table and a few hand-computed values directly on the program output. | 2026-11-14 | agent |
+| firmware/test/classify/run_tests.py | `run` | Run a command; return (exit code, stdout lines) or (None, []) on timeout. | 2026-11-14 | agent |
+| firmware/test/classify/run_tests.py | `check` | Run one target and compare it with the oracle. Returns True on PASS. | 2026-11-14 | agent |
+| firmware/test/classify/run_tests.py | `main`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_reset` | Clear all templates. @return None. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_l1` | L1 distance of two x8 vectors. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_learn` | Store one template (round-robin overwrite when full). | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_count` | @param class_id Class id. @return Template count, 0 for a bad id. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_total` | @return Total templates stored. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_radius` | Acceptance radius of a class. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_query` | Nearest-template query (class-major, slot-major scan; lowest slot wins ties). | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_export` | Serialise the store to a flat blob. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `knn_import` | Load a blob made by knn_export. | 2026-11-14 | agent |
+| firmware/test/classify/standin/knn.c | `crc16` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/classify/standin/classify.c | `classify_mlp_conf` | MLP confidence score: min(255, margin >> conf_shift). | 2026-11-14 | agent |
+| firmware/test/classify/standin/classify.c | `classify_decide` | Combine the MLP result with an optional k-NN result (C5.2 steps 1-4). | 2026-11-14 | agent |
+| tools/infer_ref.py | `rshift_r` | Round-half-up arithmetic right shift, RSHIFT_R(v, s) = (v + (1 << s >> 1)) >> s. | 2026-11-14 | agent |
+| tools/infer_ref.py | `rshift_r64` | Rounding shift on the exact (unbounded) product: (p + 2^(s-1)) >> s. | 2026-11-14 | agent |
+| tools/infer_ref.py | `sat` | Clamp v to [lo, hi]. Args: v, lo, hi (ints). Returns: int. | 2026-11-14 | agent |
+| tools/infer_ref.py | `requant_split` | int64-free requantisation mirroring the firmware C `gm_requant` (C4 section 2). | 2026-11-14 | agent |
+| tools/infer_ref.py | `_c_int_expr` | Evaluate a C integer constant expression made of literals, + - * and parentheses. | 2026-11-14 | agent |
+| tools/infer_ref.py | `_strip_comments` | Remove /* */ and // comments. Args: src (str). Returns: str. | 2026-11-14 | agent |
+| tools/infer_ref.py | `_flatten` | Row-major flatten of a nested list of ints. Args: x (list). Returns: list[int]. | 2026-11-14 | agent |
+| tools/infer_ref.py | `model_hash` | CRC-32 (IEEE) over the little-endian bytes of all arrays in file order (C4.3). | 2026-11-14 | agent |
+| tools/infer_ref.py | `parse_header` | Parse the text of a generated gesture_model.h into a dict. | 2026-11-14 | agent |
+| tools/infer_ref.py | `_expand_exprs` | Replace parenthesised constant expressions like (-2147483647L - 1L) inside an array body | 2026-11-14 | agent |
+| tools/infer_ref.py | `load_header` | Parse a generated gesture_model.h file (macros and arrays). | 2026-11-14 | agent |
+| tools/infer_ref.py | `normalize` | C4 stage 0: x8[i] = SAT(RSHIFT_R((int32)x - GM_IN_OFF[i], GM_IN_SH[i]), -127, 127). | 2026-11-14 | agent |
+| tools/infer_ref.py | `layer1` | C4 layer 1: acc1[j] = B1[j] + sum_i W1[j][i]*x8[i]; h[j] = SAT(RSHIFT_R64(acc1*M1, SH1), 0, 127). | 2026-11-14 | agent |
+| tools/infer_ref.py | `layer2` | C4 layer 2: logit[c] = B2[c] + sum_j W2[c][j]*h[j] (int32, no requant, no clamp). | 2026-11-14 | agent |
+| tools/infer_ref.py | `top2_idx` | Argmax (lowest index on ties) and runner-up index (largest among c != top1, lowest index on ties). | 2026-11-14 | agent |
+| tools/infer_ref.py | `top2` | C4 argmax and margin. | 2026-11-14 | agent |
+| tools/infer_ref.py | `mlp_conf` | C5 MLP confidence: min(255, margin >> GM_CONF_SHIFT). | 2026-11-14 | agent |
+| tools/infer_ref.py | `forward` | Run every stage and keep every intermediate. | 2026-11-14 | agent |
+| tools/infer_ref.py | `knn_l1` | L1 distance of two int8 vectors (max 60*254 = 15240). Args: a, b (equal-length lists). Returns: int. | 2026-11-14 | agent |
+| tools/infer_ref.py | `class_radius` | C5 per-class acceptance radius: clamp(2 * lower_median(pairwise L1), rmin, rmax). | 2026-11-14 | agent |
+| tools/infer_ref.py | `knn_query` | C5 k-NN gate inputs. | 2026-11-14 | agent |
+| tools/infer_ref.py | `classify_decide` | C5 normative decision (steps 1, 2, 4). | 2026-11-14 | agent |
+| tools/infer_ref.py | `_tiny_model` | Hand-built 2-feature, 2-hidden, 3-class model for stage checks. Returns: model dict. | 2026-11-14 | agent |
+| tools/infer_ref.py | `selftest` | Run the C5 section 2 vector table, stage checks and requant checks. Raises AssertionError on | 2026-11-14 | agent |
+| tools/infer_ref.py | `one`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| tools/infer_ref.py | `lg`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| tools/infer_ref.py | `run`  | test helper (no docstring: review 3.5R) | 2026-11-14 | agent |
+| tools/export_model.py | `BoundError` | Raised when a C4 exporter bound is violated; the message names the bound. | 2026-11-14 | agent |
+| tools/export_model.py | `_need` | Raise BoundError naming `bound` unless cond. Args: cond (bool); bound (str); detail (str). | 2026-11-14 | agent |
+| tools/export_model.py | `mshift` | Real requant scale -> (M, SH) with 2^14 <= M < 2^15, 16 <= SH <= 31, M * 2^-SH ~= scale. | 2026-11-14 | agent |
+| tools/export_model.py | `choose_norm` | Per-feature (off, sh) from calibration features (C4 D1b). | 2026-11-14 | agent |
+| tools/export_model.py | `_as_int_features` | Validate a calibration/validation feature array. Args: a (ndarray); name (str). | 2026-11-14 | agent |
+| tools/export_model.py | `quantize` | C4 exporter recipe steps 2-6 on a float net defined on the training input x8 / K. | 2026-11-14 | agent |
+| tools/export_model.py | `check_bounds` | C4 step 6 bounds on a quantized model dict. Args: q (dict with GM_* lists). Returns: None. | 2026-11-14 | agent |
+| tools/export_model.py | `model_hash` | CRC-32 IEEE over the little-endian bytes of all arrays in file order (C4.3). | 2026-11-14 | agent |
+| tools/export_model.py | `choose_conf_shift` | C5 rule: smallest shift s with P95(margins of correct validation windows) >> s <= 255. | 2026-11-14 | agent |
+| tools/export_model.py | `_c32` | int32 C literal portable to 16-bit int. Args: v (int). Returns: str. | 2026-11-14 | agent |
+| tools/export_model.py | `_c16` | int16 C literal (INT16_MIN-safe). Args: v (int). Returns: str. | 2026-11-14 | agent |
+| tools/export_model.py | `_fmt_1d` | Wrap a 1-D initializer. Args: vals (ints), conv (int -> str), indent, width. Returns: str. | 2026-11-14 | agent |
+| tools/export_model.py | `_fmt_2d` | Initializer with one braced row per line. Args: rows (list of lists), conv. Returns: str. | 2026-11-14 | agent |
+| tools/export_model.py | `render_header` | Render gesture_model.h text per the C4 header layout. | 2026-11-14 | agent |
+| tools/export_model.py | `cmd_norm` | `norm` subcommand: write norm.json from calibration features. Args: args (Namespace). | 2026-11-14 | agent |
+| tools/export_model.py | `cmd_header` | `header` subcommand: quantize, check bounds, write gesture_model.h. Args: args (Namespace). | 2026-11-14 | agent |
+| tools/export_model.py | `main` | CLI entry. Args: argv (list or None). Returns: process exit code (0 ok, 2 bad input, 3 bound violation). | 2026-11-14 | agent |
