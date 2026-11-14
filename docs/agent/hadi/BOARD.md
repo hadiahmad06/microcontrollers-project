@@ -121,7 +121,12 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | 3.8 | End-to-end bit-exact harness (C vs tools, host + sim16) | impl-e2e | **done**, merged: **gate G2 met** (every stage, 3 exporter models, host + sim16); all 5 suites PASS (main reran) | `firmware/test/e2e/**` | 3.8R |
 | 3.8R | Review e2e harness | review-13 | in progress | `reviews/3.8R.md` | – |
 | 3.7 | `gesture.c` public API (8 functions) | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
-| WP1-a | Capture state machine on a fake FIFO (host-testable) | – | backlog: needs Q2 | `firmware/src/capture.*` | – |
+| WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock (trigger flag is an input) | impl-capture | in progress | `firmware/src/capture.*` | WP1-aT, review |
+| WP1-aT | Capture suite (host + sim16) | test-capture | in progress | `firmware/test/capture/**` | – |
+| WP4-a | `display.c` + `icons.c`: framebuffer, icons, cap 32 + 300 mA limiter, GRB serialisation (no asm) | impl-display | in progress | `firmware/src/{display,icons}.*` | WP4-aT, review |
+| WP4-aT | Display suite (host + sim16) | test-display | in progress | `firmware/test/display/**` | – |
+| WP1-b | `lis3dh.c` register config + drain loop over an I2C HAL, tested on a fake sensor | – | backlog (next) | `firmware/src/lis3dh.*` | – |
+| WP4-b | WS2812 asm bit-bang + chunked masking | – | blocked: needs XC16 (Mac) and a scope | – | – |
 
 **Lessons (this sprint):** keep a subagent's worktree until its fix round is done (removing it made research-uart unresumable).
 Two container restarts (2026-11-14) killed pending question dialogs and made running agents unresumable: decisions now also go to `open_questions.md`; fix rounds start fresh instances that work from the review file.
