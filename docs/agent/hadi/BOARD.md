@@ -35,8 +35,17 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 | spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; fixes merged |
 | review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | done, merged: APPROVE WITH NITS. Cycle counts verified exact |
 | research-display | Sonnet 5.5 / medium | researcher | S1-5 | done; fixes merged |
-| review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | in progress |
-| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1 | in progress |
+| review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | done, merged |
+| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1, S2-1F | S2-1 merged; S2-1F in progress (2nd instance) |
+| review-7 | Sonnet 5.5 / medium (worktree) | reviewer | S2-1R | done, merged |
+| impl-features | Sonnet 5.5 / medium (worktree) | implementer | 3.3 | done, merged |
+| test-features | Sonnet 5.5 / medium (worktree) | tester | 3.3T | done, merged |
+| review-8 | Sonnet 5.5 / medium (worktree) | reviewer | 3.3R | in progress |
+| impl-mlp | Sonnet 5.5 / medium (worktree) | implementer | 3.4 | done, waiting for 3.4T |
+| test-mlp | Sonnet 5.5 / medium (worktree) | tester | 3.4T | in progress |
+| impl-classify | Sonnet 5.5 / medium (worktree) | implementer | 3.5, 3.6 | in progress |
+| test-classify | Sonnet 5.5 / medium (worktree) | tester | 3.5T, 3.6T | in progress |
+| impl-wp2 | Sonnet 5.5 / medium (worktree) | implementer | W2-1 | in progress |
 | sheet-writer | Sonnet 5.5 / medium (worktree) | integrator | S1-8 | done, merged |
 | review-5 | Sonnet 5.5 / medium (worktree) | fact-checker and cross-proposal reconciler | S1-5R | done, merged: REQUEST CHANGES (3 high, all documentation) |
 | impl-guard, qa-guard | - | - | S1-6 | retired; S1-6 was scrapped |
@@ -60,8 +69,17 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 | S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | **done**: checks breakpoint order (exit code 7), uses a temp dir per run, `make demo` asserts 1130 cycles, `make selftest` passes. Main agent did NOT rerun the selftest | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | **done**, merged `d822a43`. RAM is 3,660 B (44.7%). Flash is 21.9 KB (33.5%) without persistence, or 28.0 KB with 4-block persistence | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
 | S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
-| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | in progress |
-| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1 | in progress |
+| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | done, merged |
+| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1, S2-1F | S2-1 merged; S2-1F in progress (2nd instance) |
+| review-7 | Sonnet 5.5 / medium (worktree) | reviewer | S2-1R | done, merged |
+| impl-features | Sonnet 5.5 / medium (worktree) | implementer | 3.3 | done, merged |
+| test-features | Sonnet 5.5 / medium (worktree) | tester | 3.3T | done, merged |
+| review-8 | Sonnet 5.5 / medium (worktree) | reviewer | 3.3R | in progress |
+| impl-mlp | Sonnet 5.5 / medium (worktree) | implementer | 3.4 | done, waiting for 3.4T |
+| test-mlp | Sonnet 5.5 / medium (worktree) | tester | 3.4T | in progress |
+| impl-classify | Sonnet 5.5 / medium (worktree) | implementer | 3.5, 3.6 | in progress |
+| test-classify | Sonnet 5.5 / medium (worktree) | tester | 3.5T, 3.6T | in progress |
+| impl-wp2 | Sonnet 5.5 / medium (worktree) | implementer | W2-1 | in progress |
 | sheet-writer | **done**: `DECISION_SHEET.md`. The main agent has NOT checked it against the sources yet | `DECISION_SHEET.md` | main agent checks it against the sources |
 | S1-7 | Hadi decides C1–C7, and the decisions go into `docs/agent/CONTRACTS.md` | main + Hadi | blocked by S1-8 | top-level docs | – |
 
@@ -78,12 +96,28 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| S2-0a | Rerun all host test suites | main | **done**: features 6 variants PASS, features_qa OVERALL PASS (host part), quant ALL PASS | – | – |
-| S2-0b | Rerun `make selftest` (spikes/sim) | Hadi (Mac) | **blocked**: needs XC16 + MDB, not in the cloud container | – | – |
-| S2-0c | Main agent checks DECISION_SHEET against the sources | main | **done**: accurate. Errata: C3 §1 quotes "1.3-2.2 ms at 4 MIPS", which is 0.3-0.56 ms at 16 MIPS; B1 C6a wording stale (already flagged) | – | S2-0R |
-| S2-0R | Independent fact-check of DECISION_SHEET | review-6 | in progress | `reviews/S2-0R.md` | – |
-| S2-1 | C2 UART stream proposal + framing spike | research-uart | in progress | `proposals/C2_*.md`, `spikes/uart/**` | S2-1R review |
-| S1-7 | Hadi decides C1-C7; contracts go to `docs/agent/CONTRACTS.md` | main + Hadi | next, after S2-0R | top-level docs | – |
+| S2-0a | Rerun all host test suites | main | **done**: all PASS | – | – |
+| S2-0b | Rerun `make selftest` (spikes/sim) | Hadi (Mac) | **blocked**: needs XC16 + MDB | – | – |
+| S2-0c | Main agent checks DECISION_SHEET | main | **done**: accurate; C3 4-MIPS erratum | – | S2-0R |
+| S2-0R | Independent fact-check of DECISION_SHEET | review-6 | **done**, merged: ACCURATE WITH ERRATA (0 high, 7 medium); none changes Hadi's answers | `reviews/S2-0R.md` | – |
+| S1-7 | Hadi decides C1-C7 | main + Hadi | **done**: Part A + B1-B11 accepted; `docs/agent/CONTRACTS.md` written; PLAN adopted; repo layout decided | top-level docs | – |
+| S2-1 | C2 UART proposal + framing spike | research-uart | **done**, merged; `make test` ALL PASS (main reran) | `proposals/C2_*.md`, `spikes/uart/**` | S2-1R, S2-1F |
+| S2-1R | Review C2 | review-7 | **done**, merged: APPROVE WITH NITS (0 high, 10 medium) | `reviews/S2-1R.md` | – |
+| S2-1F | C2 fix round (main-agent rulings on F-02..F-10) | research-uart (2nd instance) | in progress | same as S2-1 | then Hadi decides C2 |
+| S2-2 | Trigger rule proposal (B2 / CONTRACTS C1.9) | – | backlog | `proposals/C1b_trigger.md` | needs Hadi's decision |
+| S2-3 | Repo skeleton + sim16 16-bit-int harness (avr-gcc + simavr) | main | **done**: `make test` at root; sim16 self-test proves 16-bit int | `Makefile`, `firmware/test/{common.mk,sim16}` | – |
+| 3.3 | `features.c` + `tools/features_ref.py` | impl-features | **done (code)**, merged; awaiting 3.3R | `firmware/src/features.*`, `tools/features_ref.py` | 3.3T, 3.3R |
+| 3.3T | Features suite (host + sim16) | test-features | **done**, merged; main reran against real impl: **features suite PASS, nothing skipped**; sim16 catches the no-cast bug the host misses | `firmware/test/features/**` | – |
+| 3.3R | Review 3.3 + 3.3T | review-8 | in progress | `reviews/3.3R.md` | – |
+| 3.4 | `mlp.c` | impl-mlp | code done (branch, not merged); main read diff: matches C4; nit: `/* */` AI markers | `firmware/src/mlp.*` | 3.4T, 3.4R |
+| 3.4T | MLP suite (host + sim16) | test-mlp | in progress | `firmware/test/mlp/**` | – |
+| 3.5 + 3.6 | `classify.c` (reject, decide) + `knn.c` (templates, export/import) | impl-classify | in progress | `firmware/src/{knn,classify,gesture_ids}.*` | 3.5T/3.6T, review |
+| 3.5T + 3.6T | classify/knn suite | test-classify | in progress | `firmware/test/classify/**` | – |
+| W2-1 | `tools/infer_ref.py` + `tools/export_model.py` | impl-wp2 | in progress | `tools/{infer_ref,export_model}.py`, `tools/README.md` | W2-1T, review |
+| 3.8 | End-to-end bit-exact harness (C vs tools, host + sim16) | – | backlog (after 3.4, W2-1) | `firmware/test/e2e/**` | – |
+
+**Lessons (this sprint):** keep a subagent's worktree until its fix round is done (removing it made research-uart unresumable).
+simavr splits UART lines longer than 255 characters: test drivers print short lines.
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
@@ -103,6 +137,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (p): **Done:** S1-7 (Hadi accepted everything; CONTRACTS.md, PLAN adopted, repo layout), S2-0R, S2-1 + S2-1R, sim16 harness, 3.3 + 3.3T (suite PASS on host and sim16, nothing skipped). **Next:** 3.3R, 3.4T, 3.5/3.6 (+T), W2-1, S2-1F all running. **Blocked:** S2-0b (Mac). C2 waits for its fix round, then Hadi.
 - 2026-11-14 (o), **SPRINT 2 START (cloud session)**. **Done:** host suites rerun (all PASS), sheet checked by main agent, Hadi's push/PR/merge and git-name decisions recorded. **Next:** review-6 (S2-0R) and research-uart (S2-1) running; decision round S1-7 once S2-0R reports. **Blocked:** S2-0b `make selftest` needs Hadi's Mac (no XC16/MDB here).
 - 2026-11-14 (n), **SPRINT 1 STOPPING POINT / HANDOFF**
   - **Done:** S1-1 to S1-5 and S1-8 are merged on main. S1-6 was scrapped.
