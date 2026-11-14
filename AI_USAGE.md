@@ -449,3 +449,25 @@ which person.
 | firmware/test/capture/standin/capture.c | `capture_state` | test stand-in (doc in its header) | 2026-11-14 | agent |
 | firmware/test/capture/standin/capture.c | `capture_ring_count` | test stand-in (doc in its header) | 2026-11-14 | agent |
 | firmware/test/capture/standin/capture.c | `capture_stats` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| tools/train.py | `TrainError` | Unusable input or an exporter refusal. Carries a message printed once by main(). | 2026-11-14 | agent |
+| tools/train.py | `load_dataset` | Load and validate a dataset .npz. | 2026-11-14 | agent |
+| tools/train.py | `compute_features` | Compute the 60 C3 features of every window with features_ref, with an on-disk cache. | 2026-11-14 | agent |
+| tools/train.py | `split_indices` | Deterministic train/validation split. | 2026-11-14 | agent |
+| tools/train.py | `init_net` | He-initialised 60-hidden-9 net. Args: hidden (int); rng (numpy Generator). | 2026-11-14 | agent |
+| tools/train.py | `float_logits` | Float forward pass. Args: net (dict W1,b1,W2,b2); X (float [n,60], i.e. x8 / K). | 2026-11-14 | agent |
+| tools/train.py | `train_epoch` | One epoch of minibatch Adam on softmax cross-entropy (in place). | 2026-11-14 | agent |
+| tools/train.py | `run_exporter` | Run tools/export_model.py as a subprocess. | 2026-11-14 | agent |
+| tools/train.py | `integer_eval` | Score a parsed header model on raw features with infer_ref.forward (the integer path). | 2026-11-14 | agent |
+| tools/train.py | `export_candidate` | Write net.npz, export a header with validation data, and score it on the integer path. | 2026-11-14 | agent |
+| tools/train.py | `_confusion` | 9x9 confusion matrix, rows = true, columns = predicted. Args: two int arrays. Returns: list of lists. | 2026-11-14 | agent |
+| tools/train.py | `_write_report_md` | Write the human-readable report. Args: path (str); rep (dict as written to report.json). | 2026-11-14 | agent |
+| tools/train.py | `run_training` | Run the whole pipeline and write the output files. | 2026-11-14 | agent |
+| tools/train.py | `_selftest` | Train on a tiny synthetic dataset in a temp dir and check the outputs. | 2026-11-14 | agent |
+| tools/train.py | `main` | CLI entry. Args: argv (list of str or None). Returns: int exit code (0 ok, 2 bad input, 3 exporter refusal). | 2026-11-14 | agent |
+| tools/train.py | `say` |  | 2026-11-14 | agent |
+| tools/synth_dataset.py | `_unit` | Random unit vector, uniform on the sphere. Args: rng (numpy Generator). Returns: ndarray[3]. | 2026-11-14 | agent |
+| tools/synth_dataset.py | `_smooth` | Smoothstep clamped to 0..1. Args: u (ndarray). Returns: ndarray, same shape. | 2026-11-14 | agent |
+| tools/synth_dataset.py | `_rot` | Rodrigues rotation of one vector by an angle per time step. | 2026-11-14 | agent |
+| tools/synth_dataset.py | `make_window` | Generate one synthetic window. | 2026-11-14 | agent |
+| tools/synth_dataset.py | `make_dataset` | Build a whole synthetic dataset. | 2026-11-14 | agent |
+| tools/synth_dataset.py | `main` | CLI entry. Args: argv (list of str or None for sys.argv). Returns: int exit code (0 ok). | 2026-11-14 | agent |
