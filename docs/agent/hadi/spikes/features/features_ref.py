@@ -9,7 +9,8 @@ WINDOW_LEN = 150
 AXES = 3
 SEG_LEN = 15
 SEGMENTS = 10
-ENERGY_SHIFT = 11
+ENERGY_SHIFT = 11   # default shift for ENERGY_MODE 0
+ENERGY_MODE = 0     # 0 shift+saturate, 1 isqrt(SS), 2 isqrt(SS/15); must match FEAT_ENERGY_MODE in features.h
 X_MIN, X_MAX = -2048, 2047
 INT16_MIN, INT16_MAX = -32768, 32767
 
@@ -50,13 +51,53 @@ def mean_mulshift(s):
     return -q if s < 0 else q
 
 
-def extract(window):
+def isqrt32(n):
+    """Exact floor(sqrt(n)) by the same digit-by-digit loop as features.c.
+
+    n: int in [0, 2**32). Returns int r with r*r <= n < (r+1)*(r+1).
+    """
+    if not (0 <= n < 2 ** 32):
+        raise ValueError("isqrt32 argument out of uint32 range")
+    res = 0
+    bit = 1 << 30
+    while bit > n:
+        bit >>= 2
+    while bit != 0:
+        if n >= res + bit:
+            n -= res + bit
+            res = shr_nonneg(res, 1) + bit
+        else:
+            res = shr_nonneg(res, 1)
+        bit >>= 2
+    return res
+
+
+def scale_energy(acc, mode=None, shift=None):
+    """Scale the sum of squared deviations to the int16 energy feature.
+
+    acc: int >= 0 (< 2**32). mode: 0 shift+saturate, 1 isqrt(acc), 2 isqrt(acc/15
+    truncated); None selects ENERGY_MODE. shift: used by mode 0, None selects
+    ENERGY_SHIFT. Returns int in [0, 32767].
+    """
+    mode = ENERGY_MODE if mode is None else mode
+    shift = ENERGY_SHIFT if shift is None else shift
+    if mode == 0:
+        return min(shr_nonneg(acc, shift), 32767)
+    if mode == 1:
+        return isqrt32(acc)
+    if mode == 2:
+        return isqrt32(acc // 15)  # acc >= 0, so // equals C truncation
+    raise ValueError("bad energy mode")
+
+
+def extract(window, mode=None, shift=None):
     """Compute the 60 integer features of a window.
 
     window: sequence of 150 samples, each a sequence of 3 ints (X, Y, Z) in
-    [-2048, 2047]. Returns list of 60 ints, index = 20*axis + 2*seg + k with
-    k=0 mean (trunc toward zero of sum/15) and k=1 energy
-    (min(32767, sum((x-mean)^2) >> 11)).
+    [-2048, 2047]. mode/shift: energy scaling, see scale_energy (None = module
+    defaults). Returns list of 60 ints, index = 20*axis + 2*seg + k with
+    k=0 mean (trunc toward zero of sum/15) and k=1 energy = scale_energy of
+    sum((x-mean)^2).
     """
     if len(window) != WINDOW_LEN:
         raise ValueError("window must have 150 samples")
@@ -75,9 +116,7 @@ def extract(window):
                 acc += d * d
             if acc >= 2 ** 32:
                 raise OverflowError("acc overflow")
-            e = shr_nonneg(acc, ENERGY_SHIFT)
-            if e > 32767:
-                e = 32767
+            e = scale_energy(acc, mode, shift)
             idx = 20 * a + 2 * s
             out[idx] = mean
             out[idx + 1] = e

@@ -1,20 +1,23 @@
-# C3 feature-extraction spike (S1-2)
+<!-- [AI-GENERATED: Claude Code] -->
+# C3 feature-extraction spike (S1-2, fix round on branch s1-2-fixes)
 
 Spike, not product code. Integer feature extraction in C (`features.c`) and Python
-(`features_ref.py`), proven bit-exact. Spec and decisions: `../../proposals/C3_features.md`.
+(`features_ref.py`), proven bit-exact. Spec, decisions and the energy-scaling comparison:
+`../../proposals/C3_features.md`.
 
 ## Run
-    make test   # host build (clang, -std=c99 -Wall -Wextra -Wconversion -Werror), 10062 windows, exact compare
-    make xc16   # XC16 v2.10 compile, zero warnings, prints size
+    make test   # 6 energy variants x 12339 windows, exact compare, plus exhaustive /15 and isqrt checks
+    make xc16   # XC16 v2.10 -O1 and -O2, zero warnings, sizes, plain-buffer caller check
     make clean
+    python3 energy_study.py   # the energy option comparison table
 
 ## Files
-- `features.c/.h` C99 implementation; `features_ref.py` Python reference (integer-only)
-- `host_runner.c` windows file -> features file; `gen_vectors.py` vector generator
-- `compare.py` exact comparison; `div15_check.c` exhaustive /15 vs multiply-shift check
+- `features.c/.h` C99; energy mode via `FEAT_ENERGY_MODE` (0 shift, 1 isqrt(SS), 2 isqrt(SS/15)) and `FEAT_ENERGY_SHIFT`
+  (default mode 0, shift 11, pending decision D4; recommended: mode 1)
+- `features_ref.py` Python reference (integer-only, same modes via arguments)
+- `host_runner.c`, `gen_vectors.py`, `compare.py`, `div15_check.c`, `call_check.c`, `energy_study.py`
 
-## Results (2026-11-14)
-- `make test`: `PASS 10062/10062` (edge cases, 4000 uniform, 4000 smooth, 2000 segment-extreme); `DIV15 PASS 61426 sums`.
-- `make xc16`: zero warnings. `.text` = 0x98 address units = 76 instructions = 228 bytes of flash
-  (`features_extract` 0x40 + `segment_features` 0x58 address units). Uses `div.sw` for /15, no library calls, 0 data/bss.
-- Not run on target: the on-target vector check (gate G3) is still required.
+## Results
+See proposal section 4. `make test`: ALL VARIANTS PASS (12339/12339 each). `make xc16`: zero warnings.
+Not run on target: the on-target vector check (gate G3) is still required.
+<!-- [END AI-GENERATED] -->
