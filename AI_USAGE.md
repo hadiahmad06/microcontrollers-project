@@ -45,3 +45,35 @@ which person.
 | firmware/test/sim16/probe.c | `main`, `mul_uncast` | Self-test proving the sim16 build has a 16-bit int | 2026-11-14 | agent |
 | firmware/test/sim16/run_sim16.sh | (script) | Run an AVR test image under simavr, clean its output, map SIM16_EXIT to an exit code | 2026-11-14 | agent |
 | Makefile, firmware/test/common.mk | (build rules) | Repo-level `make test` over all suites; shared host/sim16 flags | 2026-11-14 | agent |
+| firmware/src/features.c | `features_extract` | 150x3 int16 window → 60 int16 features (C3: truncated mean, isqrt energy) | 2026-11-14 | agent |
+| firmware/src/features.c | `segment_features` | Mean and isqrt energy of one 15-sample segment on one axis | 2026-11-14 | agent |
+| firmware/src/features.c | `features_isqrt32` | Exact floor(sqrt(n)) for uint32, digit-by-digit | 2026-11-14 | agent |
+| firmware/src/features.h | `FEAT_IS_NONNEG` (macro) | C3 non-negative flag: odd feature index = energy | 2026-11-14 | agent |
+| tools/features_ref.py | `features_extract` | Integer-only Python reference of C3, bit-exact with features.c | 2026-11-14 | agent |
+| tools/features_ref.py | `c_div_trunc` | C99 truncating division | 2026-11-14 | agent |
+| tools/features_ref.py | `isqrt32` | Digit-by-digit isqrt (same loop as the C) | 2026-11-14 | agent |
+| tools/features_ref.py | `_check_int16` | Assert a value fits int16 (mirrors C intermediates) | 2026-11-14 | agent |
+| tools/features_ref.py | `_selftest` | isqrt32 vs math.isqrt self-test | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `rng_seed` | xorshift32 seed (mirrored in oracle.py) | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `rng_next` | xorshift32 step | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `fill_edge` | Build the fixed edge windows | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `fill_random` | Build one pseudo-random window | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `print_line` | Print one window's features (3 lines of 20) | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `isqrt_ok` | Check r*r <= n < (r+1)^2 | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `check_isqrt` | isqrt sweep | 2026-11-14 | agent |
+| firmware/test/features/test_features.c | `main` | Features test driver (host + sim16) | 2026-11-14 | agent |
+| firmware/test/features/oracle.py | `tdiv` | Independent truncating division | 2026-11-14 | agent |
+| firmware/test/features/oracle.py | `expected` | Independent C3 oracle (math.isqrt) | 2026-11-14 | agent |
+| firmware/test/features/oracle.py | `Rng`, `Rng.next` | xorshift32 mirror of the C driver | 2026-11-14 | agent |
+| firmware/test/features/oracle.py | `edge_window` | Fixed edge windows (mirror of fill_edge) | 2026-11-14 | agent |
+| firmware/test/features/oracle.py | `random_window` | Random windows (mirror of fill_random) | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `report` | Print PASS/FAIL line | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `parse` | Parse driver output | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `compare` | Compare driver output with the oracle | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `checks` | Macro/isqrt checks from driver output | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `run_driver` | Run host binary or sim16 ELF | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `test_ref` | Check tools/features_ref.py against the oracle | 2026-11-14 | agent |
+| firmware/test/features/run_tests.py | `main` | Features suite entry point | 2026-11-14 | agent |
+| firmware/test/features/gen_sstable.py | `find` | Search a 15-sample segment with a given SS | 2026-11-14 | agent |
+| firmware/test/features/gen_sstable.py | `main` | Generate ss_table.h / ss_table.py | 2026-11-14 | agent |
+| firmware/test/features/ss_table.h, ss_table.py | (generated data) | 72 segments with SS = k²-1, k², k²+1 | 2026-11-14 | agent |
