@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include "classify.h"
 
+/* Documented in classify.h. */
 uint8_t classify_mlp_conf(int32_t margin, uint8_t conf_shift)
 {
     uint32_t v;
@@ -17,6 +18,7 @@ uint8_t classify_mlp_conf(int32_t margin, uint8_t conf_shift)
     return (v > 255u) ? 255u : (uint8_t)v;
 }
 
+/* Documented in classify.h. */
 int8_t classify_decide(uint8_t top1, int32_t margin, uint8_t conf_shift, const knn_result_t *knn,
                        uint8_t min_conf, uint8_t *conf)
 {

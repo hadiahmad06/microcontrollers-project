@@ -189,6 +189,11 @@ int8_t knn_import(const uint8_t *buf, uint16_t len)
         buf[2] != GESTURE_TEMPLATES_PER_CLASS || buf[3] != KNN_DIM) { return -2; }
     uint16_t crc = crc16(buf, (uint16_t)(len - 2u));
     if (buf[len - 2u] != (uint8_t)(crc & 0xFFu) || buf[len - 1u] != (uint8_t)(crc >> 8)) { return -3; }
+    /* metadata (valid CRC only): count <= NS, next < NS, and next == count while count < NS (3.5R F1) */
+    for (uint8_t c = 0u; c < NC; c++) {
+        uint8_t cn = buf[4u + 2u * c], nx = buf[5u + 2u * c];
+        if (cn > NS || nx >= NS || (cn < NS && nx != cn)) { return -2; }
+    }
     uint16_t p = 4u;
     for (uint8_t c = 0u; c < NC; c++) { s_cnt[c] = buf[p++]; s_next[c] = buf[p++]; }
     for (uint8_t c = 0u; c < NC; c++) {
