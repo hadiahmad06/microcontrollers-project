@@ -81,3 +81,8 @@ This file is append-only. See AGENTS.md §4.
 - Statement: "You may push to remote as you will, and open PR's as you will. As the orchestrator, you may even merge PR's as you will. But, i recommend and urge you to take precautionary measures before merging."
 - Context: Cloud session. The earlier "don't push" note dated from before the remote existed. Hadi expects Sonnet subagent reviews before any merge.
 - Supersedes: none (replaces the informal "agents do not push or fetch until told to" note in BOARD.md)
+
+## 2026-11-14: Distinct git name for agent commits
+- Statement: "Please use a distinct name for your git identity. id say hadi ahmad claude or something"
+- Context: Agent commits now use the name `Hadi Ahmad (Claude)` with Hadi's email, plus the Co-Authored-By trailer (AGENTS.md §7 still holds: it is Hadi's identity). Commit 1 of this session went out under plain "Hadi Ahmad"; it was left as is, not rewritten.
+- Supersedes: none

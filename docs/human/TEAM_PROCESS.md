@@ -30,3 +30,8 @@ Hadi's agents may push to the GitHub remote, open pull requests, and merge them.
 merge the orchestrating agent takes precautions: subagent review, its own diff read, and a
 rerun of the tests. This covers Hadi's agents only; other people set the rules for theirs.
 - Decided: 2026-11-14 by Hadi. Not contested.
+
+## Git name for agent commits (Hadi's agents)
+Hadi's agents commit as `Hadi Ahmad (Claude)` with Hadi's email and a Co-Authored-By trailer
+naming the agent. That keeps agent commits distinct from Hadi's own in `git log`.
+- Decided: 2026-11-14 by Hadi. Not contested.
