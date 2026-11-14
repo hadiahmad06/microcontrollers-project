@@ -5,8 +5,9 @@ Pipeline: normalize -> layer1 (acc1, h) -> layer2 (logits) -> top2 (top1, margin
 confidence, then the C5 k-NN gates and decision.  Every stage is a separate public function so
 a test vector can localise a mismatch to one stage.
 
-INTEGERS ONLY: no float or true division anywhere in the inference path (selftest enforces it
-for the model arithmetic by construction; only `//` and shifts on ints are used).
+INTEGERS ONLY: no float or true division anywhere in the inference path; selftest enforces it by
+scanning this file's own syntax tree (no `/`, no float literal, no float() in any function
+except selftest and its helpers).
 
 Sources: our own executable spec docs/agent/hadi/spikes/quant/quant_ref.py (rshift_r, sat,
 requant_big/requant_split, top2, classify_ref, class_radius, l1 are promoted from it), the
@@ -51,9 +52,10 @@ def rshift_r(v, s):
     """Round-half-up arithmetic right shift, RSHIFT_R(v, s) = (v + (1 << s >> 1)) >> s.
 
     Args: v (int) value; s (int) shift in 0..14 (firmware limit). Python >> floors like XC16 asr.
-    Returns: int.
+    Returns: int. Raises ValueError if s is outside 0..14.
     """
-    assert 0 <= s <= 14, "shift out of 0..14: %r" % (s,)
+    if not 0 <= s <= 14:  # explicit check (not assert): must also hold under python -O
+        raise ValueError("shift out of 0..14: %r" % (s,))
     return (v + ((1 << s) >> 1)) >> s
 
 
@@ -99,9 +101,12 @@ def _c_int_expr(text):
     Args: text (str) such as '0x1A2Bu', '(-2147483647L - 1L)'. Returns: int. Raises ValueError.
     """
     t = _SUFFIX.sub(r"\1", text.strip())
-    if not t or not _SAFE_EXPR.match(t):
+    if not t or not _SAFE_EXPR.match(t) or "**" in t:  # '**' would allow 9**9**9 (hang)
         raise ValueError("unsupported constant expression: %r" % text)
-    return eval(t, {"__builtins__": {}}, {})  # restricted charset checked above
+    try:
+        return eval(t, {"__builtins__": {}}, {})  # restricted charset checked above
+    except (SyntaxError, TypeError) as e:
+        raise ValueError("unsupported constant expression: %r" % text) from e
 
 
 def _strip_comments(src):
@@ -130,33 +135,82 @@ def model_hash(m):
     return crc & 0xFFFFFFFF
 
 
+def _shape_of(x):
+    """Full shape of a nested list, rejecting ragged arrays. Args: x (list or int). Returns:
+    list of dimensions (outermost first). Raises ValueError if sibling elements differ in shape."""
+    if not isinstance(x, list):
+        return []
+    if not x:
+        return [0]
+    subs = [_shape_of(e) for e in x]
+    if any(t != subs[0] for t in subs):
+        raise ValueError("ragged array (rows differ in shape)")
+    return [len(x)] + subs[0]
+
+
+def check_model_bounds(m):
+    """Check the C4 exporter bounds on a parsed model (the evaluation rule of C4.3: this file is the
+    judge, so a header that the firmware's split multiply cannot match is refused here).
+
+    Args: m (dict with the GM_* arrays). Returns: None. Raises ValueError naming the violated
+    bound: weights in [-127,127]; |B| < 2^29; |B| + 127*sum|W| < 2^30 per row; 2^14 <= M1 < 2^15;
+    16 <= SH1 <= 31; GM_IN_SH <= 14.
+    """
+    for name in ("GM_W1", "GM_W2"):
+        for row in m[name]:
+            for w in row:
+                if not -127 <= w <= 127:
+                    raise ValueError("%s element %d outside [-127, 127] (C4 weight bound)" % (name, w))
+    for lname, W, B in (("layer 1", m["GM_W1"], m["GM_B1"]), ("layer 2", m["GM_W2"], m["GM_B2"])):
+        for j, (row, b) in enumerate(zip(W, B)):
+            if not abs(b) < (1 << 29):
+                raise ValueError("%s bias[%d] = %d violates |B| < 2^29" % (lname, j, b))
+            worst = abs(b) + 127 * sum(abs(w) for w in row)
+            if not worst < (1 << 30):
+                raise ValueError("%s row %d worst case %d violates |B| + 127*sum|W| < 2^30" % (lname, j, worst))
+    for v in m["GM_M1"]:
+        if not (1 << 14) <= v < (1 << 15):
+            raise ValueError("GM_M1 element %d outside [2^14, 2^15)" % v)
+    for v in m["GM_SH1"]:
+        if not 16 <= v <= 31:
+            raise ValueError("GM_SH1 element %d outside [16, 31]" % v)
+    for v in m["GM_IN_SH"]:
+        if not 0 <= v <= 14:
+            raise ValueError("GM_IN_SH element %d violates GM_IN_SH <= 14" % v)
+
+
 def parse_header(text):
     """Parse the text of a generated gesture_model.h into a dict.
 
     Args: text (str) header source. Returns: dict with every numeric `#define GM_*` macro
     (key = macro name, value = int) and every `static const` array (key = array name, value =
-    nested list of ints, shape checked against its declared dimensions and element range).
-    Raises ValueError on a malformed file, out-of-range element, shape mismatch or when
-    GM_MODEL_HASH does not match the arrays.
+    nested list of ints, full shape checked against its declared dimensions and element range).
+    Raises ValueError on a malformed file, a GM_* macro with a non-literal value, an unknown
+    macro in a dimension, a ragged or mis-shaped array, an out-of-range element, a violated C4
+    bound (see check_model_bounds), or when GM_MODEL_HASH does not match the arrays.
     """
     src = _strip_comments(text)
     m = {}
     for name, val in re.findall(r"^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+([^\n]+)$", src, flags=re.M):
         try:
             m[name] = _c_int_expr(val)
-        except (ValueError, SyntaxError):
-            pass  # non-numeric macro (e.g. GM_STATIC_ASSERT body); not needed
+        except ValueError:
+            if name.startswith("GM_"):
+                raise ValueError("macro %s has a non-literal value %r (only integer literals are supported)"
+                                 % (name, val.strip()))
     ranges = {n: (lo, hi) for n, _c, lo, hi in ARRAY_ORDER}
     decl = re.compile(r"static\s+const\s+\w+\s+(GM_\w+)\s*((?:\[[^\]]*\]\s*)+)=\s*(\{.*?\})\s*;", re.S)
     for name, dims, body in decl.findall(src):
-        shape = [_c_int_expr(re.sub(r"\b(GM_\w+)\b", lambda g: str(m[g.group(1)]), d))
-                 for d in re.findall(r"\[([^\]]*)\]", dims)]
-        val = ast.literal_eval(_SUFFIX.sub(r"\1", _expand_exprs(body)).replace("{", "[").replace("}", "]"))
-        sh = []
-        x = val
-        while isinstance(x, list):
-            sh.append(len(x))
-            x = x[0] if x else None
+        def dim(g):
+            if g.group(1) not in m:
+                raise ValueError("%s: dimension uses unknown macro %s" % (name, g.group(1)))
+            return str(m[g.group(1)])
+        shape = [_c_int_expr(re.sub(r"\b(GM_\w+)\b", dim, d)) for d in re.findall(r"\[([^\]]*)\]", dims)]
+        try:
+            val = ast.literal_eval(_SUFFIX.sub(r"\1", _expand_exprs(body)).replace("{", "[").replace("}", "]"))
+        except (ValueError, SyntaxError) as e:
+            raise ValueError("%s: unreadable initializer (%s)" % (name, e)) from e
+        sh = _shape_of(val)
         if sh != shape:
             raise ValueError("%s: shape %s != declared %s" % (name, sh, shape))
         lo, hi = ranges.get(name, (_I32_MIN, _I32_MAX))
@@ -169,6 +223,7 @@ def parse_header(text):
             raise ValueError("array %s missing" % name)
     if "GM_MODEL_HASH" not in m:
         raise ValueError("GM_MODEL_HASH missing")
+    check_model_bounds(m)
     if model_hash(m) != m["GM_MODEL_HASH"]:
         raise ValueError("GM_MODEL_HASH 0x%08X does not match arrays (CRC 0x%08X)"
                          % (m["GM_MODEL_HASH"], model_hash(m)))
@@ -179,6 +234,7 @@ def _expand_exprs(body):
     """Replace parenthesised constant expressions like (-2147483647L - 1L) inside an array body
     by their integer value so ast.literal_eval can read the body. Args: body (str). Returns: str."""
     def one(g):
+        """Replace one parenthesised match by its integer value. Args: g (re.Match). Returns: str."""
         return str(_c_int_expr(_SUFFIX.sub(r"\1", g.group(0))))
     return re.sub(r"\([^()]*\)", one, body)
 
@@ -410,9 +466,12 @@ def selftest():
     far = [-100] * 60
 
     def lg(margin):
+        """Logit vector with class 3 ahead by `margin`. Args: margin (int). Returns: list[int]."""
         return [0, 0, 0, margin, 0, 0, 0, 0, 0]
 
     def run(x, logits, store, min_conf, shift):
+        """classify_decide on a logit vector. Args: x (x8), logits, store (templates), min_conf,
+        shift (conf shift). Returns: (id, conf)."""
         t1, mg = top2(logits)
         return classify_decide(t1, mg, shift, knn_query(x, store), min_conf)
 
@@ -444,7 +503,87 @@ def selftest():
     assert knn_query(x8, {9: []}) is None
     # d2 == 0 -> c_k 0
     assert knn_query(x8, {9: [x8], 10: [x8]})["c_k"] == 0
+    _selftest_header()
+    _selftest_integer_only()
     print("infer_ref selftest PASS")
+
+
+def _selftest_header_text(m, **over):
+    """Render a minimal gesture_model.h for the 2/2/3 tiny model (selftest only).
+
+    Args: m (model dict with GM_* arrays); over (macro or array overrides, e.g. GM_M1=[..],
+    HASH=<int> to force a hash). Returns: str header text with a correct (or forced) hash."""
+    m = dict(m, **{k: v for k, v in over.items() if k.startswith("GM_")})
+    h = over.get("HASH", model_hash(m))
+
+    def arr(rows):
+        """Initializer text. Args: rows (list). Returns: str."""
+        return "{ " + ", ".join(arr(r) if isinstance(r, list) else str(r) for r in rows) + " }"
+
+    t = ["#define GM_N_FEATURES %du" % len(m["GM_W1"][0]), "#define GM_N_HIDDEN %du" % len(m["GM_W1"]),
+         "#define GM_N_CLASSES %du" % len(m["GM_W2"]), "#define GM_CONF_SHIFT 0u",
+         "#define GM_MODEL_HASH 0x%08XUL" % h]
+    t += [x for x in over.get("EXTRA", [])]
+    dims = {"GM_IN_OFF": "[GM_N_FEATURES]", "GM_IN_SH": "[GM_N_FEATURES]", "GM_W1": "[GM_N_HIDDEN][GM_N_FEATURES]",
+            "GM_B1": "[GM_N_HIDDEN]", "GM_M1": "[GM_N_HIDDEN]", "GM_SH1": "[GM_N_HIDDEN]",
+            "GM_W2": "[GM_N_CLASSES][GM_N_HIDDEN]", "GM_B2": "[GM_N_CLASSES]"}
+    for n, _c, _lo, _hi in ARRAY_ORDER:
+        t.append("static const int32_t %s%s = %s;" % (n, dims[n], arr(m[n])))
+    return "\n".join(t) + "\n"
+
+
+def _selftest_header():
+    """Selftest of parse_header/model_hash/check_model_bounds: accepts a good header and rejects
+    every bound violation, a bad hash, ragged shapes and non-literal macros. Returns: None."""
+    base = _tiny_model()
+    good = parse_header(_selftest_header_text(base))
+    assert good["GM_W1"] == base["GM_W1"] and good["GM_MODEL_HASH"] == model_hash(base)
+
+    def bad(what, text):
+        """Assert parse_header(text) raises ValueError. Args: what (str, label); text (str)."""
+        try:
+            parse_header(text)
+        except ValueError:
+            return
+        raise AssertionError("parse_header accepted: " + what)
+
+    bad("W1 = -128", _selftest_header_text(base, GM_W1=[[-128, 2], [-1, 0]]))
+    bad("W2 = -128", _selftest_header_text(base, GM_W2=[[1, 1], [2, 0], [0, -128]]))
+    bad("M1 = 2^15", _selftest_header_text(base, GM_M1=[32768, 16384]))
+    bad("M1 < 2^14", _selftest_header_text(base, GM_M1=[16383, 16384]))
+    bad("SH1 = 15", _selftest_header_text(base, GM_SH1=[15, 16]))
+    bad("SH1 = 32", _selftest_header_text(base, GM_SH1=[16, 32]))
+    bad("IN_SH = 15", _selftest_header_text(base, GM_IN_SH=[15, 0]))
+    bad("B1 = 2^29", _selftest_header_text(base, GM_B1=[1 << 29, 0]))
+    bad("B2 = -2^29", _selftest_header_text(base, GM_B2=[0, -(1 << 29), 0]))
+    bad("bad hash", _selftest_header_text(base, HASH=1))
+    bad("ragged W1", _selftest_header_text(base, GM_W1=[[1, 2], [-1]]).replace("{ -1 }", "{ -1, 0, 0 }"))
+    bad("non-literal GM_ macro", _selftest_header_text(base, EXTRA=["#define GM_ODR_HZ GM_FORMAT_VERSION"]))
+    bad("unknown dim macro", _selftest_header_text(base).replace("[GM_N_CLASSES]", "[GM_NOPE]"))
+    parse_header(_selftest_header_text(base, EXTRA=["#define OTHER_MACRO GM_N_HIDDEN"]))  # non-GM_ macro: ignored
+    assert _c_int_expr("(50u * 2u)") == 100
+    try:
+        _c_int_expr("9**9**9")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("** accepted")
+
+
+def _selftest_integer_only():
+    """Selftest: no true division, float literal or float() call in this file outside selftest code.
+    Returns: None. Raises AssertionError naming the offending function."""
+    with open(__file__, "r") as f:
+        tree = ast.parse(f.read())
+    for fn in tree.body:
+        if not isinstance(fn, ast.FunctionDef) or fn.name == "selftest" or fn.name.startswith("_selftest"):
+            continue
+        for node in ast.walk(fn):
+            assert not isinstance(node, ast.Div), "true division in %s (line %d)" % (fn.name, node.lineno)
+            assert not (isinstance(node, ast.Constant) and isinstance(node.value, float)), \
+                "float literal in %s (line %d)" % (fn.name, node.lineno)
+            assert not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "float"), \
+                "float() in %s (line %d)" % (fn.name, node.lineno)
 
 
 if __name__ == "__main__":
