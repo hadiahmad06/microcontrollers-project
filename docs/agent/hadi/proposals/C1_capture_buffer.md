@@ -1,7 +1,7 @@
 # C1 proposal: capture buffer (WP1 to WP3)
 
 Author: research-sensor (ticket S1-1), 2026-11-14. **Status: PROPOSAL, not a decision.** Hadi decides.
-Needs a fact-check pass (S1-1R). Nothing here was tested on hardware.
+Fact-checked in `docs/agent/hadi/reviews/S1-1R.md` (APPROVE WITH NITS); fix round applied 2026-11-14. Nothing here was tested on hardware.
 
 Source keys: **[DS]** = ST LIS3DH datasheet, DocID17530 **Rev 1** (May 2010), https://cdn-shop.adafruit.com/datasheets/LIS3DH.pdf (st.com was unreachable from this machine; the newest revision was NOT read).
 **[AN]** = ST AN3308 (DocID18198) **Rev 3**, June 2017, https://core-electronics.com.au/attachments/uploads/lis3dh-application-note.pdf.
@@ -22,7 +22,7 @@ Source keys: **[DS]** = ST LIS3DH datasheet, DocID17530 **Rev 1** (May 2010), ht
 6. **Overflow policy.** (a) discard the window and re-arm; (b) keep the window, set a flag; (c) ignore.
    RECOMMENDATION (needs Hadi's decision): (a) while a window is being filled (return an overrun status, count it); OVRN while idle is only counted.
 7. **Buffers.** (a) one 900 B buffer, locked until the consumer releases it, while a small ring keeps draining; (b) two 900 B buffers.
-   RECOMMENDATION (needs Hadi's decision): (a). Keeps the RAM plan at about 4.7 KB of 8 KB [PLAN section 4]; (b) adds 900 B for little benefit while a gesture takes 1.5 s (classifier time is UNVERIFIED, WP3 to measure).
+   RECOMMENDATION (needs Hadi's decision): (a). Capture path total is 1188 B (900 buffer + 96 ring + 192 staging, section 3.4); the app stays near 5 KB of 8 KB [PLAN section 4 plus 288 B]; (b) adds 900 B for little benefit while a gesture takes 1.5 s (classifier time is UNVERIFIED, WP3 to measure).
 8. **Window length and early stop.** (a) always exactly 150 samples; (b) variable length with padding.
    RECOMMENDATION (needs Hadi's decision): (a). Never pad with zeros (zero is not "at rest": gravity reads about 512 on the vertical axis).
 
@@ -39,7 +39,7 @@ Source keys: **[DS]** = ST LIS3DH datasheet, DocID17530 **Rev 1** (May 2010), ht
 | FS select | CTRL_REG4 FS1:FS0 = 01 gives +-4 g | [DS] Table 33 (p.31) |
 | ODR 100 Hz | CTRL_REG1 ODR3..0 = 0101 | [DS] Table 26 (p.30); [AN] Table 4 |
 | FIFO depth | 32 sample sets of X,Y,Z; one set is 6 bytes | [AN] sec 9.1 (p.41); [DS] sec 5.1 |
-| FIFO word width | **Sources disagree**: [DS] sec 5.1 says "10bit data" FIFO; [AN] sec 9.1 says 16-bit left-justified | both cited; bench test in open question 2 |
+| FIFO word width | **RESOLVED (S1-1R)**: FIFO stores the full 16-bit left-justified word, so 12-bit HR data survives. [DS] sec 5.1 "10bit" is a stale line (the same datasheet's feature list says 96 levels of 16-bit data) | [AN] sec 9.1 (p.41); S1-1R; 2-minute bench check kept (Q2) |
 | FIFO enable | CTRL_REG5 (0x24) FIFO_EN (bit 6) | [AN] sec 9.2.1 (p.43); [DS] Table 35 |
 | FIFO modes | FIFO_CTRL_REG (0x2E) FM1:FM0 = 00 Bypass, 01 FIFO, 10 Stream, 11 Stream-to-FIFO ([DS] Table 44 calls 11 "Trigger mode"); TR bit: 0 = trigger from INT1 source, 1 = INT2; FTH[4:0] watermark | [AN] sec 9.2.2 (p.44); [DS] Tables 42-44 |
 | FIFO_SRC_REG (0x2F) | b7 WTM, b6 OVRN_FIFO, b5 EMPTY, b4..0 FSS (unread count) | [AN] sec 9.2.3 (p.44); [DS] Table 45 |
@@ -54,7 +54,9 @@ Source keys: **[DS]** = ST LIS3DH datasheet, DocID17530 **Rev 1** (May 2010), ht
 ## 3. Details
 
 ### 3.1 Sample format and headroom (decision 1)
-In HR mode the 16-bit word carries 12-bit data left-aligned ([AN] sec 3.4), so the low 4 bits carry no data and `raw >> 4` loses nothing. Use an **arithmetic** shift. XC16 should shift signed values arithmetically but that is implementation-defined in C: **UNVERIFIED**, add a test with a negative input. Python `>>` is also arithmetic (floor), which matches.
+In HR mode the 16-bit word carries 12-bit data left-aligned ([AN] sec 3.4), so the low 4 bits carry no data and `raw >> 4` loses nothing. Use an **arithmetic** shift. **RESOLVED (S1-1R):** XC16 `>>` on a signed value is arithmetic (XC16 User's Guide 4.3.11; `xc16-gcc -mcpu=24FJ64GA002 -S` emits `asr`). Keep a unit test with a negative input anyway. Python `>>` is also arithmetic (floor), which matches.
+
+**Byte assembly (required form).** On XC16 `int` is 16-bit, so `(H << 8) | L` with `uint8_t H` is promoted to signed `int` and overflows for H >= 0x80. Write `int16_t raw = (int16_t)(((uint16_t)H << 8) | L); int16_t v = raw >> 4;` (signed `int16_t` shift, compiles to `asr`). The sample-by-sample unpack of every burst uses exactly this.
 
 Headroom with int32 accumulators (C3 energy = sum of x^2, 15 samples per segment):
 - 12-bit, worst case |x| = 2048: x^2 = 2^22, times 15 is about 6.3e7 (26 bits). Fits int32 with 5 bits spare.
@@ -68,7 +70,7 @@ Axis index: `buf[i][0]` = wand X, `[1]` = wand Y, `[2]` = wand Z.
 
 ### 3.3 Axis mapping and verification (decision 3)
 [DS] Figure 2 (p.8, pin connection) shows the +X/+Y/+Z directions relative to pin 1 of the package. How the board sits on the wand decides the mapping, so it cannot come from a datasheet. **UNVERIFIED until the board is built**; the course board may fix it (open question 1).
-Proposal: `board_axes.h` with, for each wand axis, the source sensor axis index (0..2) and a sign (+1/-1). The driver applies it when it unpacks each sample, so consumers and the UART stream use wand frame only. A static accelerometer reads **+1 g on the axis pointing up** (standard MEMS convention; not stated in the two ST documents I read, so UNVERIFIED there).
+Proposal: `board_axes.h` with, for each wand axis, the source sensor axis index (0..2) and a sign (+1/-1). The driver applies it when it unpacks each sample, so consumers and the UART stream use wand frame only. A static accelerometer reads **+1 g on the axis pointing up** (confirmed for Z flat by [DS] sec 3.1.2 and S1-1R; the tilt test is still the real check).
 Tilt test (UART raw stream or debugger watch, values after `>> 4`, 1 g about 512):
 1. Wand flat, board face up, tip away: expect (X, Y, Z) about (0, 0, +512). If Z reads -512, flip the Z sign.
 2. Tip pointing straight up: expect X about +512; tip straight down: about -512.
@@ -80,23 +82,26 @@ If the tests can only pass by swapping two axes and flipping an odd number of si
 - **Bypass**: no history; needs a read per data-ready (100 transactions per second, about 0.83 ms each at 100 kHz, [AN] sec 9.5). Pre-trigger only through a software ring.
 - **FIFO mode**: fills 32 samples, then stops; restart needs Bypass, which clears the buffer ([AN] sec 9.3.1-9.3.2). No pre-trigger. Not suitable.
 - **Stream-to-FIFO**: the only hardware pre-trigger: up to 30 samples before, the trigger, and 1 after ([AN] sec 9.3.4). Then the FIFO **freezes at 32 samples**, so a 150-sample window cannot be completed; reading it out and restarting via Bypass loses samples in between. The trigger is level-sensitive (IA bit), should be latched (LIR_INT1, CTRL_REG5) and takes 2/ODR to clear. Rejected for the 1.5 s window.
-- **Stream mode + MCU ring (recommended)**: leave the FIFO in Stream mode, watermark FTH = 15 on INT1 (or poll FIFO_SRC), drain FSS samples per burst into a small circular buffer, convert and remap. At trigger index t the window starts at t - P and continues for 150 samples in total, appended straight into `buf`. P is limited by RAM (6 B per sample with int16 x 3). Interrupt-service latency does not matter because alignment uses sample index, not time. A software threshold trigger on the drained data is also possible and runs identically in the Python tool on recordings, which keeps training and device windows aligned the same way. Choosing hardware motion interrupt (IA1) versus software trigger is a sub-decision I did not make; pin cost is in C6a.
+- **Stream mode + MCU ring (recommended)**: leave the FIFO in Stream mode, watermark FTH = 15 on INT1, drain bursts into a small circular buffer, convert (3.1 byte assembly) and remap. At trigger index t the window starts at t - P and continues for 150 samples in total, appended straight into `buf`. Alignment uses sample index, so interrupt-service latency does not matter. A software threshold trigger on the drained data is also possible and runs identically in the Python tool on recordings (hardware IA1 versus software trigger is a sub-decision I did not make; pin cost is in C6a).
+  **Drain loop (required, S1-1R finding 1).** WTM is a **level** (stays 1 while unread > FTH) but PIC INT0 is edge-triggered. If 16 or more samples are still unread after a burst, no new edge arrives and the driver stalls. So the INT0 ISR only sets a flag; the drain task does: `loop { read FIFO_SRC; n = FSS; if n == 0 break; read n samples (n <= 32, one burst); process each sample strictly in order (ring push, trigger test, window append) } until FSS < FTH+1 (i.e. below the watermark) at the re-read after the burst`, then re-arm INT0 (clear IF, enable). Backstop: the main loop also polls FIFO_SRC (about 38 clocks, 0.1 ms at 400 kHz) at least every 50 ms, or reads the INT pin level, so a missed edge cannot stall capture. Samples arriving during a burst (about 1 per 10 ms) are picked up by the re-read.
+  **RAM for the capture path.** Pre-trigger ring depth >= P = 15 samples x 6 B = 90 B (use 16 entries = 96 B). Because triggers are tested while a burst is processed sample by sample, a 15-deep ring is enough only with strictly in-order processing, as above. Drain staging buffer: 6 B x 32 = 192 B (worst case a whole FIFO; 96 B if bursts are capped at 16 samples, which the loop above allows). Capture buffer 900 B. **Total capture path = 900 + 96 + 192 = 1188 B** (1092 B with the 96 B staging cap), against the 900 B counted so far in [PLAN] section 4 and C7. Still fits 8 KB with the 2 KB free target of C7; C7 should add these 288 B.
 
 Pre-trigger samples possible: 30 in hardware (Stream-to-FIFO, window then limited to 32 samples); unlimited by hardware in the recommended mode (RAM bound; proposal 15).
 
 ### 3.5 FIFO depth, drain deadline, overflow (decision 6)
 A full 32-sample FIFO is 320 ms at 100 Hz. With FTH = 15 the watermark fires at 16 unread, leaving 16 samples = 160 ms before the first overwrite. A 16-sample burst is 96 bytes: about 8.9 ms at 100 kHz, 2.2 ms at 400 kHz (C6a). The driver must start a burst within about 150 ms of the watermark.
-OVRN_FIFO = 1 means 32 unread; a sample is lost only if none is read before the next ODR tick ([AN] sec 9.2.3). The flag alone cannot tell whether one was lost, so treat OVRN seen at drain start, or a missed deadline, during an open window as a fault. Policy: drop the window, increment `capture_overruns`, re-arm after a quiet period. While idle only count it. OVRN can also go to INT1 (I1_OVERRUN) to catch a stalled main loop ([AN] Table 41).
+OVRN_FIFO = 1 means 32 unread; a sample is lost only if none is read before the next ODR tick ([AN] sec 9.2.3). The flag alone cannot tell whether one was lost, so treat OVRN seen at drain start, or a missed deadline, during an open window as a fault. Policy: drop the window, increment `capture_overruns`, re-arm after a quiet period. While idle only count it. OVRN can also go to INT1 (I1_OVERRUN, enabled in **CTRL_REG3**, RESOLVED S1-1R: the CTRL_REG5 wording in [AN] sec 9.3.2 is a typo) to catch a stalled main loop ([AN] Table 41). Stall protection is the drain-loop backstop in 3.4.
 
 ### 3.6 Buffers and window boundaries (decisions 7, 8)
 One window is 150 x 3 x 2 = 900 B. [PLAN] section 4 totals about 4.6 KB; a second buffer gives about 5.5 KB of 8 KB, and templates stored as int16 would add 1200 B more, which leaves very little stack. Single buffer: IDLE -> ARMED -> CAPTURING (150 samples) -> READY (buffer locked) -> release -> ARMED. In READY the driver keeps draining into the small ring and ignores triggers until released plus a refractory time. A gesture made while classifying is lost (accepted).
 Exactly 150 samples (1.5 s) from the first stored sample (P pre-trigger + trigger + rest). If motion stops early the remaining samples are real at-rest samples and are kept as they are, so on-device windows look like the training recordings. Early termination would need a length field in C3/C4; not recommended.
 
 ## 4. Open questions
-1. How is the LIS3DH board mounted, and does the course lab board or breakout fix the orientation? (Sets the axis table.)
-2. Does the FIFO keep 12-bit data or truncate to 10-bit ([DS] Rev 1 vs [AN] Rev 3)? Bench check: tilt slowly, read FIFO words, see whether bits 5..4 of the 16-bit word change (12-bit) or stay 0 (10-bit). If 10-bit, resolution is 8 mg/digit at +-4 g and C1 needs review.
+Resolved by S1-1R (no longer open): FIFO width (16-bit, 12-bit HR preserved); OVRN enable register (CTRL_REG3); XC16 `>>` is arithmetic; +1 g on the up axis (datasheet sec 3.1.2, Z flat reads 1 g).
+1. How is the LIS3DH board mounted, and does the lab board or breakout fix the orientation? (Sets the axis table.) Is the mounting fixed on the wand?
+2. Bench check (2 minutes, from the review): FIFO in Stream mode, tilt slowly, read FIFO words, confirm bits 15..4 vary and bits 3..0 stay zero; write 0xB0 to CLICK_THS and read it back (bit 7 latches); confirm INT1 idles low.
 3. Is +-4 g enough for hard swipes and thrusts? Check clipping on real recordings (WP2).
 4. Is a software trigger acceptable, or must the hardware motion interrupt be used? (Affects INT pin use, C6a.)
-5. Maximum classification time (WP3 measure), to confirm single buffering.
-6. The newest datasheet revision (Rev 5/6) was not read; if it differs from Rev 1 on FIFO or HR output, re-check section 2.
-7. [AN] Rev 3 sec 9.3.2 says the OVRN interrupt is enabled via CTRL_REG5; [AN] Table 41 and [DS] say CTRL_REG3 (I1_OVERRUN). I used CTRL_REG3 and treat the other as a typo (UNVERIFIED on hardware).
+5. Maximum classification time (WP3 measure; C7 estimates about 5 ms), to confirm single buffering.
+6. The newest LIS3DH datasheet revision could not be read (st.com unreachable, also for the reviewer). If someone can open it, check FIFO sec 5.1, CLICK_THS and CTRL_REG3 and report any difference.
+7. "1 g about 512" is nominal; write about 500 to 512 counts (2 mg/LSB typ. versus 4 g / 2048).

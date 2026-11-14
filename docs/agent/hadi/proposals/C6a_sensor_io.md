@@ -1,7 +1,7 @@
 # C6a proposal: sensor and I/O pin / peripheral allocation (PIC24FJ64GA002, 28-pin)
 
 Author: research-sensor (ticket S1-1), 2026-11-14. **Status: PROPOSAL, not a decision.** Hadi decides.
-Needs a fact-check pass (S1-1R). Nothing here was tested on hardware. WS2812 timing and the bulb are out of scope (WP4).
+Fact-checked in `docs/agent/hadi/reviews/S1-1R.md` (APPROVE WITH NITS); fix round applied 2026-11-14. Nothing here was tested on hardware. WS2812 timing and the bulb are out of scope (WP4).
 
 Source keys:
 **[PIC]** = Microchip PIC24FJ64GA004 family datasheet DS39881**E** (covers PIC24FJ64GA002, 28-pin), https://ww1.microchip.com/downloads/en/DeviceDoc/39881e.pdf. Page numbers are the printed DS39881E-page numbers.
@@ -16,14 +16,15 @@ Source keys:
 2. **LIS3DH I2C address.** 0x18 (SA0 = GND) or 0x19 (SA0 = Vdd).
    RECOMMENDATION (needs Hadi's decision): driver takes the address as a compile-time constant and probes both at `init`, verifying WHO_AM_I = 0x33. The value depends on how SA0 is wired (open question 2).
 3. **I2C speed.** (a) 100 kHz, I2C1BRG = 157; (b) 400 kHz, I2C1BRG = 37 (404 kHz, about 1% over the LIS3DH 400 kHz limit); (c) 400 kHz with I2C1BRG = 38 (394 kHz).
-   RECOMMENDATION (needs Hadi's decision): (c). The bus load is low either way (section 3.2), but a faster bus shortens critical sections and leaves margin; 38 stays inside the sensor's 400 kHz maximum. If bench wiring is long or pull-ups are weak, fall back to (a). Formula caveat in section 3.2.
+   RECOMMENDATION (needs Hadi's decision): (c). The bus load is low either way (section 3.2), but a faster bus shortens critical sections and leaves margin; 38 stays inside the sensor's 400 kHz maximum. If bench wiring is long or pull-ups are weak, fall back to (a). The device datasheet formula governs; scope-check SCL at first bring-up (section 3.2).
 4. **LIS3DH interrupt routing and PIC pins.** (a) LIS3DH INT1 to PIC INT0 (fixed pin 16), INT2 to PIC INT1 through PPS; (b) both to PPS INT1/INT2; (c) one wire only (OR of all sources on INT1 to INT0); (d) Change Notification pins.
    RECOMMENDATION (needs Hadi's decision): (a). INT1 = FIFO watermark (+ overrun, optionally motion); INT2 = click (+ optionally motion). INT0 is a fixed pin and needs no PPS unlock. Use CN only if a lab board forces a pin that has no INTx option (CN gives any-edge on a shared interrupt and needs a port read to know which pin changed).
 5. **UART1 raw-stream baud.** (a) 115200 with BRGH = 1, U1BRG = 34 (-0.79%); (b) 230400 with BRGH = 1, U1BRG = 16 (+2.12%); (c) 250000 with BRGH = 1, U1BRG = 15 (0.00%, check the host adapter supports it).
    RECOMMENDATION (needs Hadi's decision): (a). Raw stream is about 600 B/s of samples plus framing, versus 11.5 KB/s capacity. BRGH = 0 is not recommended: 115200 gives -3.55% error.
 6. **Click (double tap) start configuration.** Use the values in section 3.5 as a starting point and tune on the bench. Ask: use all three axes, or Z only?
    RECOMMENDATION (needs Hadi's decision): double-click on all axes at the start, narrow to the axis a tap really excites after bench tests. Concern: click timing is in units of 1/ODR = 10 ms at 100 Hz, which is coarse for a short tap pulse (UNVERIFIED, test). If taps are missed, raise ODR to 200 or 400 Hz (affects C1 and the FIFO depth in seconds).
-7. **Pin map.** Proposed in section 3.7. RECOMMENDATION (needs Hadi's decision): adopt after the lab-board check; it keeps ICSP set 1 free of anything else and puts every PPS function on RB12..RB15.
+7. **Pin map and required config words.** Proposed in sections 3.7 and 3.8. Conflict with C6b, which puts WS2812 data on RB13 (and IR/OC1 on RB14), where my map has UART TX/RX. Options: (a) this map: WS2812 = RB15 (pin 26), UART TX/RX = RB13/RB14; (b) C6b's choice: WS2812 = RB13 (pin 24), UART TX = RB15 (pin 26), UART RX = RB4 (pin 11, RP4), debug pin = RA4 (pin 12). Both keep INT0 = RB7, I2C1 = RB8/RB9, LIS3DH INT2 = RB12.
+   RECOMMENDATION (needs Hadi's decision): adopt after the lab-board check; if C6b's RB13/RB14 stands, use (b). I did not edit C6b.
 8. **Trigger source (cross-link C1).** Hardware motion interrupt (IA1 on INT2, shared with click) versus software threshold on drained samples.
    RECOMMENDATION (needs Hadi's decision): software threshold first (frees an interrupt route, same rule runs in Python), keep IA1 as an optional wake-up.
 
@@ -34,7 +35,7 @@ Source keys:
 | Part and 28-pin I2C pins | SCL1 = 17, SDA1 = 18, SCL2 = 7, SDA2 = 6 (SPDIP/SSOP/SOIC) | [PIC] Table 1-2 (p.15); pin diagram (p.2) |
 | Alternate I2C1 pins | ASCL1 = 15 (RB6), ASDA1 = 14 (RB5); selected by config bit I2C1SEL = 0 (1 = default pins) | [PIC] Table 1-2 (p.11); sec 16.1 (p.151); Register 24-2 CW2 bit 2 (p.213) |
 | I2C is not remappable | "The I2C modules are tied to fixed pin assignments and cannot be reassigned ... using Peripheral Pin Select" except the I2C1 alternate pins above | [PIC] sec 16.1 (p.151); sec 10.4.2 (p.107) |
-| I2C pins shared with JTAG | pin 17 = TCK/SCL1/RP8/RB8, pin 18 = TDO/SDA1/RP9/RB9. JTAGEN config bit: 1 = JTAG enabled, 0 = disabled | [PIC] pin diagram (p.2); Register 24-1 CW1 bit 14 (p.210) |
+| I2C pins shared with JTAG | pin 17 = TCK/SCL1/RP8/RB8, pin 18 = TDO/SDA1/RP9/RB9. JTAGEN config bit: 1 = JTAG enabled, 0 = disabled; unprogrammed default is 1 = ENABLED (CW1 R/PO-1, S1-1R) | [PIC] pin diagram (p.2); Register 24-1 CW1 bit 14 (p.210) |
 | ICSP pairs on 28-pin | PGEC1/PGED1 = pins 5/4 (RB1/RB0); PGEC2/PGED2 = pins 22/21 (RB11/RB10); PGEC3/PGED3 = pins 15/14 (RB6/RB5) per the pin diagram. **Table 1-2 lists PGEC3 = 14 and PGED3 = 15, which contradicts the pin diagram and its own RP5/RP6 rows.** Not used in my map. | [PIC] pin diagram (p.2); Table 1-2 (p.13) |
 | ICSP pair selection | CW1 ICS<1:0>: 11 = PGC1/PGD1, 10 = PGC2/PGD2, 01 = PGC3/PGD3 | [PIC] Register 24-1 CW1 bits 9:8 (p.210) |
 | Analog default | AD1PCFG resets to 0x0000 = **all pins analog**; set bit = 1 for digital. RB0-RB3 (AN2-AN5) and RB12-RB15 (AN12-AN9) are shared with analog | [PIC] SFR map (p.39); Register 21-5 (p.198) |
@@ -61,18 +62,18 @@ Source keys:
 
 ### 3.1 I2C pin conflicts (decision 1)
 - Pins 17/18 (RB8/RB9) have no analog function, so AD1PCFG does not matter for them. Both are on the 5.5 V tolerant list ([PIC] Table 10-1).
-- They double as JTAG TCK/TDO, so the config word needs `JTAGEN = OFF` ([PIC] Register 24-1 CW1, p.210). I did not verify the default of this bit as MPLAB sets it.
+- They double as JTAG TCK/TDO, so the config word needs `JTAGEN = OFF` ([PIC] Register 24-1 CW1, p.210). **Confirmed (S1-1R): the unprogrammed default is 1 = JTAG enabled**, so I2C1 on 17/18 will not work unless it is turned off. (MPLAB X's GUI default was not checked.) OFF also frees TMS/TDI on pins 22/21.
 - I2C2 (pins 6/7) works too but those are AN4/AN5; AD1PCFG bits PCFG4 and PCFG5 must be 1, and since AD1PCFG resets to all analog, set AD1PCFG = 0xFFFF in `board_init` for every case.
-- The I2C pins are open-drain and need external pull-ups to the LIS3DH Vdd_IO (3.3 V). Value is a design choice (typically 2.2 to 10 kOhm; UNVERIFIED against the I2C spec). Many breakouts have pull-ups already (open question 3). Do not double up blindly.
+- The I2C pins are open-drain and need external pull-ups to the LIS3DH Vdd_IO (3.3 V). Use **2.2 to 4.7 kOhm at 400 kHz** (reviewer's rise-time estimate from the I2C rule Rp <= tr / (0.8473 Cb); the I2C spec itself was not read, so UNVERIFIED; 10 kOhm is too weak at 400 kHz with 50-100 pF). Many breakouts already have pull-ups (open question 2). Do not double up blindly (parallel values lower the effective resistance).
 - Programming pins: PGEC/PGED sets are not on 17/18, so there is no conflict unless the lab board uses set 3 (pins 14/15) and also wants I2C1 alternate pins (option 1b).
 
 ### 3.2 I2C speed and FIFO drain time (decision 3)
 BRG at FCY = 16 MHz, using [PIC] Eq. 16-1: I2CxBRG = 16e6/FSCL - 16e6/1e7 - 1 = 16e6/FSCL - 2.6.
 - 100 kHz: 160 - 2.6 = 157.4 -> 157, actual 16e6 / (157 + 1 + 1.6) = 100.25 kHz.
 - 400 kHz: 40 - 2.6 = 37.4 -> 37 (matches [PIC] Table 16-1), actual 404.0 kHz; 38 gives 394.1 kHz; 36 would give 414.5 kHz (too fast).
-- Cross-check, FRM-I2C Eq. 4-1 with 120 ns delay: 156.1 (100 kHz) and 36.1 (400 kHz), one count lower than the device datasheet. The two documents disagree by one count; the device datasheet table is authoritative, but confirm SCL on a scope. I did not resolve the "PLL disabled" footnote on Eq. 16-1 (the BRG runs from FCY, so I expect it does not matter): UNVERIFIED.
+- Cross-check, FRM-I2C Eq. 4-1 with 120 ns delay: 156.1 (100 kHz) and 36.1 (400 kHz), one count lower. **Resolved (S1-1R): the device datasheet equation governs** (the FRM itself says "refer to the specific device data sheet" and calls its equation a design guideline). Use 157 / 38. **Bring-up check:** scope SCL at first I2C use; expect about 100 kHz with BRG 157 and about 394 kHz with BRG 38 at FCY = 16 MHz. The table footnote "PLL disabled" is believed irrelevant (the BRG runs from FCY) but only the scope settles it (open question 7).
 
-Drain time, 29 + 9 clocks per byte (as in [AN] sec 9.5: 29 clocks for START, address, sub-address, repeated START, address-read, then 9 per byte; I did not check 29 against the I2C spec, UNVERIFIED), bytes = 6 per sample:
+Drain time, 29 + 9 clocks per byte (as in [AN] sec 9.5: 29 clocks for START, address, sub-address, repeated START, address-read, then 9 per byte; confirmed by S1-1R), bytes = 6 per sample:
 
 | Samples | Bytes | Clocks | 100 kHz (nominal) | 400 kHz (nominal) |
 |---|---|---|---|---|
@@ -87,7 +88,8 @@ Drain time, 29 + 9 clocks per byte (as in [AN] sec 9.5: 29 clocks for START, add
 - INT1/INT2: any of RP0..RP15 via RPINR0/RPINR1 after the unlock sequence ([PIC] sec 10.4.4.1). Needs a digital pin (AD1PCFG = 1).
 - CN: all CN pins share one interrupt; ISR must read the port to find the source; useful only if no INTx pin is free. Weak pull-ups available (CNPU1/CNPU2).
 - LIS3DH side: INT1 and INT2 are push-pull outputs at Vdd_IO level (active high by default). Latch (LIR_INT1 in CTRL_REG5) the motion source if used; clear by reading INT1_SRC ([DS] sec 8.22). Click uses LIR_Click in CLICK_THS bit 7, cleared by reading CLICK_SRC ([AN] sec 8.3.3).
-- Use falling or rising edge as set in INTCON2 (INT0EP etc.); default LIS3DH polarity is active high, so rising edge.
+- Use falling or rising edge as set in INTCON2 (INT0EP etc.); default LIS3DH polarity is active high (CTRL_REG6 INT_POLARITY = 0, confirmed S1-1R), so rising edge.
+- **Level versus edge (S1-1R finding 1).** The FIFO watermark flag WTM is a level: it stays 1 while unread samples exceed FTH. INT0 is edge-triggered, so after a burst, if FSS is still above FTH there is no new edge. The INT0 ISR therefore only sets a flag, and the drain task loops: read FIFO_SRC, drain FSS samples, re-read FIFO_SRC, repeat until FSS is below the watermark, then re-arm INT0 (clear its flag, enable it). A main-loop poll of FIFO_SRC at least every 50 ms is the backstop (alternatively read the INT0 pin level, RB7, in the main loop). Full algorithm and RAM: C1 section 3.4.
 
 ### 3.4 UART1 baud (decision 5)
 Using [PIC] Eq. 17-1/17-2 with FCY = 16 MHz. Error = (actual - target) / target.
@@ -102,7 +104,7 @@ Using [PIC] Eq. 17-1/17-2 with FCY = 16 MHz. Error = (actual - target) / target.
 | 230400 | 1 | 17 | 222222 | -3.55% |
 | 250000 | 1 | 15 | 250000 | 0.00% |
 
-Rule of thumb: keep total error (both ends) under about 3%; I did not find a datasheet statement of the tolerance (UNVERIFIED). PPS: U1TX is output function 3 on any RPn through RPORx; U1RX is mapped via RPINR18 U1RXR<4:0>. UART RX has a 4-level FIFO ([PIC] p.1), so at 115200 (about 87 us per byte) interrupts masked for the 2 ms WS2812 frame can overrun RX; TX only pauses.
+Rule of thumb: keep total error (both ends) under about 3%; no datasheet statement of the tolerance found (UNVERIFIED). PPS: U1TX is output function 3 on any RPn through RPORx; U1RX is mapped via RPINR18 U1RXR<4:0>. UART RX has a 4-level FIFO ([PIC] p.1), so at 115200 (about 87 us per byte) interrupts masked for the 2 ms WS2812 frame can overrun RX; TX only pauses.
 
 ### 3.5 Click (double tap) start configuration (decision 6)
 Registers ([AN] sec 8.3). All times are 1/ODR, so 10 ms per count at 100 Hz; threshold is 31.25 mg per count at +-4 g.
@@ -112,7 +114,7 @@ Registers ([AN] sec 8.3). All times are 1/ODR, so 10 ms per count at 100 Hz; thr
 - `TIME_LATENCY (0x3C)` = 0x10 (160 ms): dead time after the first click.
 - `TIME_WINDOW (0x3D)` = 0x30 (480 ms): window for the second click after the latency.
 - `CTRL_REG6 (0x25)` = 0x80 (I2_CLICK: click on INT2), `CTRL_REG3` I1_CLICK left 0. These numbers are my starting guesses, **not validated**: UNVERIFIED. Read CLICK_SRC in the ISR (bit 5 DCLICK, bit 6 IA).
-Open spec detail: [AN] text says "TLI7..TLI0" but the register table shows bit 7 unused for TIME_LIMIT and CLICK_THS bit 7 as LIR_Click; [DS] Rev 1 shows CLICK_THS bit 7 as "-". Use [AN] Rev 3 and verify on hardware.
+Spec detail (S1-1R): addresses and bit math confirmed. [AN] Rev 3 shows CLICK_THS bit 7 = LIR_Click (the Rev 1 datasheet shows "-"); TIME_LIMIT bit 7 is unused in both (the "TLI7" text is a typo). Treat [AN] as authoritative; verify latching on hardware (bench check, open question 3).
 
 ### 3.6 Interrupt priorities (cross-link C6)
 Not decided here. Suggested to discuss: LIS3DH INT1 (watermark, 160 ms deadline) and INT2 (click, human time scale) tolerate 2 ms of masking by the WS2812 bit-bang. UART RX does not (see 3.4). So: do not refresh the matrix while the UART raw-stream receives commands, or give UART RX a lower baud.
@@ -136,22 +138,42 @@ Not decided here. Suggested to discuss: LIS3DH INT1 (watermark, 160 ms deadline)
 | 16 | RB7 INT0 | **LIS3DH INT1** | fixed pin |
 | 17 | RB8 SCL1 | **I2C1 SCL** to LIS3DH | external pull-up; JTAG off |
 | 18 | RB9 SDA1 | **I2C1 SDA** to LIS3DH | external pull-up; JTAG off |
-| 19 | DISVREG | per lab board | function not read here |
-| 20 | VCAP | per datasheet | |
+| 19 | DISVREG | **tie to VSS** (enables the on-chip regulator), unless the lab board differs | S1-1R, [PIC] sec 2.4 (p.18) |
+| 20 | VCAP | capacitor to VSS per [PIC] sec 2.4 | required when the regulator is on |
 | 21, 22 | RB10, RB11 | reserved (ICSP set 2) | avoid |
 | 23 | RB12 RP12 | **LIS3DH INT2** -> PIC INT1 (INT1R = 12) | |
 | 24 | RB13 RP13 | **UART1 TX** (RPOR function 3) | |
 | 25 | RB14 RP14 | **UART1 RX** (U1RXR = 14) | |
-| 26 | RB15 RP15 | **WS2812 data out** (GPIO bit-bang) | 3.3 V output only |
+| 26 | RB15 RP15 | **WS2812 data out** (GPIO bit-bang) | 3.3 V output; C6b wants RB13 here, see decision 7 and 3.7 note |
 
-Notes: WS2812 input threshold and a possible 3.3 V to 5 V level shifter are not covered by the sources I read (UNVERIFIED, open question 5). RB12..RB15 are not 5.5 V tolerant ([PIC] Table 10-1); do not drive them from 5 V sources.
+Notes: **Cross-check with C6b.** C6b's pin table puts WS2812 data on RB13 (RP13, pin 24) and IR/OC1 on RB14. My map uses RB13/RB14 for UART TX/RX. Options for Hadi (decision 7): (a) this table as drawn (WS2812 = RB15); (b) WS2812 = RB13, UART TX = RB15, UART RX = RB4 (pin 11, RP4), debug pin = RA4 (pin 12). C6b's level shifter (D4) applies in both cases. I did not edit C6b. RB12..RB15 are not 5.5 V tolerant ([PIC] Table 10-1); do not drive them from 5 V sources.
+
+### 3.8 Required configuration words (S1-1R finding 3)
+All from [PIC] Registers 24-1 (CW1, p.210) and 24-2 (CW2, pp.212-213). Unprogrammed defaults are 1 for every bit below.
+
+| Setting | Value | Why | Source |
+|---|---|---|---|
+| `JTAGEN` | OFF (0) | frees pins 17/18 for I2C1 (default is ON) | CW1 bit 14 |
+| `ICS` | PGx1 (ICS<1:0> = 11) | debugger on PGC1/PGD1, pins 5/4; keeps sets 2 and 3 free. **Must match the lab board's programmer header** (open question 1) | CW1 bits 9:8 |
+| `I2C1SEL` | 1 = default pins (SCL1/SDA1 on 17/18) | 0 selects the alternate pins on 15/14 | CW2 bit 2 |
+| `IOL1WAY` | OFF (0) during development (1 allows only one PPS write session) | board_init unlocks and locks PPS once; either works, OFF eases debugging | CW2 bit 4 |
+| `FNOSC` | FRCPLL (001): FRC with PLL, to reach Fosc = 32 MHz and FCY = 16 MHz | oscillator assumption, **open question 4**; if the board has a crystal use POSCMD/FNOSC accordingly | CW2 bits 10:8 |
+| `POSCMD` | 11 = primary oscillator disabled (for FRCPLL) | frees RA2/RA3 | CW2 bits 1:0 |
+| `OSCIOFCN` | 0 = OSCO is port I/O (RA3) when POSCMD = 11 | only if RA3 is used as GPIO | CW2 bit 5 |
+| `FWDTEN` | OFF during development | avoids resets during debugging | CW1 bit 7 |
+| `GCP`, `GWRP`, `DEBUG` | leave unprotected/enabled for debug | not pin related | CW1 |
+| `DISVREG` (pin 19) | tied to VSS in hardware (not a config bit) | on-chip regulator on; VCAP cap needed | [PIC] sec 2.4 (p.18); S1-1R |
+
+Assumption flagged for the FRCPLL line: whether the oscillator divider (RCDIV) must be 0 to feed the PLL 8 MHz was not checked: UNVERIFIED.
 
 ## 4. Open questions
-1. Does the EE 2361 lab board already fix any pins (I2C bus, programmer header, LEDs, UART/USB bridge)? Which ICSP pair does it use? If it fixes I2C to I2C2 or ICSP set 3, the map changes.
-2. How is SA0 wired on the LIS3DH board (0x18 or 0x19)? Does the breakout board have I2C pull-ups and a 3.3 V regulator or level shifter? What are the CS and Vdd_IO connections ([DS] sec 6: CS must be tied high for I2C)?
-3. Which LIS3DH pins are broken out: INT1 only, or INT1 and INT2? If only INT1, option 4c (one wire) is forced and the click/FIFO sources must be separated by reading INT1_SRC, CLICK_SRC and FIFO_SRC.
-4. Main oscillator: FRC with PLL (RA2/RA3 free) or a crystal? The 16 MIPS plan must be confirmed, and the config words ([PIC] sec 24) set accordingly.
-5. WS2812 supply voltage and level shifting (WP4); bulb control method (C6 original, unknown).
-6. Which host adapter for UART (USB-serial chip) and does it handle 115200 +-1% and 250000?
-7. Datasheet contradictions to resolve on the bench or via errata: PGEC3/PGED3 pin numbers (Table 1-2 vs pin diagram); BRG formula offset (-1 in [PIC], -2 in [FRM-I2C]); (none further).
-8. The LIS3DH Rev 1 datasheet is old; newer revisions may differ in details of the interrupt and click registers.
+Resolved by S1-1R (no longer open): PGEC3/PGED3 pins (pin 14 = PGED3/RB5, pin 15 = PGEC3/RB6; Table 1-2 swapped them); I2C BRG formula (-1, device datasheet); JTAGEN default (1 = enabled); INT polarity default (active high); the 29-clock I2C overhead.
+1. Does the EE 2361 lab board fix any pins (I2C bus, programmer header, LEDs, UART/USB bridge)? Which ICSP set does the programmer header use (1, 2 or 3)? Is I2C already wired to pins 17/18 or to I2C2 (pins 6/7)? If so the map and `ICS` change.
+2. How is SA0 wired on the LIS3DH breakout (0x18 or 0x19)? Does it have pull-ups (what value), a regulator or level shifter? Are both INT1 and INT2 broken out? (If only INT1, option 4c is forced and the sources are separated by reading INT1_SRC, CLICK_SRC and FIFO_SRC.) CS must be tied high for I2C ([DS] sec 6).
+3. Two-minute LIS3DH bench check: FIFO Stream mode, tilt slowly, confirm bits 15..4 vary and 3..0 stay zero; write 0xB0 to CLICK_THS and read it back (bit 7 latches); confirm INT1 idles low.
+4. Main oscillator: FRC+PLL (RA2/RA3 free) or a crystal? Confirms FCY = 16 MHz and the CW2 settings in 3.8 (RCDIV requirement unchecked).
+5. WS2812 supply and level shifting (C6b D4) and the RB13 versus RB15 pin choice (decision 7). Bulb control method is open in C6b.
+6. Which USB-serial adapter for the host, and does it run 115200 within +-1% (and 250000 if wanted)?
+7. Scope at first I2C bring-up: SCL about 100 kHz with BRG 157, about 394 kHz with BRG 38 at FCY = 16 MHz (FRC + PLL)? The Table 16-1 footnote says "PLL disabled".
+8. Is the LIS3DH mounting on the wand fixed (axis table, C1), and does +-4 g clip on real hard swipes?
+9. The newest LIS3DH datasheet could not be read (st.com unreachable, also for the reviewer). If anyone can open it, check FIFO sec 5.1, CLICK_THS and CTRL_REG3 and report differences.
