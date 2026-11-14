@@ -1,0 +1,3 @@
+trigger_cli
+__pycache__/
+*.o
