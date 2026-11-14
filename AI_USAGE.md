@@ -320,3 +320,15 @@ which person.
 | docs/agent/hadi/spikes/trigger/evaluate.py | `per_gesture` | Print per-gesture detection rate and latency for one rule. | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/trigger/evaluate.py | `margins` | Print the largest statistic seen on non-event streams versus the weakest gesture peak. | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/trigger/evaluate.py | `selfcheck` | Assert the rule properties claimed in the proposal (Python mirror, equal to C). | 2026-11-14 | agent |
+| tools/export_model.py | `feature_defs` | Read NONNEG and FEATURES_VERSION from features_ref; check length 60 | 2026-11-14 | agent |
+| tools/export_model.py | `check_norm` | Validate norm.json offsets/shifts (length, type, C4 bounds) | 2026-11-14 | agent |
+| tools/export_model.py | `choose_default_reject` | C5.2 GM_DEFAULT_REJECT rule from validation data | 2026-11-14 | agent |
+| tools/export_model.py | `fallback_needed` | C4.3 int16-input fallback criterion (agreement / Wilson bound) | 2026-11-14 | agent |
+| tools/infer_ref.py | `_shape_of` | Full-shape check that rejects ragged arrays | 2026-11-14 | agent |
+| tools/infer_ref.py | `check_model_bounds` | Reject parsed headers that violate C4 bounds | 2026-11-14 | agent |
+| tools/infer_ref.py | `_selftest_header_text` | Self-test helper: render a tiny header | 2026-11-14 | agent |
+| tools/infer_ref.py | `_selftest_header` | Self-test of parse_header, hash and bound checks | 2026-11-14 | agent |
+| tools/infer_ref.py | `_selftest_integer_only` | AST scan proving the inference path has no float or `/` | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `rearm` | Re-arm failure rate vs threshold on tremor | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `fresh` | Tilt false triggers and margins on fresh seeds | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/trigger/evaluate.py | `header_defaults` | Parse TRIG_DEFAULT_* from trigger.h for the defaults check | 2026-11-14 | agent |
