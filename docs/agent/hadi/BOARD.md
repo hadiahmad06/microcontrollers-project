@@ -4,11 +4,16 @@
 > is assigned work, reports back, or gets blocked. It has to make sense to a fresh session
 > with no chat history.
 
-## Environment (verified 2026-11-14)
+## Environment
+**Cloud session (2026-11-14, Linux, branch `claude/optimistic-meitner-67qdon`):** gcc/clang, python3 + numpy 2.5.3, make.
+**No XC16 and no MDB simulator** (both are only on Hadi's Mac; the proxy blocks microchip.com). Simulator and XC16 checks are queued for the Mac.
+Git name for agent commits: `Hadi Ahmad (Claude)` (Hadi, 2026-11-14). Agents may push, open PRs and merge after review (Hadi, 2026-11-14).
+
+**Hadi's Mac (verified 2026-11-14):**
 - XC16 v2.10: `/Applications/microchip/xc16/v2.10/bin/xc16-gcc -mcpu=24FJ64GA002`. Compiles and links. ✅
 - MPLAB X v6.35 simulator: `/Applications/microchip/mplabx/v6.35/mplab_platform/bin/mdb.sh`. Headless use not yet proven (S1-4).
 - Host tools: Apple clang 16, python 3.12 + numpy 1.26, make. arm64 macOS.
-- Git: branch `main`. Hadi added a GitHub remote on 2026-11-14; agents do not push or fetch until told to.
+- Git: branch `main` on GitHub. Superseded: agents may now push, open PRs and merge after review (Hadi's decision, 2026-11-14).
 
 ## Working rules (Hadi's decisions, 2026-11-14)
 - New subagents run in **git worktrees** (`isolation: worktree`), each committing on its own branch.
@@ -30,6 +35,8 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 | spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; fixes merged |
 | review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | done, merged: APPROVE WITH NITS. Cycle counts verified exact |
 | research-display | Sonnet 5.5 / medium | researcher | S1-5 | done; fixes merged |
+| review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | in progress |
+| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1 | in progress |
 | sheet-writer | Sonnet 5.5 / medium (worktree) | integrator | S1-8 | done, merged |
 | review-5 | Sonnet 5.5 / medium (worktree) | fact-checker and cross-proposal reconciler | S1-5R | done, merged: REQUEST CHANGES (3 high, all documentation) |
 | impl-guard, qa-guard | - | - | S1-6 | retired; S1-6 was scrapped |
@@ -53,12 +60,30 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 | S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | **done**: checks breakpoint order (exit code 7), uses a temp dir per run, `make demo` asserts 1130 cycles, `make selftest` passes. Main agent did NOT rerun the selftest | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | **done**, merged `d822a43`. RAM is 3,660 B (44.7%). Flash is 21.9 KB (33.5%) without persistence, or 28.0 KB with 4-block persistence | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
 | S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
-| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | sheet-writer | **done**: `DECISION_SHEET.md`. The main agent has NOT checked it against the sources yet | `DECISION_SHEET.md` | main agent checks it against the sources |
+| S1-8 | Compile one decision sheet from all 7 proposals and 5 reviews | review-6 | Sonnet 5.5 / medium (worktree) | fact-checker | S2-0R | in progress |
+| research-uart | Sonnet 5.5 / medium (worktree) | researcher / spike | S2-1 | in progress |
+| sheet-writer | **done**: `DECISION_SHEET.md`. The main agent has NOT checked it against the sources yet | `DECISION_SHEET.md` | main agent checks it against the sources |
 | S1-7 | Hadi decides C1–C7, and the decisions go into `docs/agent/CONTRACTS.md` | main + Hadi | blocked by S1-8 | top-level docs | – |
 
 Paths are relative to `docs/agent/hadi/` unless they start with `.`.
 **AI_USAGE.md:** subagents don't write to it, to avoid several of them writing at once.
 The main agent adds rows from their reports.
+
+## Sprint 2: verified decision round, C2, first product code (started 2026-11-14, cloud session)
+**Goal:** the decision sheet is verified, Hadi's decisions are in `docs/agent/CONTRACTS.md`, C2 is proposed, and
+host-tested product code exists for every module the locked contracts allow (3.3-3.6, 3.8, WP2 references).
+**Out of scope:** anything that needs XC16, the simulator or hardware (queued for Hadi's Mac / bench).
+**Merge flow:** subagent worktree branch → main agent reruns tests, reads diff → merge into session branch → push.
+At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet reviewer that wrote none of it, then merged.
+
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| S2-0a | Rerun all host test suites | main | **done**: features 6 variants PASS, features_qa OVERALL PASS (host part), quant ALL PASS | – | – |
+| S2-0b | Rerun `make selftest` (spikes/sim) | Hadi (Mac) | **blocked**: needs XC16 + MDB, not in the cloud container | – | – |
+| S2-0c | Main agent checks DECISION_SHEET against the sources | main | **done**: accurate. Errata: C3 §1 quotes "1.3-2.2 ms at 4 MIPS", which is 0.3-0.56 ms at 16 MIPS; B1 C6a wording stale (already flagged) | – | S2-0R |
+| S2-0R | Independent fact-check of DECISION_SHEET | review-6 | in progress | `reviews/S2-0R.md` | – |
+| S2-1 | C2 UART stream proposal + framing spike | research-uart | in progress | `proposals/C2_*.md`, `spikes/uart/**` | S2-1R review |
+| S1-7 | Hadi decides C1-C7; contracts go to `docs/agent/CONTRACTS.md` | main + Hadi | next, after S2-0R | top-level docs | – |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
@@ -78,6 +103,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (o), **SPRINT 2 START (cloud session)**. **Done:** host suites rerun (all PASS), sheet checked by main agent, Hadi's push/PR/merge and git-name decisions recorded. **Next:** review-6 (S2-0R) and research-uart (S2-1) running; decision round S1-7 once S2-0R reports. **Blocked:** S2-0b `make selftest` needs Hadi's Mac (no XC16/MDB here).
 - 2026-11-14 (n), **SPRINT 1 STOPPING POINT / HANDOFF**
   - **Done:** S1-1 to S1-5 and S1-8 are merged on main. S1-6 was scrapped.
   - **Next session:**
