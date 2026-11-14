@@ -8,15 +8,17 @@ Used by the recording tool (offline labelling) and by the host tests.
 
 STAT_EMA_L1, STAT_EMA_MAX, STAT_JERK_L1, STAT_MAG2 = 0, 1, 2, 3
 WARMUP, ARMED, LOCKED, REARM = 0, 1, 2, 3
-STAT_MAX_COUNTS = 12285
+STAT_MAX_COUNTS = 12285  # largest possible L1 statistic
+THR_MAX_COUNTS = 12284  # largest threshold that can still fire (stat > thr), S2-2R F-05
+MIN_QUIET = 16
 G_COUNTS = 512
 MAG2_SCALE = 10
-DEFAULT_CFG = dict(stat=STAT_EMA_L1, shift=4, debounce=2, quiet=30, warm=32)
-DEFAULT_MG = 300
+DEFAULT_CFG = dict(stat=STAT_EMA_L1, shift=3, debounce=2, quiet=30, warm=32)
+DEFAULT_MG = 250
 
 
 def mg_to_counts(mg):
-    """Convert threshold_mg to counts: (mg + 1) >> 1, clamped to 12285; 0 stays 0.
+    """Convert threshold_mg to counts: (mg + 1) >> 1, clamped to 12284; 0 stays 0.
 
     Args:
         mg: integer threshold in mg, 0..65535.
@@ -25,7 +27,7 @@ def mg_to_counts(mg):
     """
     if mg == 0:
         return 0
-    return min((mg + 1) >> 1, STAT_MAX_COUNTS)
+    return min((mg + 1) >> 1, THR_MAX_COUNTS)
 
 
 class Trigger:
@@ -40,6 +42,10 @@ class Trigger:
             None
         """
         self.cfg = dict(DEFAULT_CFG if cfg is None else cfg)
+        if self.cfg["stat"] not in (STAT_EMA_L1, STAT_EMA_MAX, STAT_JERK_L1, STAT_MAG2):
+            self.cfg["stat"] = STAT_EMA_L1
+        self.cfg["shift"] = min(max(self.cfg["shift"], 1), 8)
+        self.cfg["quiet"] = max(self.cfg["quiet"], MIN_QUIET)
         self.cfg["debounce"] = max(self.cfg["debounce"], 1)
         self.cfg["warm"] = max(self.cfg["warm"], 16)
         self.base = [0, 0, 0]
