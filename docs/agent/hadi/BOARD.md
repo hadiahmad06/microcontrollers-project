@@ -25,8 +25,8 @@ _Agent IDs only work inside the session that started them. After a handoff, star
 | spike-features | Sonnet 5.5 / medium | implementer | S1-2 fix round | running in its own worktree, branch `s1-2-fixes` |
 | test-features | Sonnet 5.5 / medium (worktree) | tester | S1-2T | done, merged: 0 mismatches over 28k windows plus every possible segment sum |
 | review-1 | Sonnet 5.5 / medium (worktree) | reviewer | S1-2R | done, merged: APPROVE WITH NITS |
-| research-quant | Sonnet 5.5 / medium | researcher | S1-3 | done; standing by for fixes |
-| review-2 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-3R | running |
+| research-quant | Sonnet 5.5 / medium | researcher | S1-3 fix round | running in its own worktree, branch `s1-3-fixes` |
+| review-2 | Sonnet 5.5 / medium (worktree) | fact-checker | S1-3R | done, merged: REQUEST CHANGES (3 major) |
 | spike-sim | Sonnet 5.5 / medium | implementer | S1-4 | done; standing by for fixes |
 | review-4 | Sonnet 5.5 / medium (worktree) | reviewer / tester | S1-4R | running |
 | research-display | Sonnet 5.5 / medium | researcher | S1-5 | done; standing by for fixes |
@@ -48,7 +48,7 @@ recommendation), the PIC24 simulator can run tests headlessly, and the write gua
 |----|-------|----------|--------|-----------|-------------------|
 | S1-1 | Proposals C1 (capture buffer) and C6a (sensor and I/O pins) | research-sensor | in review: delivered and committed. It reported 4 contradictions between sources, which review-3 is settling | `proposals/C1_*.md`, `proposals/C6a_*.md` | S1-1R: fact-check against the datasheets |
 | S1-2 | Spike: bit-exact integer features in Python and C, plus the C3 proposal | spike-features | fix round: T and R passed and are merged. Fixes: the energy shift by 11 is too coarse (it compares shift 6–8 vs isqrt RMS), an XC16 const-pointer warning, and test-harness nits | `spikes/features/**`, `proposals/C3_*.md` | S1-2T: independent tests written from the spec · S1-2R: review |
-| S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | in review: main agent reran `quant_ref.py`; the requantization self-test passes on 200k cases. Several facts are still marked UNVERIFIED | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
+| S1-3 | Proposals C4 (model header and quantization) and C5 (classifier output) | research-quant | fix round. The requant core is verified. Major fixes: the offset-fold sign, the mshift SH/M range, and kNN overriding a confident MLP result. See reviews/S1-3R.md | `proposals/C4_*.md`, `proposals/C5_*.md`, `spikes/quant/**` | S1-3R: review |
 | S1-4 | Spike: run the MDB simulator headlessly, read results back, count cycles | spike-sim | in review: works. Main agent reran `make demo`: PASS, 1130 cycles, about 7 s | `spikes/sim/**` | S1-4R: reproduce from the README |
 | S1-5 | Proposals C6b (display and bulb) and C7 (resource budget) | research-display | in review: committed `c4a2859`. Found that no single WS2812 waveform satisfies both chip revisions, and that the matrix needs a 5 V level shifter. review-5 is also reconciling all seven proposals | `proposals/C6b_*.md`, `proposals/C7_*.md` | S1-5R: fact-check |
 | S1-6 | ~~Write-guard hook~~ | - | **scrapped** by Hadi (git history is the accountability). A no-op stub stays in local `.claude/hooks/` (git-excluded) until this session ends; delete it afterwards | `.claude/**`, `.gitignore` | S1-6T: test suite · S1-6R: review |
@@ -76,6 +76,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-14 (g): **Done:** S1-3R merged, verdict REQUEST CHANGES; research-quant is now fixing in its worktree. **Issue:** review-5's worktree was created from a stale commit (`1150592`), so it was told to read the proposals from the main checkout. **Lesson:** check each worktree's base commit right after the agent starts.
 - 2026-11-14 (f): **Done:** S1-6 scrapped on Hadi's decision. S1-1, S1-3 and S1-4 delivered and committed. S1-2T and S1-2R merged, and their worktrees removed. **Next:** S1-2 fix round, reviews S1-1R, S1-3R and S1-4R, and S1-5 delivery. Then a sprint review with Hadi (S1-7 decisions) and the handoff to a cloud session. **Blocked:** none.
 - 2026-11-14 (e): **Done:** S1-3 delivered. It confirmed `ug.txt` was its file: a failed `cd` made `pdftotext` write to the project root. The file has been moved out. Added `.claude/worktrees/` to `.gitignore`. Fixed the PLAN 3.6 int16/int8 inconsistency that research-quant flagged. **Next:** review-2 is checking S1-3. **Lesson for future briefs:** tell agents to `cd` with quoted absolute paths and to check that the `cd` succeeded before writing output files.
 - 2026-11-14 (d): **Done:** base commit `ea537f2` on master, so worktree mode is on. S1-2 implemented. Main agent's review: the code matches its spec. Open concern: the `>>11` energy scale may be too coarse for small motions. `ug.txt` is gone. **Next:** S1-2T and S1-2R are running in worktrees. Once qa-guard reports, fix the hook's worktree bypass: paths under `.claude/worktrees/<name>/docs/...` are not checked. **Note:** the guard's Bash heuristic blocked the main agent's own commit because the commit message mentioned the archive folder. That is the documented false positive; the workaround is to put the message in a file (`git commit -F`).
