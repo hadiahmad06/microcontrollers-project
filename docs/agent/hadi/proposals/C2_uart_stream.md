@@ -4,7 +4,7 @@
 Author: research-uart (ticket S2-1), 2026-11-14. **Status: PROPOSAL, not a decision.** Hadi decides. Not yet reviewed (S2-1R pending).
 Spike: `docs/agent/hadi/spikes/uart/` (`make test` prints ALL PASS: C and Python encoders give identical bytes, decoder resyncs). Nothing here ran on the PIC24 or on XC16.
 
-Source keys: **[PLAN]** = docs/agent/hadi/PLAN.md. **[OV]** = docs/archive/INITIAL_OVERVIEW.md. **[C1]**, **[C4]**, **[C5]**, **[C6a]**, **[C6b]**, **[C7]** = the proposals of the same name in this folder. **[SHEET]** = DECISION_SHEET.md (B5, D-6 as quoted in the ticket brief). **[CRC]** = Greg Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm (entry CRC-16/IBM-3740, recalled from memory; the page was not re-read, the check value is asserted by the spike test).
+Source keys: **[PLAN]** = docs/agent/PLAN.md (moved from docs/agent/hadi/PLAN.md on 2026-11-14). **[OV]** = docs/archive/INITIAL_OVERVIEW.md. **[C1]**, **[C4]**, **[C5]**, **[C6a]**, **[C6b]**, **[C7]** = the proposals of the same name in this folder. **[SHEET]** = DECISION_SHEET.md (B5, D-6 as quoted in the ticket brief). **[CRC]** = Greg Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm (entry CRC-16/IBM-3740, recalled from memory; the page was not re-read, the check value is asserted by the spike test).
 
 ## 1. Decisions needed
 

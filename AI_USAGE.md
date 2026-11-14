@@ -33,3 +33,11 @@ which person.
 | docs/agent/hadi/spikes/sim_qa/check_vals.py | `s16` | Host oracle for vals.c | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/sim_qa/cyc.sh, run_sim_mktemp.sh | scripts | Cycle-table runner; proposed per-run temp-dir runner | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/sim/run_sim.sh, selftest.sh | `sym_addr`, `check`, scripts | Breakpoint-order check, per-run temp dir, simulator self-test | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_frame.c | `c2_crc16_update` | Continue a CRC-16/IBM-3740 over a byte range (nibble table) | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_frame.c | `c2_crc16` | CRC-16/IBM-3740 of a whole buffer | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_frame.c | `c2_encode_window` | Encode one 922 B C2 WINDOW frame into a caller buffer | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_frame.c | `c2_encode_hello` | Encode one 18 B C2 HELLO frame into a caller buffer | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_frame.c | `c2_put_u16`, `c2_put_u32`, `c2_put_header` | Little-endian store and frame header helpers | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_cli.c | `main`, `do_encode`, `rd` | Host test driver for the C2 encoder | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/c2_ref.py | `crc16`, `_frame`, `encode_window`, `encode_hello`, `parse_payload`, `Decoder` | Python reference C2 encoder and resyncing stream decoder | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/uart/test_c2.py | `check`, `rand_meta`, `rand_samples`, `c_record`, `main` | C2 spike test harness (CRC, C vs Python bytes, resync fuzz) | 2026-11-14 | agent |
