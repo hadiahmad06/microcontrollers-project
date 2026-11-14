@@ -14,16 +14,20 @@ SYNC0, SYNC1 = 0xA5, 0x5A
 HEADER_LEN = 6
 CRC_LEN = 2
 PROTO_VERSION = 1
-TYPE_HELLO, TYPE_WINDOW = 0x01, 0x02
+TYPE_HELLO, TYPE_WINDOW = 0x01, 0x02          # the only types a v1 decoder accepts
+TYPE_RESULT = 0x03     # reserved, wand -> PC: test-vector results (proposal 3.8)
+TYPE_SAMPLES = 0x04    # reserved, wand -> PC: bring-up sample chunk (proposal 3.10); never in the demo build
+TYPE_CMD, TYPE_VECTOR = 0x10, 0x11   # reserved, PC -> wand (proposal 3.7, 3.8)
 N_SAMPLES, N_AXES = 150, 3
 HELLO_PAYLOAD_LEN = 10
 WINDOW_META_LEN = 14
 WINDOW_PAYLOAD_LEN = WINDOW_META_LEN + 2 * N_SAMPLES * N_AXES   # 914
 FLAG_RESULT_VALID = 0x01
-MAX_PAYLOAD = 1024            # decoder bound for types it does not know
-MAX_TYPE = 0x0F               # wand -> PC types are 0x01..0x0F; anything above is rejected at the header
-# v1 frame types have exactly one legal length; anything else is rejected at the header.
-FIXED_LEN = {TYPE_HELLO: HELLO_PAYLOAD_LEN, TYPE_WINDOW: WINDOW_PAYLOAD_LEN}
+SAMPLES_N = 16                                    # bring-up chunk: fixed 16 samples, so LEN is single-valued
+SAMPLES_PAYLOAD_LEN = 2 + 1 + 2 * SAMPLES_N * N_AXES   # chunk u16, n u8, n x 3 x int16 = 99
+# A v1 decoder knows ONLY these types, each with exactly one legal length. Any other TYPE
+# (reserved, unknown, 0 or above 0x0F) or any other LEN is a bad header: drop one byte, rescan.
+KNOWN_LEN = {TYPE_HELLO: HELLO_PAYLOAD_LEN, TYPE_WINDOW: WINDOW_PAYLOAD_LEN}
 
 
 def crc16(data, crc=0xFFFF):
@@ -113,9 +117,10 @@ class Decoder:
     """Streaming, byte-at-a-time frame parser with resynchronisation.
 
     Strategy: keep the unconsumed bytes. Look for the two sync bytes at the front; read the
-    header; reject at once a TYPE outside 0x01..0x0F or a LEN that is illegal for a known TYPE
-    (or above MAX_PAYLOAD), which keeps false sync candidates from stalling the stream;
-    wait for the whole frame; check the CRC. On any failure drop exactly ONE byte and rescan
+    header; reject at once any TYPE that is not in the known table (v1: 0x01 HELLO, 0x02 WINDOW)
+    and any LEN that is not the single legal value for that TYPE, which keeps false sync
+    candidates from stalling the stream (a candidate with a known TYPE and a legal LEN waits for
+    at most one frame's worth of bytes); wait for the whole frame; check the CRC. On any failure drop exactly ONE byte and rescan
     what is already buffered, so a fake sync inside garbage (or inside a damaged frame) can
     never swallow a good frame that follows it.
 
@@ -123,8 +128,17 @@ class Decoder:
     seq_gaps (frames missing according to the SEQ byte), frames (accepted).
     """
 
-    def __init__(self):
-        """Create an empty decoder."""
+    def __init__(self, extra_types=None):
+        """Create an empty decoder.
+
+        Args:
+            extra_types: optional dict {type: legal LEN} that extends the known table, for a
+                bring-up tool that also reads SAMPLES chunks ({TYPE_SAMPLES: SAMPLES_PAYLOAD_LEN}).
+                None (the default) is the v1 decoder: HELLO and WINDOW only.
+        """
+        self.known = dict(KNOWN_LEN)
+        if extra_types:
+            self.known.update(extra_types)
         self.buf = bytearray()
         self.garbage = self.bad_header = self.crc_errors = self.seq_gaps = self.frames = 0
         self._last_seq = None
@@ -165,7 +179,7 @@ class Decoder:
             if len(buf) < HEADER_LEN:
                 break
             ftype, ln, seq = struct.unpack_from("<BHB", buf, 2)
-            if ftype == 0 or ftype > MAX_TYPE or ln > MAX_PAYLOAD or FIXED_LEN.get(ftype, ln) != ln:
+            if self.known.get(ftype) != ln:      # unknown TYPE (None) or wrong LEN for a known TYPE
                 del buf[0]
                 self.bad_header += 1
                 continue

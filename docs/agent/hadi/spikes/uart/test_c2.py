@@ -133,6 +133,13 @@ def main():
 
     # 4. Directed damage. Frames: A..F; expected survivors are marked.
     def frame(i):
+        """Build a random WINDOW frame.
+
+        Args:
+            i: sequence number and window id.
+        Returns:
+            The frame bytes.
+        """
         return c2.encode_window(i, rand_meta(rng, i), rand_samples(rng, "rand"))
     F = [frame(i) for i in range(8)]
     fake_sync = bytes([0xA5, 0x5A, 0x02, 0x92, 0x03, 0x00])           # plausible WINDOW header, no real frame
@@ -188,6 +195,92 @@ def main():
             missed += 1
     check("fuzz: 40 damaged streams, no false accept", false_accepts == 0, "%d streams" % false_accepts)
     check("fuzz: 40 damaged streams, every intact frame recovered in order", missed == 0, "%d streams differ" % missed)
+
+
+    # 6. Header rejection (S2-1R F-02/F-03/F-04): a v1 decoder knows ONLY HELLO and WINDOW, each
+    #    with its exact LEN. Every other TYPE or LEN is a bad header, even with a valid CRC.
+    good = c2.encode_window(7, rand_meta(rng, 7), rand_samples(rng, "rand"))
+    bad_cases = []
+    for t in (0x00, 0x03, 0x04, 0x05, 0x0F):            # reserved wand->PC types, plausible LENs
+        for ln in (10, 99, 162, 914):
+            bad_cases.append(("TYPE 0x%02X LEN %d" % (t, ln), c2._frame(t, 1, bytes(ln))))
+    for t in (0x10, 0x11, 0x1F, 0x7F, 0xFF):             # above 0x0F
+        for ln in (2, 10, 914):
+            bad_cases.append(("TYPE 0x%02X LEN %d" % (t, ln), c2._frame(t, 1, bytes(ln))))
+    for t in (0x02, 0x05):                               # LEN 1024 passed before the fix; 1025 never did
+        for ln in (1024, 1025):
+            bad_cases.append(("TYPE 0x%02X LEN %d" % (t, ln), c2._frame(t, 1, bytes(ln))))
+    bad_cases.append(("TYPE 0x02 LEN 913", c2._frame(2, 1, bytes(913))))
+    bad_cases.append(("TYPE 0x01 LEN 9", c2._frame(1, 1, bytes(9))))
+    bad_cases.append(("TYPE 0x01 LEN 11", c2._frame(1, 1, bytes(11))))
+    h = bytearray(c2.encode_hello(2, hello))
+    for bit in range(16):                                # every single-bit hit in the HELLO LEN field
+        hb = bytearray(h)
+        hb[3 + bit // 8] ^= 1 << (bit % 8)
+        bad_cases.append(("HELLO LEN bit %d flipped" % bit, bytes(hb)))
+    leaked = []
+    for name, bad in bad_cases:
+        d = c2.Decoder()
+        got = d.feed(bad + good)
+        if [(t, s) for (t, s, _) in got] != [(c2.TYPE_WINDOW, 7)] or d.bad_header == 0:
+            leaked.append(name)
+    check("decoder: %d unknown/reserved TYPEs, TYPE > 0x0F, LEN 1024/1025/913, damaged HELLO LEN all rejected, "
+          "next good frame recovered" % len(bad_cases), not leaked, "accepted or lost: %s" % leaked[:5])
+    d = c2.Decoder(extra_types={c2.TYPE_SAMPLES: c2.SAMPLES_PAYLOAD_LEN})
+    sc = c2._frame(c2.TYPE_SAMPLES, 3, bytes(c2.SAMPLES_PAYLOAD_LEN))
+    check("decoder: SAMPLES (0x04, LEN 99) rejected by default, accepted only when the table is extended",
+          c2.Decoder().feed(sc) == [] and [t for (t, _, _) in d.feed(sc)] == [c2.TYPE_SAMPLES]
+          and len(sc) == 107 and c2.SAMPLES_PAYLOAD_LEN == 99)
+
+    # 7. ASCII text between frames (F-06): boot hash line, stack report. Never inside a frame.
+    texts = [b"GM_MODEL_HASH=1A2B3C4D\r\n", b"stack hwm 412\n", b" \t~".replace(b"\t", b" ")]
+    assert all(all(c in (0x0A, 0x0D) or 0x20 <= c <= 0x7E for c in t) and 0xA5 not in t for t in texts)
+    frames7 = [c2.encode_hello(0, hello), c2.encode_window(1, rand_meta(rng, 0), rand_samples(rng, "rand")),
+               c2.encode_window(2, rand_meta(rng, 1), rand_samples(rng, "full")), c2.encode_hello(3, hello)]
+    stream7 = texts[0] + frames7[0] + frames7[1] + texts[1] + frames7[2] + texts[2] + frames7[3] + texts[1]
+    d = c2.Decoder()
+    got7 = []
+    for b in stream7:
+        got7.extend(d.feed(bytes([b])))
+    ntext = len(texts[0]) + 2 * len(texts[1]) + len(texts[2])
+    check("decoder: ASCII lines between frames do not disturb decoding (4 frames, no CRC error, no bad header, "
+          "no SEQ gap, text counted as garbage)",
+          [c2._frame(t, s, p) for (t, s, p) in got7] == frames7 and d.crc_errors == 0 and d.bad_header == 0
+          and d.seq_gaps == 0 and d.garbage == ntext,
+          "frames=%d crc=%d bad=%d gaps=%d garbage=%d/%d" % (d.frames, d.crc_errors, d.bad_header, d.seq_gaps,
+                                                            d.garbage, ntext))
+
+    # 8. Worst-case stall (F-03): a false header with a KNOWN type and a legal LEN waits for at most
+    #    one WINDOW frame's worth of bytes (922 buffered), never for a reserved type's 1032.
+    fake = bytes([0xA5, 0x5A, 0x02, 0x92, 0x03, 0x00])
+    beacon = c2.encode_hello(0, hello)
+    d = c2.Decoder()
+    d.feed(fake)
+    n_beacons = 0
+    while True:                                           # beacon-only traffic, one HELLO per 2 s
+        n_beacons += 1
+        if d.feed(beacon):
+            break
+    check("stall, beacon-only: false WINDOW header delays the first real HELLO by %d beacons (~%d s), then it is "
+          "delivered" % (n_beacons, 2 * (n_beacons - 1)), n_beacons == 51, "beacons=%d" % n_beacons)
+    w = c2.encode_window(9, rand_meta(rng, 9), rand_samples(rng, "rand"))
+    for pad in (0, 1, 40, 500):                           # continuous windows: no delay for the real window
+        d = c2.Decoder()
+        stream = fake + bytes(pad) + w
+        first = None
+        for i, b in enumerate(stream):
+            if d.feed(bytes([b])) and first is None:
+                first = i
+        check("stall, continuous windows: real WINDOW after a false header (+%d noise B) is delivered on its own "
+              "last byte" % pad, first == len(stream) - 1, "delivered at %s of %d" % (first, len(stream)))
+    d = c2.Decoder()
+    stream = fake + beacon + w
+    first = None
+    for i, b in enumerate(stream):
+        if d.feed(bytes([b])) and first is None:
+            first = i
+    check("stall: a HELLO behind a false WINDOW header is delayed by at most 922 buffered bytes (916 after the header)",
+          first is not None and first <= 921, "first delivery at byte %s" % first)
 
     print("ALL PASS" if not FAILS else "FAILED: " + ", ".join(FAILS))
     return 1 if FAILS else 0

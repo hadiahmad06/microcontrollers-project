@@ -7,10 +7,10 @@
 
 /*
  * Nibble-wise CRC-16 table for poly 0x1021: entry n is the carry-less product n * 0x1021
- * (n < 16, so no reduction is needed). 32 bytes of flash instead of the 512 bytes of a
- * byte-wise table. The nibble technique is textbook (the same algorithm as the bitwise
- * form, four bits per step); this table was generated independently and is checked
- * against a bitwise Python CRC by `make test`.
+ * (n < 16, so no reduction is needed). 32 bytes of data (about 48 B of flash with the
+ * PSV 3/2 convention of C7) instead of the 512 bytes of a byte-wise table. No source is
+ * cited: this is our own derivation from the bitwise definition (four bits per step instead
+ * of one), verified against the bitwise Python CRC by `make test`. No code was borrowed.
  */
 static const uint16_t c2_crc_nibble[16] = {
     0x0000u, 0x1021u, 0x2042u, 0x3063u, 0x4084u, 0x50A5u, 0x60C6u, 0x70E7u,
@@ -80,7 +80,7 @@ uint16_t c2_crc16(const uint8_t *data, uint16_t len)
 }
 
 uint16_t c2_encode_window(uint8_t *out, uint16_t out_cap, uint8_t seq,
-                          const c2_window_meta_t *meta, const int16_t samples[][C2_N_AXES])
+                          const c2_window_meta_t *meta, int16_t (*samples)[C2_N_AXES])
 {
     uint8_t *p;
     uint16_t i;
