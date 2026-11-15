@@ -392,9 +392,9 @@ which person.
 | firmware/src/capture.c | `window_start` | Copy the whole (full) ring, oldest first and trigger sample last, to the buffer start; open the window. | 2026-11-14 | agent |
 | firmware/src/capture.c | `capture_init` | Reset to IDLE, empty ring, zero stats | 2026-11-14 | agent |
 | firmware/src/capture.c | `capture_arm` | IDLE to ARMED | 2026-11-14 | agent |
-| firmware/src/capture.c | `capture_disarm` | ARMED/CAPTURING to IDLE, drop open window | 2026-11-14 | agent |
-| firmware/src/capture.c | `capture_push` | One sample: ring push, trigger test, window append | 2026-11-14 | agent |
-| firmware/src/capture.c | `capture_overrun` | Count overrun, empty ring; drop an open window | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_disarm` | ARMED/CAPTURING to IDLE; true iff an open window was dropped | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_push` | One sample: ring push, trigger test, window append; true iff a window opened | 2026-11-14 | agent |
+| firmware/src/capture.c | `capture_overrun` | Count overrun, empty ring, drop an open window; true iff one was dropped | 2026-11-14 | agent |
 | firmware/src/capture.c | `capture_release` | READY to ARMED | 2026-11-14 | agent |
 | firmware/src/capture.c | `capture_state` | Current state | 2026-11-14 | agent |
 | firmware/src/capture.c | `capture_ring_count` | Ring fill 0..16 | 2026-11-14 | agent |
