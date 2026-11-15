@@ -180,9 +180,10 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 ## Sprint 4: course deliverables that need no decisions (started 2026-11-15)
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | in progress | `CITATIONS.md` | – |
+| S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | **done**, merged: 20 sources + provenance; 11 gaps |  `CITATIONS.md` | – |
 | S4-2 | Project report draft (PLAN WP5) | doc-report | in progress | `REPORT_DRAFT.md` | Hadi edits |
 | S4-3 | Review of the S3-1 integration spike and its findings | review-20 | in progress | `reviews/S4-3R.md` | – |
+| SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | in progress | comments in firmware/src, tests, tools | – |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
