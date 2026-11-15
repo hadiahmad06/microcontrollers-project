@@ -567,3 +567,45 @@ which person.
 | firmware/test/features/run_tests.py | `run_selftest` | Run tools/features_ref.py --selftest | 2026-11-15 | agent |
 | firmware/test/*/Makefile (capture, classify, display, e2e, features, lis3dh, mlp) | (build rules) | Suite build + run (host and sim16) | 2026-11-15 | agent |
 | tools/train.py | `counting` | Self-test helper: count integer_eval calls per feature hash | 2026-11-15 | agent |
+| firmware/src/lis3dh.c | `init_fail` | Common init failure exit: best-effort CTRL_REG1 power-down, clear address | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `check_r5` | Bit 7 clear on single-byte reads, set on multi-byte reads | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `null_cb` | Sample callback that ignores its input | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `check_guards` | Pre-init guards: ERR_BUS with zero HAL transactions | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `check_stop_at` | Init stops at the first fault (only the allowed power-down after it) | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_guards_fresh` | Test groups: fresh guards, NULL tables, odd axis tables | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_null_tables` | Test groups: fresh guards, NULL tables, odd axis tables | 2026-11-15 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_odd_tables` | Test groups: fresh guards, NULL tables, odd axis tables | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `apply_noise` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `win_checksum` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `build_window` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `stage_mlp` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `stage_query` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/test_e2e.c | `run_directed` | e2e driver: directed windows, per-stage output, raw-sample checksum | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `apply_noise` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `window_checksum` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `desc` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `make_window` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `evaluate` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `query_result` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `make_rec` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `crc16_ibm3740` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `store_crc` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `expected_steps` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `write_dplan` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `weak` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `gate_open` | e2e runner: window construction, expectations, directed plan | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.search` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.candidates` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.build` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_saturation` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_minconf_mlp` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.far_templates` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_radius` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_d2_zero` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_conf_gate` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.plan_ck` | Directed boundary search (x8 saturation, ties, radius, d2=0, conf gates, min_conf) | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `boundary_hits` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `calib_windows` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `balance_bias` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `histogram` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |

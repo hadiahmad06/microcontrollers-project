@@ -193,7 +193,7 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
         /* C1.3: wand axis k = sign * sensor axis src. -(-2048) = 2048 does not fit in the
          * contract range, so clamp it to 2047 (cannot occur with a +/-1 sign on a 12-bit value
          * except for the one value -2048). */
-        if (a->sign[k] < 0) {  /* sign -1 negates; any other value is treated as +1 */
+        if (a->sign[k] == -1) {  /* sign -1 negates; any other value is treated as +1 (ruling WP1-bT3) */
             out[k] = (sv[s] == -2048) ? (int16_t)2047 : (int16_t)(-sv[s]);
         } else {
             out[k] = sv[s];
