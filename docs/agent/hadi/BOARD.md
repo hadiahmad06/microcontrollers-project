@@ -120,12 +120,12 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-1F | Tools fix round | impl-wp2 (2nd instance) | **done**, merged; selftest PASS also under -O; e2e PASS. Raised Q4, Q5 (contract wording) | `tools/**` | – |
 | 3.8 | End-to-end bit-exact harness (C vs tools, host + sim16) | impl-e2e | **done**, merged: **gate G2 met** (every stage, 3 exporter models, host + sim16); all 5 suites PASS (main reran) | `firmware/test/e2e/**` | 3.8R |
 | 3.8R | Review e2e harness | review-13 | **done**, merged: APPROVE WITH NITS (4 medium: boundary coverage incidental, skewed models, few sim16 windows) | `reviews/3.8R.md` | 3.8F |
-| 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | in progress | `firmware/test/e2e/**` | – |
 | W2-2 | `tools/train.py` + `tools/synth_dataset.py` | impl-train | **done**, merged; main reran selftest + full run (seed 7): integer path 100 % on synthetic, header compiles for sim16 | `tools/{train,synth_dataset}.py` | W2-2R |
 | W2-2R | Review training pipeline | review-16 | **done**, merged: 0 high, 5 medium (val set both selects and reports; class-0 separable by orientation). Raised Q6 | `reviews/W2-2R.md` | W2-2F |
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
-| PR-2 | Sprint-2 PR to `main` + full-diff review | main + review-17 | next | – | – |
+| PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open; review-17 running | `reviews/PR-2R.md` | merge if MERGE |
+| 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | resumed after the API limit (edits saved, uncommitted) | `firmware/test/e2e/**` | – |
 | 3.7 | `gesture.c` public API (8 functions); design note `proposals/API_glue.md` | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
 | WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
 | WP1-aT | Capture suite (host + sim16) | test-capture | **done**, merged: real capture.c matches 477,753 host + 38,463 sim16 lines | `firmware/test/capture/**` | – |
@@ -164,6 +164,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (v): Hadi signed off ("continue running, don't ask questions, leave notes in the chat"). The API spend limit stopped 3.8F mid-task; resumed after reset. PR #1 opened; pre-merge review running.
 - 2026-11-15 (u): **Done:** all fix rounds except 3.8F; 8 suites PASS; e2e soak (3 extra seeds × 4 models) PASS; proxy RAM 2512 B vs C7 2500 B; glue design note for 3.7. **Next:** PR-2 (session branch → main) with a full-diff review. **Waiting for Hadi:** Q1-Q6.
 - 2026-11-15 (t): **Done:** WP1-bF + bT2 (lis3dh stall fixed, rulings asserted), WP1-aR, WP4-aR, W2-2R; 8 suites PASS. **Next:** 5 fix rounds running (3.8F, W2-2F, WP4-aF, WP1-aF, WP1-aT2), then the sprint PR to `main`. **Waiting for Hadi:** Q1-Q6.
 - 2026-11-15 (s): **Done:** WP1-a + T (merged), WP1-b + T (merged), W2-2 (merged); 7 suites PASS. **Next:** WP1-bF/WP1-bT2, 3.8F, reviews WP1-aR, WP4-aR, W2-2R running. **Waiting for Hadi:** Q1-Q5. **Then:** sprint-boundary PR to `main` with a full-diff review.
