@@ -52,6 +52,8 @@ Record as your decision: "C4.3: the exporter divides W1 by K." (yes/no)
 - S2-0b: rerun `make selftest` in `docs/agent/hadi/spikes/sim` on your Mac (XC16 + MDB).
 - Gate G3 (PLAN 3.9): build `firmware/src/*.c` with XC16 and run the e2e vectors on the MPLAB simulator
   or the board. The cloud runs the same tests on a 16-bit-int AVR simulator (sim16) as a pre-check only.
+- LIS3DH FIFO_SRC at 32 unread: does FSS read 31 (saturate) or 0 (5-bit wrap) with OVRN = 1? The driver handles both
+  (WP1-bF), but the bench answer goes into C-7's 2-minute check.
 - Part C of `DECISION_SHEET.md` (C-1 .. C-15): lab-board pins, ICSP set, SA0, pull-ups, oscillator,
   WS2812 revision, USB-serial adapter, bulb hardware.
 

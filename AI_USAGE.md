@@ -471,3 +471,65 @@ which person.
 | tools/synth_dataset.py | `make_window` | Generate one synthetic window. | 2026-11-14 | agent |
 | tools/synth_dataset.py | `make_dataset` | Build a whole synthetic dataset. | 2026-11-14 | agent |
 | tools/synth_dataset.py | `main` | CLI entry. Args: argv (list of str or None for sys.argv). Returns: int exit code (0 ok). | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `write_verify` | Write a config register and read it back (main-agent ruling: every config write is verified). | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `lis3dh_init` | Probe 0x18/0x19 for WHO_AM_I 0x33; write and read back the config sequence | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `lis3dh_address` | 7-bit address after a successful init, else 0 | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `lis3dh_unpack` | C1.1 byte assembly, >>4, axis remap (clamps a flipped -2048) | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `lis3dh_drain` | C1.4 FIFO drain loop, bursts <= 16, bounded per call | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `lis3dh_read_click` | Read CLICK_SRC; 1 on IA+DCLICK | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `push_one` | Push one sample (raw words) into the FIFO; discard the oldest when full (Stream mode). | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `pop_one` | Pop the oldest sample into the output-register latch (no-op when empty: old data stays). | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fifo_src_value` | FIFO_SRC_REG: b7 WTM (unread > FTH), b6 OVRN (32 unread), b5 EMPTY, b4:0 FSS. | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `log_add` | Append a log entry (counted but dropped when the log is full). | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `should_nack` | Common NACK decision: wrong address, n-th transaction, n-th FIFO_SRC read, n-th burst. | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_reset` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_set_who` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_set_fss32` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_set_click_src` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_set_arrivals` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_next_seq` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_fifo_level` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_lost` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_reg` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_log_count` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_log_get` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_nack_txn` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_nack_fifo_src` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_nack_burst` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_corrupt_readback` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_clear_log` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_fifo_active` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_sample_word` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `fake_push_next` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `lis3dh_hal_write` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/fake_lis3dh.c | `lis3dh_hal_read` | fake sensor / test helper (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `check` | Record one check result; prints the first few failures of a group. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `group_begin` | Start a named test group. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `group_end` | Finish the current group and print its PASS / FAIL line. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `ref_value` | Reference sample value: the 12-bit signed number held left-justified in a 16-bit register word. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `ref_remap` | Reference axis remap: out[i] = sign[i] * in[src[i]]. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `make_raw` | Lay three words out as one burst group (X_L X_H Y_L Y_H Z_L Z_H). | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `setup` | Reset the fake with a sensor at addr and run lis3dh_init with the given axes. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_init_ok` | Init with the sensor at addr: probe order, exact register write sequence, read-back of every | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_init_faults` | Init error paths: no sensor, wrong WHO_AM_I, NACK at every transaction after the probe, | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `unpack_word` | Unpack one word on every axis position and compare with the reference value. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_unpack_table` | Byte assembly and arithmetic shift (C1.1): literal table, every word (host) or a stride (sim16). | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_unpack_axes` | Axis remap at unpack time (C1.3): identity, a swap with a sign flip, a 3-cycle with flips, | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `rec_cb` | Sample callback: records every delivered sample in call order. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `m_push` | Push k samples into the model (Stream mode: a full FIFO discards the oldest). | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `m_fss` | FSS as the fake reports it in FAKE_FSS32_SATURATE mode: min(unread, 31). | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `model_drain` | Run the C1.4 drain schedule on the model (see the file header for the two readings). | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `run_drain` | One drain scenario: init, preload level samples, add k samples after every burst, call | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_drain_levels` | Drain with 0, 1, 15, 16, 17, 31, 32 unread and overflowed FIFOs, no arrivals; plus literal | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_drain_arrivals` | Samples arriving between bursts, the 4-burst bound and the `more` flag, overrun from the | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_drain_bus` | Bus errors at every point of a drain: the call returns LIS3DH_ERR_BUS and does not hang. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `info_runs` | Informational runs (never fail the suite): FSS reported as 0 at 32 unread, burst sub-address | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `t_click` | lis3dh_read_click: one CLICK_SRC read, clear-on-read seen through the driver, bus error. | 2026-11-14 | agent |
+| firmware/test/lis3dh/test_lis3dh.c | `main` | Run every group; exit 0 only if none failed. | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `cfg` | Write a register and read it back; any HAL error or mismatch is LIS3DH_ERR_BUS. | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `probe` | Probe one address: 1 = WHO_AM_I ok, 0 = no answer or wrong value. | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_init` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_address` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_unpack` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_drain` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_read_click` | test stand-in (doc in its header) | 2026-11-14 | agent |
