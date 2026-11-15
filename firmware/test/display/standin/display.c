@@ -33,6 +33,11 @@ void display_draw_bitmap(const uint8_t bits[8], uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
+/**
+ * Spec cap of one channel: (c * DISPLAY_CAP + 127) / 255 in uint32_t.
+ * @param c raw 8-bit channel value, 0..255.
+ * @return capped value, 0..DISPLAY_CAP.
+ */
 static uint32_t cap_of(uint8_t c)
 {
     return ((uint32_t)c * (uint32_t)DISPLAY_CAP + 127u) / 255u;

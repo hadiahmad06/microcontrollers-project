@@ -12,7 +12,12 @@
 
 static uint8_t g_fb[DISPLAY_BYTES]; /* R,G,B per pixel, row-major, row 0 = top */
 
-/** Applies the compile-time cap to one raw channel value. @return 0..DISPLAY_CAP. */
+/**
+ * Applies the compile-time brightness cap to one raw channel value: round(c * DISPLAY_CAP / 255),
+ * computed in uint32_t so that 16-bit int targets cannot overflow.
+ * @param c raw 8-bit channel value, 0..255.
+ * @return capped value, 0..DISPLAY_CAP (rounded to nearest, ties up).
+ */
 static uint8_t cap_channel(uint8_t c)
 {
     return (uint8_t)((((uint32_t)c * DISPLAY_CAP) + 127u) / 255u);
@@ -77,10 +82,21 @@ uint32_t display_units(void)
 uint16_t display_render(uint8_t out[DISPLAY_BYTES])
 {
     /*
-     * Limiter: U = display_units() (sum of capped values). If U > L (= DISPLAY_LIMIT_UNITS),
-     * every capped value v becomes floor(v * L / U). Proof that the result is <= L:
-     * sum floor(v*L/U) <= sum v*L/U = (L/U) * sum v = (L/U) * U = L.
-     * v*L fits in uint32 (v <= 255, L small), so there is no overflow.
+     * Limiter: U = display_units() (sum of capped values). L = DISPLAY_LIMIT_UNITS.
+     * Claim: the units written to the output after limiting (after) satisfy after <= L,
+     * and the returned mA satisfies floor(after * 20 / 255) <= DISPLAY_LIMIT_MA.
+     * Proof:
+     *  - U <= L: nothing is scaled, so after = U <= L.
+     *  - U > L: then U > 0, so the division is safe (L = 0 is also safe: every value becomes 0).
+     *    Each capped value v becomes floor(v * L / U) <= v * L / U. The sum over all 192 channels
+     *    is therefore <= (L / U) * (sum of v) = (L / U) * U = L. This uses sum of v == U exactly,
+     *    which holds because display_units() and this loop apply the same cap_channel() to the
+     *    same g_fb, and nothing modifies g_fb between them. The floor only ever lowers a value.
+     *  - mA: after <= L = floor(DISPLAY_LIMIT_MA * 255 / 20) <= DISPLAY_LIMIT_MA * 255 / 20, so
+     *    floor(after * 20 / 255) <= DISPLAY_LIMIT_MA.
+     * Overflow: v * L is evaluated in uint32_t (v is uint32_t). v <= DISPLAY_CAP <= 255 and
+     * L = floor(DISPLAY_LIMIT_MA * 255 / 20), so v * L < 2^32 whenever DISPLAY_LIMIT_MA < about
+     * 16.8 million mA (255 * 255 * mA / 20 < 2^32); the default is 32 * 3825 = 122400.
      */
     uint32_t units = display_units();
     uint32_t after = 0u;

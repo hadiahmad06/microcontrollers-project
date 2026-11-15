@@ -59,7 +59,12 @@ static const uint8_t k_color[N_ICONS][3] = {
     {0, 255, 0}      /* LEARN_OK green */
 };
 
-/** Maps an id to a table index; unsupported ids map to UNKNOWN. */
+/**
+ * Maps a gesture or pseudo id to an index into k_bitmap / k_color.
+ * @param id -1 (unknown), 0..12 gesture and learned-slot ids, ICON_LEARN_OK (100); any other
+ *           value is unsupported.
+ * @return table index: id + 1 for 0..12, IDX_LEARN_OK for ICON_LEARN_OK, otherwise IDX_UNKNOWN.
+ */
 static uint8_t icon_index(int8_t id)
 {
     if (id == (int8_t)ICON_LEARN_OK) {

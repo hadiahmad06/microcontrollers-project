@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import oracle  # noqa: E402
+import icons_golden  # noqa: E402
 
 UNKNOWN_IDS = [-2, 13, 14, 15, 50, 127, -128]
 
@@ -119,10 +120,10 @@ def check_icons(label, icons, cap, limit_ma, serp, fails):
     :return: None.
     """
     need = [-1, 0] + list(range(1, 13)) + [100] + UNKNOWN_IDS
-    for n in need:
-        if n not in icons:
-            fails.append("%s: icon id %d missing" % (label, n))
-    if fails:
+    missing = [n for n in need if n not in icons]
+    for n in missing:
+        fails.append("%s: icon id %d missing" % (label, n))
+    if missing:
         return
     bm = {k: tuple(v["bm"]) for k, v in icons.items()}
     if any(bm[0]):
@@ -157,6 +158,42 @@ def check_icons(label, icons, cap, limit_ma, serp, fails):
             fails.append("%s: icon %d draws an estimated %d mA > limit %d" % (label, k, v["ret"], limit_ma))
 
 
+def mirror_lr(bm):
+    """Left-right mirror of a bitmap (reverse the bit order of every row byte).
+
+    :param bm: 8 row bytes.
+    :return: tuple of 8 mirrored row bytes.
+    """
+    return tuple(int("{:08b}".format(b)[::-1], 2) for b in bm)
+
+
+def check_golden(label, icons, fails):
+    """Icon identity: every id has exactly the golden bitmap and colour, and the mirror relations hold.
+
+    :param label: target label.
+    :param icons: parsed icon dict.
+    :param fails: failure list.
+    :return: None.
+    """
+    for k, (hexbm, rgb) in sorted(icons_golden.GOLDEN.items()):
+        if k not in icons:
+            fails.append("%s: golden icon id %d missing from the output" % (label, k))
+            continue
+        got_bm = "".join("%02X" % b for b in icons[k]["bm"])
+        if got_bm != hexbm:
+            fails.append("%s: icon %d bitmap %s != golden %s" % (label, k, got_bm, hexbm))
+        if tuple(icons[k]["rgb"]) != tuple(rgb):
+            fails.append("%s: icon %d colour %s != golden %s" % (label, k, icons[k]["rgb"], rgb))
+    for a, b, kind in icons_golden.MIRRORS:
+        if a not in icons or b not in icons:
+            continue
+        ba, bb = tuple(icons[a]["bm"]), tuple(icons[b]["bm"])
+        want = mirror_lr(ba) if kind == "lr" else tuple(reversed(ba))
+        if bb != want:
+            fails.append("%s: icon %d is not the %s mirror of icon %d" %
+                         (label, b, "left-right" if kind == "lr" else "top-bottom", a))
+
+
 def print_art(icons):
     """Print every icon as ASCII art into the log.
 
@@ -172,7 +209,7 @@ def print_art(icons):
             print("  " + "  ".join("%-8s " % rr[r] for rr in rows))
 
 
-def check(label, cmd, cfg, seed, nscen, timeout, art):
+def check(label, cmd, cfg, seed, nscen, timeout, art, golden=True):
     """Run one target and verify frames + icons. Returns True on PASS.
 
     :param label: label such as "default/host".
@@ -182,6 +219,7 @@ def check(label, cmd, cfg, seed, nscen, timeout, art):
     :param nscen: number of scenarios.
     :param timeout: seconds.
     :param art: print the icon ASCII art when True.
+    :param golden: also run the icon identity (golden table) check.
     :return: True when everything matches.
     """
     cap, lim, serp = cfg
@@ -196,7 +234,10 @@ def check(label, cmd, cfg, seed, nscen, timeout, art):
     exp = oracle.expected(seed, nscen, cap, lim, serp)
     nbad = check_frames(label, got, exp, fails)
     icons = parse_icons(got, fails, label)
+    # Icon checks always run, even after frame mismatches (review finding L7); both are reported.
     check_icons(label, icons, cap, lim, serp, fails)
+    if golden:
+        check_golden(label, icons, fails)
     if art and icons:
         print_art(icons)
     if fails:
@@ -221,6 +262,8 @@ def main():
     ap.add_argument("--seed", type=lambda s: int(s, 0), default=1)
     ap.add_argument("--nhost", type=int, default=1000)
     ap.add_argument("--nsim", type=int, default=40)
+    ap.add_argument("--no-golden", action="store_true",
+                    help="skip the icon identity test (only for the spec stand-in, which has other icons)")
     ap.add_argument("--sim-timeout", type=int, default=600)
     a = ap.parse_args()
     ok = True
@@ -230,10 +273,10 @@ def main():
         cfg = (int(cap), int(lim), int(serp))
         host = os.path.join(a.build, "test_display_%s_host" % name)
         elf = os.path.join(a.build, "test_display_%s_avr.elf" % name)
-        ok = check(name + "/host", [host, str(a.seed), str(a.nhost)], cfg, a.seed, a.nhost, 600, first) and ok
+        ok = check(name + "/host", [host, str(a.seed), str(a.nhost)], cfg, a.seed, a.nhost, 600, first, not a.no_golden) and ok
         first = False
         ok = check(name + "/sim16", [a.sim16, elf, str(a.sim_timeout)], cfg, a.seed, a.nsim,
-                   a.sim_timeout + 30, False) and ok
+                   a.sim_timeout + 30, False, not a.no_golden) and ok
     if ok:
         print("display suite PASS")
         return 0
