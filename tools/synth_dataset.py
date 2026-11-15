@@ -23,13 +23,13 @@ splitting mechanics only.
 Motion onset is near sample 15 (the trigger position, C1.5) with +-3 samples of jitter.
 Option --onset-jitter LO,HI (default off, output byte-identical to before): each GESTURE onset is drawn
 uniformly in [15+LO, 15+HI] instead (class 0 is unchanged). It approximates the trigger latency: the live
-trigger fires a few to ~40 samples after the true onset, so the onset sits at window index ~0..27 rather
+trigger fires a few to ~40 samples after the true onset, so the onset sits at window index ~-10..27 (negative = onset before the window start) rather
 than 15 (integration spike S3-1 finding 5; e.g. --onset-jitter=-25,12). It is only an approximation;
 real data should instead be cut by the real trigger from continuous recordings (C1b section 3.4).
 Shapes are adapted from our own spike docs/agent/hadi/spikes/trigger/synth.py (not copied code).
 
 Usage:  python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1
-        python3 tools/synth_dataset.py --out ds.npz --onset-jitter=-25,12   # onset index 0..27
+        python3 tools/synth_dataset.py --out ds.npz --onset-jitter=-25,12   # onset index -10..27
         python3 tools/synth_dataset.py --selftest
 """
 import argparse

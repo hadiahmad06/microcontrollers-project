@@ -88,7 +88,7 @@ Onset-jitter augmentation (W2-3, SYNTHETIC): `synth_dataset.py --onset-jitter=LO
 value starts with a minus sign) draws each gesture's onset uniformly in `[15+LO, 15+HI]` instead of `15 +- 3`
 (class 0 and the default output are unchanged: the default `.npz` is byte-identical to before, checked by hash). It
 approximates trigger latency: the live trigger fires a few to ~40 samples after the true onset, so the onset
-lands at window index ~0..27 (`--onset-jitter=-25,12`), as seen in the integration spike (S3-1 finding 5). It is
+lands at window index ~-10..27 (negative = onset before the window start) (`--onset-jitter=-25,12`), as seen in the integration spike (S3-1 finding 5). It is
 only an approximation; real data should instead be cut by the real trigger from continuous recordings (C1b
 section 3.4). `train.py` needs no flag, it just trains on the resulting `.npz`.
 

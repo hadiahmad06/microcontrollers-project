@@ -50,7 +50,8 @@ until real recordings exist. Options to consider then: derive GESTURE_OVERRIDE_C
 default radius (e.g. 600), or require ≥ 2 templates before a class may override. Also (S3-1 finding 5): train on windows cut
 by the real trigger from continuous recordings, not on fixed-onset windows (accuracy 82 % vs 99 % by onset position).
 Measured mitigation (W2-3, synthetic): training with `synth_dataset.py --onset-jitter=-25,12` lifts end-to-end accuracy on the
-same hit windows from 91 % to 96 % (late onsets 82 % → 95-97 %; well-aligned windows -0.7 pt). Opt-in; default unchanged.
+same hit windows from 91 % to 96 % on the long stream and 87 % → 93 % on the short one (late onsets 82 % → 95-97 % on the long
+stream; well-aligned windows -0.9 pt over both streams; review W2-3R). Training onsets span -10..27. Opt-in; default unchanged.
 
 ### Q3. ⚠️ Conflicts with a top-level doc (the proposal's sub-question Q5 in C1b §6)
 You would be asked to say: "On a FIFO overrun while idle, also call trigger_resync()."

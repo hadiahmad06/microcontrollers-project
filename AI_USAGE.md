@@ -649,3 +649,5 @@ which person.
 | tools/synth_dataset.py | `make_window` (onset_jitter option) | Optional onset jitter to approximate trigger latency (default unchanged) | 2026-11-15 | agent |
 | tools/synth_dataset.py | `make_dataset` (onset_jitter option) | Thread onset jitter through dataset generation | 2026-11-15 | agent |
 | docs/agent/hadi/spikes/integration/evaluate.py | `onset_bin_accuracy` | Hit-window accuracy per onset-position bin, side by side for two models | 2026-11-15 | agent |
+| tools/synth_dataset.py | `main` (--onset-jitter flag) | CLI flag and validation for onset jitter | 2026-11-15 | agent |
+| tools/synth_dataset.py | `_selftest` (jitter checks) | Determinism, range and default-unchanged checks for onset jitter | 2026-11-15 | agent |

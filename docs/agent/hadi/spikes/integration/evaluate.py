@@ -228,7 +228,7 @@ def report_run(name, passes, gt):
             b = [ok for pos, ok in hits_all if lo <= pos <= hi]
             parts.append("onset at %s: %d windows acc %s" % (nm, len(b), pct(sum(b), len(b))))
         print("accuracy by onset position in the window (default training windows have it at 12..18%s): "
-              % ("; this run: onset-jitter model, training onset 0..27" if name in MODEL_DIR_OF else "")
+              % ("; this run: onset-jitter model, training onset -10..27" if name in MODEL_DIR_OF else "")
               + "; ".join(parts))
     # integer-path confusion of hit windows
     wrong = {}
