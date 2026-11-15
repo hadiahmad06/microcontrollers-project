@@ -182,7 +182,7 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 |----|-------|----------|--------|-----------|-------------------|
 | S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | **done**, merged: 20 sources + provenance; 11 gaps |  `CITATIONS.md` | – |
 | S4-2 | Project report draft (PLAN WP5) | doc-report + main | **done**: the agent's Write was refused by a harness rule for subagent report files; it returned sourced facts and the main agent wrote the file (numbers re-checked) | `REPORT_DRAFT.md` | Hadi edits |
-| S4-3 | Review of the S3-1 integration spike and its findings | review-20 | in progress | `reviews/S4-3R.md` | – |
+| S4-3 | Review of the S3-1 integration spike and its findings | review-20 | **done**, merged: PARTLY SUPPORTED (0 high, 3 medium: hit-window cap hides late triggers; Q8 denominator; spike defaulted to the superseded overrun order) → all three fixed by main | `reviews/S4-3R.md` | – |
 | SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | in progress | comments in firmware/src, tests, tools | – |
 
 ## Backlog (later sprints)
@@ -220,6 +220,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (x): **SPRINT 2 CLOSED.** PR #1 merged after PR-2R2 = MERGE and a clean run at `fadde74`. **Sprint 3 started:** S3-1 integration spike. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (w): **Done:** 3.8F, WP1-bF2/bT3, SW-2a/b; all 8 suites PASS. **Next:** delta review PR-2R2, then merge PR #1. **Waiting for Hadi:** Q1-Q7.
