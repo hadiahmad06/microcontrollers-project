@@ -80,6 +80,7 @@ static uint16_t fails;
 
 /**
  * xorshift32 step (13, 17, 5).
+ * xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
  *
  * @param s State, must be nonzero; updated.
  * @return The new state, which is also the random value.

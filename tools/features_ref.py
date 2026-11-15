@@ -30,6 +30,7 @@ def c_div_trunc(a, b):
     return q if (a >= 0) == (b > 0) else -q
 
 
+# Classic binary digit-by-digit square root; our own implementation from the C3 spec, exhaustively tested.
 def isqrt32(n):
     """Exact floor(sqrt(n)) by the same digit-by-digit loop as features.c.
 

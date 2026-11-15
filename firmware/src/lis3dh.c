@@ -3,7 +3,8 @@
  * @file lis3dh.c
  * @brief LIS3DH driver: probe, register config, FIFO drain, unpack + axis remap, click read.
  *
- * Register facts: ST LIS3DH datasheet DocID17530 (register map, FIFO, click) and AN3308 Rev 3.
+ * Register facts: ST LIS3DH datasheet DocID17530 Rev 1 (May 2010), https://cdn-shop.adafruit.com/datasheets/LIS3DH.pdf (Adafruit mirror; newer revisions not read) (register map, FIFO, click),
+ * and ST AN3308 DocID18198 Rev 3 (June 2017), https://core-electronics.com.au/attachments/uploads/lis3dh-application-note.pdf.
  * Spec: docs/agent/CONTRACTS.md C0, C1.1, C1.3, C1.4, C1.6, C1.10, C6.1.
  */
 #include "lis3dh.h"
@@ -127,7 +128,7 @@ int8_t lis3dh_init(const lis3dh_axes_t *axes)
 
     /* CTRL_REG6 = 0x80: I2_CLICK (7) = 1 click on INT2, I2_IA1 (6) = 0, I2_IA2 (5) = 0,
      * I2_BOOT (4) = 0, I2_ACT (3) = 0, bit 2 unused = 0, INT_POLARITY (1) = 0 active high (rising edge),
-     * bit 0 unused = 0. */
+     * bit 0 unused = 0. Bits 2 and 0 "unused = 0" (written from memory, UNVERIFIED: check against the LIS3DH datasheet). */
     if (write_verify(REG_CTRL6, 0x80u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CLICK_CFG = 0x2A: ZD (5) = 1, ZS (4) = 0, YD (3) = 1, YS (2) = 0, XD (1) = 1, XS (0) = 0
@@ -149,7 +150,7 @@ int8_t lis3dh_init(const lis3dh_axes_t *axes)
     if (write_verify(REG_TIME_WINDOW, 0x30u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CTRL_REG5 = 0x40: BOOT (7) = 0, FIFO_EN (6) = 1, bits 5:4 unused = 0, LIR_INT1 (3) = 0, D4D_INT1 (2) = 0,
-     * LIR_INT2 (1) = 0, D4D_INT2 (0) = 0. */
+     * LIR_INT2 (1) = 0, D4D_INT2 (0) = 0. Bits 5:4 "unused = 0" (written from memory, UNVERIFIED: check against the LIS3DH datasheet). */
     if (write_verify(REG_CTRL5, 0x40u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* FIFO_CTRL_REG = 0x00: FM1:FM0 (7:6) = 00 Bypass (this clears the FIFO), TR (5) = 0,

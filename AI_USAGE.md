@@ -618,3 +618,31 @@ which person.
 | firmware/test/e2e/run_e2e.py | `_q`, `_decisive`, `_conf_edge` | Coverage predicates for the boundary table | 2026-11-15 | agent |
 | firmware/test/e2e/run_e2e.py | `Planner.start`, `Planner.add`, `Planner.want`, `Planner.of`, `Planner.first` | Directed-plan bookkeeping helpers | 2026-11-15 | agent |
 | firmware/test/e2e/run_e2e.py | `score`, `pred` | Nested search helpers inside Planner | 2026-11-15 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `handle_overrun` | Handle a reported FIFO overrun as API_glue.md step (2): capture_overrun(), and if an open window | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `on_sample` | Drain callback: one wand-frame sample from lis3dh_drain (see file comment for the flow). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `sensor_run` | Advance simulated time by n sample periods WITHOUT servicing the FIFO (the main loop is busy). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `process_ready` | Classify the READY window as gesture_classify() would (API_glue.md section 2), print one line, | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `poll_once` | One gesture_poll() service step: drain once, handle overrun, classify when READY. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `stalled` | True while a configured stall is active (the main loop does not service the FIFO). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `run_pass` | Run the whole stream once: gesture_init() per API_glue.md, then the simulated main loop. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/glue.c | `main` | Entry point: print the model identity, run pass 0 (no templates) and pass 1 (learn from the plan). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `_unit` | integration spike helper | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `_rot_between` | Rotation matrix taking direction a to direction b. Args: a, b (3-vectors). Returns: 3x3. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `_tilt` | Smooth pose change p0 -> p1 over span samples (direction slerp, magnitude linear). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `_mirror` | Mirror the first draws of synth_dataset.make_window to learn onset and duration. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `build` | Build one stream. Args: seed (int); classes (list of labels 1..8); reps (int per class); | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `check_mirror` | Assert that the mirrored onset equals the actual onset of the generated window. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `write_header` | Write the C header for glue.c. Args: path; name (str); x (int16 [N,3]); gt (dict). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `emit` | Write NAME.npy, NAME.json, NAME.h. Args: outdir; name; x; gt. Returns: None. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `main` | CLI: make_stream.py --out DIR. Writes the streams main, big, tight, stall, short. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/make_stream.py | `add` | integration spike helper | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `parse` | Parse a glue output file. Args: path. Returns: list of passes, each dict(W=[...], ev=[...], S=str). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `python_check` | Replay every window through the Python reference. Args: passes; x (int16 [N,3]); model. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `match` | Match the windows of one pass to the ground truth. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `pct` | Percentage string. Args: a, b ints. Returns: str. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `med` | Percentile of a list. Args: v; q. Returns: int or None. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `report_run` | Print the per-class table of pass 0 and the k-NN delta of pass 1 for one run. Returns: dict summary. | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `main` | CLI. Args: --build DIR --runs "a b c" --sim NAME. Returns: exit code (1 on host/sim16 or Python mismatch). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/evaluate.py | `clean` | Read an output file without the SIM16_EXIT line (run_sim16.sh strips it, the host build prints it). | 2026-11-14 | agent |
+| docs/agent/hadi/spikes/integration/fake_lis3dh.c | `fake_push_sample` (+ copy of firmware/test/lis3dh fake) | Inject one recorded sample into the fake FIFO | 2026-11-15 | agent |
+| docs/agent/hadi/spikes/integration/fake_lis3dh.c | `push_one_w` | Push one raw sample word into the fake FIFO (helper of fake_push_sample) | 2026-11-15 | agent |

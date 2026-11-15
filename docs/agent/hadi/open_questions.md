@@ -32,6 +32,24 @@ Record as your decision: "Accept every recommendation in docs/agent/hadi/proposa
 - **Risks to know:** slow-tilt peak 216 mg is close to 250 mg; tremor peak (122-132 mg) is close to the re-arm level (126 mg). Real recordings decide.
 Unblocks: capture integration and the `gesture.c` API (3.7).
 
+**Data for Q2 from the integration spike S3-1 (synthetic, UNVERIFIED; `spikes/integration/`):** with the C1b defaults the
+whole pipeline detects 92-96 % of gestures with a +40-sample hit window (99 % with +50: the few "false windows" are late
+triggers 43-49 samples after the onset of a long gesture; idle, bumps, tremor and tilts produced zero windows; review S4-3R);
+dead time after a trigger is ~1.7 s; slow-start gestures (circles, twist) trigger late, so their onset lands at window index 4-6
+instead of ~15.
+Possible refinement (not a recommendation yet): let samples seen while LOCKED count toward the 30-sample quiet re-arm.
+
+### Q8. Data for C5 tuning (provisional constants; from S3-1 finding 6), FYI
+With the exporter-chosen GM_CONF_SHIFT, typical MLP confidence on correct windows is ~80 (P90 ~140), so
+`GESTURE_OVERRIDE_CONF = 192` makes the MLP count as "weak" almost always; with one template per class and the default
+radius 1200, other-class windows sit at L1 ≈ 900-1000 from a template (tail down to ~380), so a learned id replaced the result on
+78 of the 117 hits of classes without a template (72 of them had been correct); overall accuracy 140/154 → 74/154
+(91 % → 48 %, synthetic; corrected by review S4-3R). Measured alternatives (S4-3R, numbers only): radius 600 → 133/154;
+override conf 64 → 119/154; both → 135/154; override conf 255 → no change. C5 marks these constants "provisional, tune on data"; nothing changes
+until real recordings exist. Options to consider then: derive GESTURE_OVERRIDE_CONF from the conf distribution, a smaller
+default radius (e.g. 600), or require ≥ 2 templates before a class may override. Also (S3-1 finding 5): train on windows cut
+by the real trigger from continuous recordings, not on fixed-onset windows (accuracy 82 % vs 99 % by onset position).
+
 ### Q3. ⚠️ Conflicts with a top-level doc (the proposal's sub-question Q5 in C1b §6)
 You would be asked to say: "On a FIFO overrun while idle, also call trigger_resync()."
 `docs/agent/CONTRACTS.md` C1.6 says: "OVRN while idle: count only." (decided 2026-11-14 by Hadi)

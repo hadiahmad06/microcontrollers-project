@@ -30,6 +30,7 @@ static uint32_t g_xs;   /* xorshift32 state */
 
 /**
  * xorshift32 (shifts 13, 17, 5): identical to oracle.py XorShift32.
+ * xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
  *
  * @return Next pseudo-random value.
  */

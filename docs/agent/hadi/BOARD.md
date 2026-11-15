@@ -139,7 +139,8 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
 | PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | **done**: MERGE (0 blockers, 0 majors; minors d-1, d-3, d-4, d-5 fixed) | `reviews/PR-2R2.md` | merge if MERGE |
-| PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open. PR-2R: MERGE AFTER FIXES (2 majors: 3.8F not landed; code-vs-CONTRACTS wording differences not disclosed → now disclosed in the PR body; minors fixed) | `reviews/PR-2R.md` | merge when 3.8F, WP1-bF2/bT3, SW-2 land and all suites PASS |
+| PR-3 | Sprint 3-4 PR to `main` (integration spike, citations, report draft, citation comments) + pre-merge review | main + review-21 | next | – | – |
+| PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) | main + review-17, review-19 | **MERGED** 2026-11-15 as `4cc0fe2` after PR-2R (merge after fixes; fixed) and PR-2R2 (MERGE) and a clean run at `fadde74` | `reviews/PR-2R.md`, `reviews/PR-2R2.md` | – |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | **done**, merged: APPROVE WITH NITS (0 high, 4 medium); all 256 FIFO_SRC values bounded | `reviews/WP1-bR.md` | WP1-bF2, WP1-bT3 |
 | WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments; main-agent ruling: only sign == -1 negates (WP1-bT3) | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
 | WP1-bT3 | lis3dh tests: stop at first fault, guards, NULL tables, R5 both ways | test-lis3dh (3rd instance) | **done**, merged; lis3dh suite PASS on the real driver | `firmware/test/lis3dh/**` | – |
@@ -166,6 +167,25 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 Two container restarts (2026-11-14) killed pending question dialogs and made running agents unresumable: decisions now also go to `open_questions.md`; fix rounds start fresh instances that work from the review file.
 simavr splits UART lines longer than 255 characters: test drivers print short lines.
 
+## Sprint 3: integration de-risking while Hadi's decisions are pending (started 2026-11-15)
+**Goal:** prove the glue between the tested modules on continuous synthetic streams, so 3.7 (`gesture.c`) is fast once
+Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigger module, C2 TX pump, gesture.c).
+**Base:** the session branch was fast-forwarded to merged `main` (`4cc0fe2`).
+
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| S3-1 | Integration spike: fake LIS3DH → drain → trigger spike → capture → features → MLP → k-NN → decision, on continuous synthetic streams; host + sim16; Python cross-check | spike-integration | **done**, merged: host == sim16, Python == C; 92-96 % detection (synthetic); found the overrun-order bug in API_glue.md (fixed in the note), k-NN gate data (Q8) | `spikes/integration/**` | findings → 3.7 brief |
+
+**Sprint 3 stopping point (2026-11-15):** further product work needs Q1/Q2. Findings are in `proposals/API_glue.md` and `open_questions.md` (Q2 data, Q8).
+
+## Sprint 4: course deliverables that need no decisions (started 2026-11-15)
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | **done**, merged: 20 sources + provenance; 11 gaps |  `CITATIONS.md` | – |
+| S4-2 | Project report draft (PLAN WP5) | doc-report + main | **done**: the agent's Write was refused by a harness rule for subagent report files; it returned sourced facts and the main agent wrote the file (numbers re-checked) | `REPORT_DRAFT.md` | Hadi edits |
+| S4-3 | Review of the S3-1 integration spike and its findings | review-20 | **done**, merged: PARTLY SUPPORTED (0 high, 3 medium: hit-window cap hides late triggers; Q8 denominator; spike defaulted to the superseded overrun order) → all three fixed by main | `reviews/S4-3R.md` | – |
+| SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | **done**, merged: gaps 1-3, 5-7 closed; objects byte-identical (main re-verified 4 modules) | comments in firmware/src, tests, tools | – |
+
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
 different subagents from the implementer.
@@ -183,8 +203,8 @@ different subagents from the implementer.
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
 ## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
-1. **Where things are:** all work is on `claude/optimistic-meitner-67qdon`; PR hadiahmad06/microcontrollers-project#1 → `main`
-   (merge only after the pre-merge review PR-2R says MERGE). `make test` at the repo root runs 8 suites (host + sim16).
+1. **Where things are:** Sprint 2 is MERGED into `main` (PR hadiahmad06/microcontrollers-project#1, `4cc0fe2`). New work continues on
+   `claude/optimistic-meitner-67qdon` (fast-forwarded to `main`); open a new PR per sprint. `make test` at the repo root runs 8 suites (host + sim16).
 2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
    (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
    pump into `firmware/src` before Q1/Q2 are answered; design is ready in `proposals/API_glue.md`.
@@ -201,6 +221,9 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
+- 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
+- 2026-11-15 (x): **SPRINT 2 CLOSED.** PR #1 merged after PR-2R2 = MERGE and a clean run at `fadde74`. **Sprint 3 started:** S3-1 integration spike. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (w): **Done:** 3.8F, WP1-bF2/bT3, SW-2a/b; all 8 suites PASS. **Next:** delta review PR-2R2, then merge PR #1. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (v): Hadi signed off ("continue running, don't ask questions, leave notes in the chat"). The API spend limit stopped 3.8F mid-task; resumed after reset. PR #1 opened; pre-merge review running.
 - 2026-11-15 (u): **Done:** all fix rounds except 3.8F; 8 suites PASS; e2e soak (3 extra seeds × 4 models) PASS; proxy RAM 2512 B vs C7 2500 B; glue design note for 3.7. **Next:** PR-2 (session branch → main) with a full-diff review. **Waiting for Hadi:** Q1-Q6.

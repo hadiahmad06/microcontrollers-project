@@ -186,6 +186,7 @@ def expand(script):
     return out
 
 
+# xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
 class Rng:
     """xorshift32 (13, 17, 5), identical to test_capture.c."""
 
