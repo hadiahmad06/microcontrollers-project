@@ -9,9 +9,9 @@
 ROOT := ../../..
 include $(ROOT)/firmware/test/common.mk
 SEED      ?= 1
-MODELS    ?= 3
+MODELS    ?= 4
 NPER_HOST ?= 300
-NPER_SIM  ?= 15
+NPER_SIM  ?= 40
 # Module sources: from IMPL_DIR when present there, else firmware/src.
 MOD_SRC := $(foreach m,features mlp knn classify,$(or $(wildcard $(IMPL_DIR)/$(m).c),$(SRC_DIR)/$(m).c))
 .PHONY: test clean build

@@ -8,14 +8,21 @@
  * SCENARIOS). Host: ./test_e2e SEED NPER. sim16: -DTEST_SEED=<n>u -DTEST_NPER=<n>u.
  * Output line formats (idx = running window number, hex fields are fixed width, two's complement):
  *   M <hash8> <conf_shift>            model identity
- *   W idx tag scn min_conf            tag L (learn window) or Q (query window)
+ *   W idx tag scn min_conf cs8        tag L (learn window) or Q (query window); cs8 = FNV-1a checksum
+ *                                     of the 450 raw samples (3.8R F-08)
  *   F idx half 30x%04x                features 0..29 (half 0) and 30..59 (half 1)
  *   X idx 60x%02x                     x8
  *   G idx top1 margin8 9x%08x         top1, margin, logits
  *   K idx kid d1 d2 has c_k radius    k-NN result, or "K idx -" when no template / skipped
  *   R idx id conf                     final decision (Q windows only)
  *   RT scn ok|bad                     export/import round trip
+ *   B scn crc4                        CRC-16 trailer of the exported blob (compared with Python's)
  *   DONE n                            end marker with window count
+ *
+ * Two parts: the random plan (7 scenarios, mirrored generator) and the DIRECTED plan (dplan.h,
+ * written by run_e2e.py per model): a list of steps (reset, learn, query, round trip) whose windows
+ * are described by (gen_base seed, optional noise, up to DPATCH single-sample patches). The directed
+ * plan makes boundaries happen on purpose (3.8F); Python re-derives every expectation itself.
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -38,6 +45,30 @@ static const uint8_t scen_ntpl[N_SCEN] = {0u, 1u, 5u, 3u, 5u, 2u, 1u};
 #define RT_SCEN 4u
 /** Reject thresholds drawn per query window. */
 static const uint8_t min_conf_tbl[4] = {0u, 64u, 192u, 255u};
+
+/** Directed-plan step opcodes. */
+#define DOP_RESET 0u
+#define DOP_LEARN 1u
+#define DOP_QUERY 2u
+#define DOP_RT    3u
+/** Patches per directed window. */
+#define DPATCH 3u
+
+/** One directed step: window = gen_base(base) [+ noise(nz_seed, nz)] [+ patches]. */
+typedef struct {
+    uint32_t base;           /**< gen_base() seed state, nonzero */
+    uint32_t nz_seed;        /**< noise seed state, nonzero when nz != 0 */
+    uint16_t pos[DPATCH];    /**< patch position: sample * 3 + axis */
+    int16_t  delta[DPATCH];  /**< patch delta added to that sample value (then clamped) */
+    uint8_t  op;             /**< DOP_* */
+    uint8_t  scn;            /**< scenario number printed on the W line */
+    uint8_t  cls;            /**< learned class index 0..3 (DOP_LEARN) */
+    uint8_t  minc;           /**< min_conf (DOP_QUERY) */
+    uint8_t  nz;             /**< noise amplitude, 0 = none */
+    uint8_t  np;             /**< number of patches used (<= DPATCH) */
+} dstep_t;
+
+#include "dplan.h"   /* generated per model into build/mN/: DPLAN_N and dplan[] */
 
 static int16_t win[FEAT_WINDOW_LEN][3];
 static int16_t feat[FEAT_COUNT];
@@ -172,20 +203,80 @@ static void gen_base(uint32_t *s, int16_t out[FEAT_WINDOW_LEN][3])
 }
 
 /**
- * Print the W/F/X/G lines of a window (everything up to the MLP).
+ * Add per-sample noise to the global window: v += rnd(2*nz+1) - nz, then clamp (mirror of apply_noise()).
  *
- * @param idx    Running window number.
- * @param tag    'L' or 'Q'.
- * @param scn    Scenario number.
- * @param minc   min_conf of the window (0 for learn windows).
- * @param top1   MLP argmax.
- * @param margin MLP margin.
+ * @param s  Noise state, updated 450 times.
+ * @param nz Noise amplitude, > 0.
  * @return None.
  */
-static void print_mlp_stage(uint16_t idx, char tag, uint8_t scn, uint8_t minc, uint8_t top1, int32_t margin)
+static void apply_noise(uint32_t *s, int32_t nz)
 {
-    uint8_t i, h;
-    printf("W %u %c %u %u\n", (unsigned)idx, tag, (unsigned)scn, (unsigned)minc);
+    uint16_t i;
+    uint8_t a;
+    for (i = 0u; i < FEAT_WINDOW_LEN; i++) {
+        for (a = 0u; a < 3u; a++) {
+            win[i][a] = clamp12((int32_t)win[i][a] + rnd(s, (uint32_t)(2 * nz + 1)) - nz);
+        }
+    }
+}
+
+/**
+ * FNV-1a style checksum of the 450 raw samples of the global window (3.8R F-08).
+ *
+ * @return cs = fold of (cs ^ (uint16_t)v) * 16777619, start 2166136261, uint32_t arithmetic.
+ */
+static uint32_t win_checksum(void)
+{
+    uint32_t cs = 2166136261u;
+    uint16_t i;
+    uint8_t a;
+    for (i = 0u; i < FEAT_WINDOW_LEN; i++) {
+        for (a = 0u; a < 3u; a++) {
+            cs = (cs ^ (uint32_t)(uint16_t)win[i][a]) * 16777619u;
+        }
+    }
+    return cs;
+}
+
+/**
+ * Build the global window of a directed step: gen_base(base), optional noise, then the patches.
+ *
+ * @param d Step (op LEARN or QUERY).
+ * @return None.
+ */
+static void build_window(const dstep_t *d)
+{
+    uint32_t s = d->base;
+    uint8_t p;
+    gen_base(&s, win);
+    if (d->nz != 0u) {
+        uint32_t ns = d->nz_seed;
+        apply_noise(&ns, (int32_t)d->nz);
+    }
+    for (p = 0u; p < d->np; p++) {
+        uint16_t i = (uint16_t)(d->pos[p] / 3u);
+        uint8_t a = (uint8_t)(d->pos[p] % 3u);
+        win[i][a] = clamp12((int32_t)win[i][a] + (int32_t)d->delta[p]);
+    }
+}
+
+/**
+ * Features and MLP of the global window, then print the W/F/X/G lines.
+ *
+ * @param idx    Running window number.
+ * @param is_q   1 for a query window (tag Q), 0 for a learn window (tag L).
+ * @param scn    Scenario number.
+ * @param minc   min_conf of the window (0 for learn windows).
+ * @param margin Output: MLP margin.
+ * @return MLP argmax (top1).
+ */
+static uint8_t stage_mlp(uint16_t idx, uint8_t is_q, uint8_t scn, uint8_t minc, int32_t *margin)
+{
+    uint8_t i, h, top1;
+    features_extract(win, feat);
+    top1 = mlp_forward(feat, x8, logits, margin);
+    printf("W %u %s %u %u %08lx\n", (unsigned)idx, (is_q != 0u) ? "Q" : "L", (unsigned)scn, (unsigned)minc,
+           (unsigned long)win_checksum());
     for (h = 0u; h < 2u; h++) {
         printf("F %u %u", (unsigned)idx, (unsigned)h);
         for (i = 0u; i < 30u; i++) {
@@ -197,17 +288,45 @@ static void print_mlp_stage(uint16_t idx, char tag, uint8_t scn, uint8_t minc, u
     for (i = 0u; i < FEAT_COUNT; i++) {
         printf(" %02x", (unsigned)(uint8_t)x8[i]);
     }
-    printf("\nG %u %u %08lx", (unsigned)idx, (unsigned)top1, (unsigned long)(uint32_t)margin);
+    printf("\nG %u %u %08lx", (unsigned)idx, (unsigned)top1, (unsigned long)(uint32_t)*margin);
     for (i = 0u; i < MLP_N_CLASSES; i++) {
         printf(" %08lx", (unsigned long)(uint32_t)logits[i]);
     }
     printf("\n");
+    return top1;
 }
 
 /**
- * Export, reset, import and verify the template store survives (CRC trailer, counts, radii).
+ * k-NN query of the global x8 and the final decision; prints the K and R lines.
  *
- * @param scn Scenario number (for the RT line).
+ * @param idx        Running window number.
+ * @param top1       MLP argmax of this window.
+ * @param margin     MLP margin of this window.
+ * @param minc       min_conf.
+ * @param conf_shift GM_CONF_SHIFT.
+ * @return None.
+ */
+static void stage_query(uint16_t idx, uint8_t top1, int32_t margin, uint8_t minc, uint8_t conf_shift)
+{
+    knn_result_t k;
+    uint8_t conf = 0u;
+    int8_t id;
+    bool have = knn_query(x8, &k);
+    if (have) {
+        printf("K %u %u %u %u %u %u %u\n", (unsigned)idx, (unsigned)k.kid, (unsigned)k.d1,
+               (unsigned)k.d2, (unsigned)k.has_other, (unsigned)k.c_k, (unsigned)k.radius);
+    } else {
+        printf("K %u -\n", (unsigned)idx);
+    }
+    id = classify_decide(top1, margin, conf_shift, have ? &k : NULL, minc, &conf);
+    printf("R %u %d %u\n", (unsigned)idx, (int)id, (unsigned)conf);
+}
+
+/**
+ * Export, print the blob's CRC trailer, reset, import and verify the store survives (counts, radii,
+ * re-export identical).
+ *
+ * @param scn Scenario number (for the RT and B lines).
  * @return None; increments fails and prints "RT scn bad" on any difference.
  */
 static void round_trip(uint8_t scn)
@@ -226,6 +345,7 @@ static void round_trip(uint8_t scn)
     }
     crc_lo = blob[KNN_BLOB_SIZE - 2u];
     crc_hi = blob[KNN_BLOB_SIZE - 1u];
+    printf("B %u %02x%02x\n", (unsigned)scn, (unsigned)crc_hi, (unsigned)crc_lo);
     knn_reset();
     if (knn_total() != 0u) {
         ok = 0u;
@@ -251,10 +371,50 @@ static void round_trip(uint8_t scn)
 }
 
 /**
- * Run the whole plan: 7 scenarios, each learning its templates then answering nper queries.
+ * Run the directed plan (dplan.h) from window number idx on.
+ *
+ * @param idx        Running window number to continue from.
+ * @param conf_shift GM_CONF_SHIFT.
+ * @return The next running window number.
+ */
+static uint16_t run_directed(uint16_t idx, uint8_t conf_shift)
+{
+    uint8_t learned[GESTURE_MAX_LEARNED] = {0u, 0u, 0u, 0u};
+    uint16_t n;
+    for (n = 0u; n < DPLAN_N; n++) {
+        const dstep_t *d = &dplan[n];
+        int32_t margin;
+        uint8_t top1;
+        if (d->op == DOP_RESET) {
+            knn_reset();
+            memset(learned, 0, sizeof learned);
+        } else if (d->op == DOP_LEARN) {
+            build_window(d);
+            (void)stage_mlp(idx, 0u, d->scn, 0u, &margin);
+            learned[d->cls]++;
+            if (knn_learn((uint8_t)(GESTURE_LEARNED_BASE + d->cls), x8) != (int8_t)learned[d->cls]) {
+                printf("LEARNFAIL %u\n", (unsigned)idx);
+                fails++;
+            }
+            idx++;
+        } else if (d->op == DOP_QUERY) {
+            build_window(d);
+            top1 = stage_mlp(idx, 1u, d->scn, d->minc, &margin);
+            stage_query(idx, top1, margin, d->minc, conf_shift);
+            idx++;
+        } else {
+            round_trip(d->scn);
+        }
+    }
+    return idx;
+}
+
+/**
+ * Run the whole plan: 7 random scenarios, each learning its templates then answering nper queries,
+ * then the directed plan.
  *
  * @param seed Window stream seed (0 is replaced by 1).
- * @param nper Query windows per scenario.
+ * @param nper Query windows per random scenario.
  * @return 0 if all C-side checks passed, 1 otherwise.
  */
 static int16_t run_all(uint32_t seed, uint16_t nper)
@@ -272,12 +432,9 @@ static int16_t run_all(uint32_t seed, uint16_t nper)
         for (c = 0u; c < scen_ncls[scn]; c++) {
             for (t = 0u; t < scen_ntpl[scn]; t++) {
                 int32_t margin;
-                uint8_t top1;
                 saved[ntpl] = s;
                 gen_base(&s, win);
-                features_extract(win, feat);
-                top1 = mlp_forward(feat, x8, logits, &margin);
-                print_mlp_stage(idx, 'L', scn, 0u, top1, margin);
+                (void)stage_mlp(idx, 0u, scn, 0u, &margin);
                 if (knn_learn((uint8_t)(GESTURE_LEARNED_BASE + c), x8) != (int8_t)(t + 1u)) {
                     printf("LEARNFAIL %u\n", (unsigned)idx);
                     fails++;
@@ -289,44 +446,26 @@ static int16_t run_all(uint32_t seed, uint16_t nper)
         for (q = 0u; q < nper; q++) {
             int32_t margin;
             int32_t r = rnd(&s, 8u);
-            uint8_t top1, minc, conf = 0u;
-            int8_t id;
-            knn_result_t k;
-            bool have;
+            uint8_t top1, minc;
             if (r >= 5 && ntpl > 0u) {
                 uint32_t s2 = saved[rnd(&s, ntpl)];
                 int32_t nz;
-                uint16_t i;
                 gen_base(&s2, win);
                 nz = 1 + rnd(&s, 8u);
-                for (i = 0u; i < FEAT_WINDOW_LEN; i++) {
-                    uint8_t a;
-                    for (a = 0u; a < 3u; a++) {
-                        win[i][a] = clamp12((int32_t)win[i][a] + rnd(&s, (uint32_t)(2 * nz + 1)) - nz);
-                    }
-                }
+                apply_noise(&s, nz);
             } else {
                 gen_base(&s, win);
             }
             minc = min_conf_tbl[rnd(&s, 4u)];
-            features_extract(win, feat);
-            top1 = mlp_forward(feat, x8, logits, &margin);
-            print_mlp_stage(idx, 'Q', scn, minc, top1, margin);
-            have = (ntpl > 0u) && knn_query(x8, &k);
-            if (have) {
-                printf("K %u %u %u %u %u %u %u\n", (unsigned)idx, (unsigned)k.kid, (unsigned)k.d1,
-                       (unsigned)k.d2, (unsigned)k.has_other, (unsigned)k.c_k, (unsigned)k.radius);
-            } else {
-                printf("K %u -\n", (unsigned)idx);
-            }
-            id = classify_decide(top1, margin, info.conf_shift, have ? &k : NULL, minc, &conf);
-            printf("R %u %d %u\n", (unsigned)idx, (int)id, (unsigned)conf);
+            top1 = stage_mlp(idx, 1u, scn, minc, &margin);
+            stage_query(idx, top1, margin, minc, info.conf_shift);
             idx++;
             if (scn == RT_SCEN && q == (uint16_t)(nper / 2u)) {
                 round_trip(scn);
             }
         }
     }
+    idx = run_directed(idx, info.conf_shift);
     printf("DONE %u\n", (unsigned)idx);
     return (fails == 0u) ? 0 : 1;
 }
