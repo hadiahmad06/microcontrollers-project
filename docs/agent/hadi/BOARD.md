@@ -138,10 +138,10 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2R | Review training pipeline | review-16 | **done**, merged: 0 high, 5 medium (val set both selects and reports; class-0 separable by orientation). Raised Q6 | `reviews/W2-2R.md` | W2-2F |
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
-| PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | in progress | `reviews/PR-2R2.md` | merge if MERGE |
+| PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | **done**: MERGE (0 blockers, 0 majors; minors d-1, d-3, d-4, d-5 fixed) | `reviews/PR-2R2.md` | merge if MERGE |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open. PR-2R: MERGE AFTER FIXES (2 majors: 3.8F not landed; code-vs-CONTRACTS wording differences not disclosed → now disclosed in the PR body; minors fixed) | `reviews/PR-2R.md` | merge when 3.8F, WP1-bF2/bT3, SW-2 land and all suites PASS |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | **done**, merged: APPROVE WITH NITS (0 high, 4 medium); all 256 FIFO_SRC values bounded | `reviews/WP1-bR.md` | WP1-bF2, WP1-bT3 |
-| WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
+| WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments; main-agent ruling: only sign == -1 negates (WP1-bT3) | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
 | WP1-bT3 | lis3dh tests: stop at first fault, guards, NULL tables, R5 both ways | test-lis3dh (3rd instance) | **done**, merged; lis3dh suite PASS on the real driver | `firmware/test/lis3dh/**` | – |
 | SW-2a | knn_import: reject non-zero unused slots, NULL buffers (ruling, 3.5R F4) | fix-knn | **done**, merged | `firmware/src/knn.*` | SW-2b |
 | SW-2b | classify suite: F4 ruling, -128 inputs, conf edges (3.5R F4-F6) | test-classify (2nd instance) | **done**, merged; classify suite PASS on host + sim16 | `firmware/test/classify/**` | – |

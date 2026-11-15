@@ -615,3 +615,6 @@ which person.
 | firmware/test/classify/oracle.py | `v_x128` | Mirror of the C -128 generator | 2026-11-15 | agent |
 | firmware/test/classify/oracle.py | `Replay.pad_tests` | Expected padding/NULL lines | 2026-11-15 | agent |
 | firmware/test/classify/oracle.py | `Replay.edges` | Expected F4-F6 lines | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `_q`, `_decisive`, `_conf_edge` | Coverage predicates for the boundary table | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `Planner.start`, `Planner.add`, `Planner.want`, `Planner.of`, `Planner.first` | Directed-plan bookkeeping helpers | 2026-11-15 | agent |
+| firmware/test/e2e/run_e2e.py | `score`, `pred` | Nested search helpers inside Planner | 2026-11-15 | agent |

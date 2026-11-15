@@ -2,7 +2,7 @@
 # End-to-end bit-exact suite (ticket 3.8, PLAN gate G2 + 16-bit pre-check of G3): C firmware path
 # (features -> mlp -> knn -> classify) versus the Python tools, host and sim16.
 #   make test                       test firmware/src
-#   make test IMPL_DIR=/tmp/broken  swap in modules from another directory (any module missing
+#   make test IMPL_DIR=<copy-dir>  swap in modules from another directory (any module missing
 #                                   there falls back to firmware/src); proves the suite can fail
 #   make test SEED=7 NPER_HOST=500  other seed / counts (host windows per model = 7 * NPER_HOST)
 # Generated gesture_model.h files go to build/m<N>/ and are never committed.
