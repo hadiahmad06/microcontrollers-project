@@ -7,7 +7,10 @@
  */
 #include "display.h"
 
-/** Current units: 1 unit = 20 mA / 255, so the limit in units is mA * 255 / 20. */
+/** Current units: 1 unit = 20 mA / 255, so the limit in units is mA * 255 / 20.
+ *  The 20 mA per colour channel (60 mA per pixel at full white) figure is from the Adafruit NeoPixel Uberguide,
+ *  "Powering NeoPixels", https://learn.adafruit.com/adafruit-neopixel-uberguide/powering-neopixels
+ *  (no revision or date; page not confirmed as fetched, treat as UNVERIFIED). */
 #define DISPLAY_LIMIT_UNITS ((uint32_t)DISPLAY_LIMIT_MA * 255u / 20u)
 
 static uint8_t g_fb[DISPLAY_BYTES]; /* R,G,B per pixel, row-major, row 0 = top */

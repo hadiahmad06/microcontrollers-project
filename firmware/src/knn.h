@@ -8,7 +8,8 @@
  * move the store as a flat blob. Distance is L1. No float, no malloc, no blocking.
  *
  * Confidence idea: Lowe, "Distinctive Image Features from Scale-Invariant Keypoints", IJCV 2004
- * (nearest-neighbour distance ratio), used here in "1 - d1/d2" form (C5 section 3).
+ * (nearest-neighbour distance ratio; cited from memory, UNVERIFIED: no volume, pages or DOI; the
+ * journal is Int. J. Computer Vision), used here in "1 - d1/d2" form (C5 section 3).
  */
 #ifndef KNN_H
 #define KNN_H
@@ -82,6 +83,9 @@ bool knn_query(const int8_t x8[KNN_DIM], knn_result_t *out);
  * Serialise the store: [version, MAX_LEARNED, TEMPLATES_PER_CLASS, KNN_DIM], per class [count, next slot],
  * all template bytes class-major/slot-major (unused slots 0), CRC-16/IBM-3740 (poly 0x1021, init 0xFFFF,
  * no reflection, xorout 0) low byte first.
+ * CRC source: CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test).
  * @param buf output buffer
  * @param cap capacity of buf in bytes
  * @return KNN_BLOB_SIZE bytes written, or 0 if cap is too small or buf is NULL (store untouched)

@@ -138,6 +138,9 @@ bool knn_query(const int8_t x8[KNN_DIM], knn_result_t *out)
     return true;
 }
 
+/* CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test). */
 static uint16_t crc16(const uint8_t *p, uint16_t n)
 {
     uint16_t crc = 0xFFFFu;

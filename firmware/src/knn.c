@@ -6,8 +6,11 @@
  * Rulings applied (main agent): d2 is the nearest template among those whose class != kid;
  * radii fit uint16_t; a class's radius is recomputed whenever its templates change (learn/import),
  * never at query time; the pairwise list has <= 10 entries and is sorted by insertion sort.
- * Nearest-neighbour ratio idea: Lowe 2004 (see knn.h).
- * CRC-16/IBM-3740 (CCITT-FALSE): bitwise form of the standard algorithm, check("123456789") = 0x29B1.
+ * Nearest-neighbour ratio idea: Lowe, "Distinctive Image Features from Scale-Invariant Keypoints",
+ * IJCV 2004 (cited from memory, UNVERIFIED; see knn.h). Sort: textbook insertion sort.
+ * Bitwise form of the standard algorithm. CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test).
  */
 #include <stddef.h>   /* NULL */
 #include "knn.h"
@@ -65,7 +68,7 @@ static void recompute_radius(uint8_t c)
             k++;
         }
     }
-    /* insertion sort ascending (k <= 10) */
+    /* insertion sort ascending (k <= 10); textbook insertion sort */
     for (i = 1u; i < k; i++) {
         uint16_t v = d[i];
         uint8_t  p = i;
@@ -87,6 +90,9 @@ static void recompute_radius(uint8_t c)
 
 /**
  * CRC-16/IBM-3740 update with one byte (poly 0x1021, MSB first, no reflection).
+ * CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test).
  *
  * @param crc Running CRC so far (0xFFFF to start a new one).
  * @param b   Next data byte.
@@ -108,6 +114,8 @@ static uint16_t crc16_byte(uint16_t crc, uint8_t b)
 
 /**
  * CRC-16/IBM-3740 of a byte range (init 0xFFFF, xorout 0); check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test).
  *
  * @param p   First byte (must not be NULL when len > 0).
  * @param len Number of bytes.

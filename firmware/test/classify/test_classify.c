@@ -46,6 +46,7 @@ static const uint8_t MC_TAB[7] = {0u, 1u, 64u, 191u, 192u, 193u, 255u};
 
 /**
  * xorshift32 PRNG (13, 17, 5); mirrored bit for bit in oracle.py.
+ * xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
  *
  * @return Next 32-bit pseudo-random value.
  */
@@ -75,7 +76,9 @@ static void rng_seed(uint32_t seed, uint32_t s)
 
 /**
  * CRC-16/IBM-3740 (poly 0x1021, init 0xFFFF, no reflection, xorout 0), the C7 blob checksum.
- *
+ * CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+ * Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+ * (entry recalled from memory, not re-read; check value verified by test). *
  * @param p Data.
  * @param n Number of bytes.
  * @return CRC-16 of the data.

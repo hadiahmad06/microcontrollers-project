@@ -24,6 +24,7 @@ MC_TAB = [0, 1, 64, 191, 192, 193, 255]
 
 
 # ----------------------------------------------------------------------------- PRNG / vectors
+# xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
 class Rng:
     """xorshift32 (13, 17, 5), identical to test_classify.c."""
 
@@ -166,6 +167,9 @@ def v_x128(rng):
 
 
 # ----------------------------------------------------------------------------- spec model
+# CRC-16/IBM-3740 (alias CRC-16/CCITT-FALSE): poly 0x1021, init 0xFFFF, refin/refout false, xorout 0, check("123456789") = 0x29B1.
+# Parameters per G. Cook, "Catalogue of parametrised CRC algorithms", https://reveng.sourceforge.io/crc-catalogue/16.htm
+# (entry recalled from memory, not re-read; check value verified by test).
 def crc16(data):
     """CRC-16/IBM-3740: poly 0x1021, init 0xFFFF, no reflection, xorout 0.
 

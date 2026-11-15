@@ -45,6 +45,7 @@ void features_extract(int16_t (*x)[3], int16_t out[60]);
 
 /**
  * Exact integer square root, floor(sqrt(n)), digit-by-digit (no multiply, no divide).
+ * Classic binary digit-by-digit square root; our own implementation from the C3 spec, exhaustively tested.
  *
  * @param n Any uint32_t value.
  * @return  The largest r with r*r <= n (0..65535).

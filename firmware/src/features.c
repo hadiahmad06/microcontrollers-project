@@ -12,6 +12,7 @@
  *  - No register writes in this module, so no register-bit comments apply.
  */
 
+/* Classic binary digit-by-digit square root; our own implementation from the C3 spec, exhaustively tested. */
 uint16_t features_isqrt32(uint32_t n)
 {
     uint32_t res = 0;

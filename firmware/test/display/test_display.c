@@ -52,6 +52,7 @@ static uint32_t g_rng;
 
 /**
  * xorshift32 PRNG (13, 17, 5); mirrored bit for bit in oracle.py.
+ * xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
  *
  * @return Next 32-bit pseudo-random value.
  */

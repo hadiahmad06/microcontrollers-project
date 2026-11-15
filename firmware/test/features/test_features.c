@@ -60,6 +60,7 @@ static void rng_seed(uint32_t seed)
 
 /**
  * Advance the xorshift32 generator (shifts 13, 17, 5) and return the new state.
+ * xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
  *
  * @return Next 32-bit pseudo-random value.
  */
