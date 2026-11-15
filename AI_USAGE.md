@@ -540,3 +540,4 @@ which person.
 | firmware/test/lis3dh/test_lis3dh.c | `m_n` | Model: true unread count 0..32 (ruling R1) | 2026-11-15 | agent |
 | firmware/test/lis3dh/test_lis3dh.c | `m_fss` | Model: raw FSS field under the selected encoding | 2026-11-15 | agent |
 | firmware/test/lis3dh/standin/lis3dh.c | `unread` | Stand-in: R1 FIFO_SRC decode | 2026-11-15 | agent |
+| firmware/src/capture.c | `capture_buffer` | The 150x3 capture buffer (contents valid only in READY) | 2026-11-15 | agent |
