@@ -26,7 +26,9 @@ import trigger_ref  # noqa: E402
 
 NAMES = ["none", "swipe_r", "swipe_l", "raise", "push_dn", "circ_cw", "circ_ccw", "twist", "thrust"]
 STREAM_OF = {"main": "main", "big": "big", "stallw": "stall", "tight": "tight", "stall0": "stall", "stall1": "stall", "stall2": "stall",
-             "short": "short"}
+             "short": "short", "main_jit": "main", "big_jit": "big"}
+MODEL_DIR_OF = {"main_jit": "model_jit", "big_jit": "model_jit"}   # W2-3: runs using the onset-jitter model
+BINS = ((-99, 4, "<5"), (5, 9, "5-9"), (10, 14, "10-14"), (15, 99, ">=15"))
 
 
 def parse(path):
@@ -154,6 +156,23 @@ def med(v, q=50):
     return int(np.percentile(v, q)) if v else None
 
 
+def onset_bin_accuracy(passes, gt):
+    """Accuracy of the hit windows of pass 0 by onset position in the window (W2-3).
+
+    Args: passes (parse() result); gt (ground truth dict). Returns: list of (bin name, n windows, n correct),
+    one per BINS entry, plus a final ("ALL", n, ok) over every hit.
+    """
+    g0, _ = match(passes[0], gt)
+    hits = [(r[0]["onset"] - passes[0]["W"][r[1]]["start"], passes[0]["W"][r[1]]["id"] == r[0]["label"])
+            for r in g0 if r[2] == "hit"]
+    out = []
+    for lo, hi, nm in BINS:
+        b = [ok for pos, ok in hits if lo <= pos <= hi]
+        out.append((nm, len(b), sum(b)))
+    out.append(("ALL", len(hits), sum(ok for _, ok in hits)))
+    return out
+
+
 def report_run(name, passes, gt):
     """Print the per-class table of pass 0 and the k-NN delta of pass 1 for one run. Returns: dict summary."""
     print("\n--- run %s  (stream %s, N=%d samples = %.0f s; SYNTHETIC, UNVERIFIED) ---"
@@ -208,7 +227,9 @@ def report_run(name, passes, gt):
         for lo, hi, nm in ((-99, 4, "<5"), (5, 9, "5-9"), (10, 14, "10-14"), (15, 99, ">=15")):
             b = [ok for pos, ok in hits_all if lo <= pos <= hi]
             parts.append("onset at %s: %d windows acc %s" % (nm, len(b), pct(sum(b), len(b))))
-        print("accuracy by onset position in the window (training windows have it at 12..18): " + "; ".join(parts))
+        print("accuracy by onset position in the window (default training windows have it at 12..18%s): "
+              % ("; this run: onset-jitter model, training onset -10..27" if name in MODEL_DIR_OF else "")
+              + "; ".join(parts))
     # integer-path confusion of hit windows
     wrong = {}
     for r in g0:
@@ -305,6 +326,12 @@ def main(argv=None):
                                                                               sl[i] if i < len(sl) else None))
                 break
     # 2. Python vs C, and metrics
+    models = {}
+    for nm, d in MODEL_DIR_OF.items():
+        hp = os.path.join(a.build, d, "gesture_model.h")
+        if nm in a.runs.split() and os.path.exists(hp):
+            models[nm] = infer_ref.load_header(hp)
+            print("model %s (onset-jitter, run %s): hash 0x%08X" % (os.path.join(a.build, d), nm, models[nm]["GM_MODEL_HASH"]))
     summ = {}
     for name in a.runs.split():
         gt = json.load(open(os.path.join(a.build, STREAM_OF[name] + ".json")))
@@ -314,7 +341,8 @@ def main(argv=None):
             print("FAIL run %s: incomplete output" % name)
             fail = True
             continue
-        n, bad, cont, first, bad_gap = python_check(passes, x, model)
+        mj = models.get(name, model)
+        n, bad, cont, first, bad_gap = python_check(passes, x, mj)
         print("python == C, run %-6s: %d windows, %d mismatches, %d windows spanning a gap (of which %d differ, "
               "expected: corrupt window)  %s" % (name, n, bad, cont, bad_gap, first))
         if bad or (cont and name != "stall0"):
@@ -360,6 +388,18 @@ def main(argv=None):
     print("run: main = 1-4 s idle, tight = 0.2-0.6 s idle + rotated windows (accC unreliable), stall0/1/2 = main-style "
           "stream with 3 stalls of 45 samples and 40-sample busy classify, overrun order 0 (SUPERSEDED, bug demo), "
           "1 (at the first delivered sample), 2 (1 + trigger_resync); short = the sim16 stream")
+    # W2-3: default model vs onset-jitter model on the SAME streams (the hit windows are identical)
+    for base in ("main", "big"):
+        jn = base + "_jit"
+        if base in summ and jn in summ:
+            b0 = onset_bin_accuracy(summ[base][1], summ[base][2])
+            b1 = onset_bin_accuracy(summ[jn][1], summ[jn][2])
+            print("\n=== W2-3 onset-jitter model vs default model, stream %s (SYNTHETIC, UNVERIFIED; integer path, pass 0, "
+                  "hit windows) ===" % base)
+            print("%-8s %8s | %12s | %12s | %s" % ("onsetPos", "windows", "default acc", "jitter acc", "delta"))
+            for (nm, n0, k0), (_, _, k1) in zip(b0, b1):
+                print("%-8s %8d | %s (%3d) | %s (%3d) | %+d pts" % (nm, n0, pct(k0, n0), k0, pct(k1, n0), k1,
+                                                              round(100.0 * k1 / n0) - round(100.0 * k0 / n0) if n0 else 0))
     if fail:
         print("FAIL: host/sim16 or Python mismatch (see above)")
         return 1

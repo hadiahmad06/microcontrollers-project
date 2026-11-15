@@ -20,10 +20,14 @@ ACF    := $(AVR_CFLAGS) $(SPIKE_INC)
 HOSTRUNS := main:main:1 big:big:1 tight:tight:1 stall0:stall:0 stall1:stall:1 stall2:stall:2 stallw:stall:1 short:short:1
 EXTRA_stallw := -DFSS_WRAP   # FIFO_SRC reports a full FIFO as FSS = 0 + OVRN (bench item C-7 alternative)
 NAMES    := $(foreach r,$(HOSTRUNS),$(word 1,$(subst :, ,$(r))))
+# W2-3: the same streams classified by a model trained with --onset-jitter -25,12 (host only, no sim16)
+MODEL_J  := build/model_jit
+JITRUNS  := main_jit:main:1 big_jit:big:1
+JNAMES   := $(foreach r,$(JITRUNS),$(word 1,$(subst :, ,$(r))))
 
 .PHONY: test clean ram all
-test: $(foreach n,$(NAMES),build/out_$(n)_host.txt) build/out_short_sim16.txt
-	$(PY) evaluate.py --build build --runs "$(NAMES)" --sim short
+test: $(foreach n,$(NAMES) $(JNAMES),build/out_$(n)_host.txt) build/out_short_sim16.txt
+	$(PY) evaluate.py --build build --runs "$(NAMES) $(JNAMES)" --sim short
 	@echo "INTEGRATION SPIKE DONE"
 
 # ---- model: seeded synthetic dataset -> tools/train.py -> gesture_model.h (never committed) ----
@@ -32,6 +36,13 @@ $(MODEL)/gesture_model.h:
 	$(PY) $(TOOLS_DIR)/synth_dataset.py --out build/train_ds.npz --per-class 120 --seed 1
 	$(PY) $(TOOLS_DIR)/train.py --data build/train_ds.npz --out-dir $(MODEL) --seed 1 --epochs 60 > build/train.log 2>&1
 	@tail -1 build/train.log
+
+# jittered model: same seeds and sizes, only the gesture onset position differs (tools/synth_dataset.py --onset-jitter)
+$(MODEL_J)/gesture_model.h:
+	@mkdir -p build
+	$(PY) $(TOOLS_DIR)/synth_dataset.py --out build/train_ds_jit.npz --per-class 120 --seed 1 --onset-jitter=-25,12
+	$(PY) $(TOOLS_DIR)/train.py --data build/train_ds_jit.npz --out-dir $(MODEL_J) --seed 1 --epochs 60 > build/train_jit.log 2>&1
+	@tail -1 build/train_jit.log
 
 # ---- streams ----
 build/main.h build/big.h build/tight.h build/stall.h build/short.h: make_stream.py
@@ -47,6 +58,16 @@ build/out_$(1)_host.txt: build/glue_$(1)_host
 	./$$< > $$@
 endef
 $(foreach r,$(HOSTRUNS),$(eval $(call HOSTRULE,$(word 1,$(subst :, ,$(r))),$(word 2,$(subst :, ,$(r))),$(word 3,$(subst :, ,$(r))))))
+
+# jittered-model host runs: the jittered model dir comes first on the include path
+define JITRULE
+build/glue_$(1)_host: $(SRCS) $(HDRS) build/$(2).h $(MODEL_J)/gesture_model.h Makefile
+	@mkdir -p build
+	$(HOST_CC) -iquote $(MODEL_J) $(HCF) -DSTREAM_HDR='"build/$(2).h"' -DOVR_MODE=$(3) -o $$@ $(SRCS)
+build/out_$(1)_host.txt: build/glue_$(1)_host
+	./$$< > $$@
+endef
+$(foreach r,$(JITRUNS),$(eval $(call JITRULE,$(word 1,$(subst :, ,$(r))),$(word 2,$(subst :, ,$(r))),$(word 3,$(subst :, ,$(r))))))
 
 # ---- sim16: avr-gcc ATmega2560, 16-bit int, under simavr; short stream only ----
 build/glue_short_avr.elf: $(SRCS) $(HDRS) build/short.h $(MODEL)/gesture_model.h
