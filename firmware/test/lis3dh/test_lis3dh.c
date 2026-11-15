@@ -18,7 +18,13 @@
  *   R2 unpack: a sign flip of -2048 gives 2047 (clamp to [-2048, 2047]); all else exact negation.
  *   R3 lis3dh_read_click: exactly 1 if CLICK_SRC has IA (bit 6) and DCLICK (bit 5), else 0, or -3.
  *   R4 axis table: out[k] = sign[k] * in[src[k]].
- *   R5 the driver sets bit 7 of the sub-address (reg | 0x80) for every multi-byte read.
+ *   R5 the driver sets bit 7 of the sub-address (reg | 0x80) for every multi-byte read and leaves
+ *      it CLEAR for every single-byte read (ticket WP1-bT3).
+ *   Ticket WP1-bT3 rulings: init stops at the FIRST fault (afterwards only one optional best-effort
+ *      CTRL_REG1 = 0x00 write, and only if CTRL_REG1 was already written non-zero); any failed
+ *      init leaves lis3dh_address() == 0; before a successful init drain/read_click return
+ *      LIS3DH_ERR_BUS with zero HAL transactions; NULL axis tables are identity; src > 2 acts as
+ *      src 0; a sign other than -1 acts as +1.
  *
  * Assumptions the spec does not pin down:
  *   - lis3dh_address() returns the 7-bit address
@@ -145,6 +151,85 @@ static void make_raw(const uint16_t w[3], uint8_t raw[6])
     }
 }
 
+/**
+ * R5 over the whole transaction log: every read with n == 1 has the sub-address bit 7 clear, every
+ * read with n > 1 has it set.
+ *
+ * @return None.
+ */
+static void check_r5(void)
+{
+    uint16_t j;
+    for (j = 0u; j < fake_log_count(); j++) {
+        const fake_txn_t *t = fake_log_get(j);
+        if (t->is_read != 0u) {
+            CHECK(((t->flags & FAKE_F_MSB) != 0u) == (t->n > 1u));
+        }
+    }
+}
+
+/**
+ * Sample callback that ignores its input (for calls that must deliver nothing).
+ *
+ * @param s Sample (unused).
+ * @param ctx Context (unused).
+ * @return None.
+ */
+static void null_cb(const int16_t s[3], void *ctx)
+{
+    (void)s;
+    (void)ctx;
+}
+
+/**
+ * Pre-init guard: with the fake sensor present and every injector off, lis3dh_drain and
+ * lis3dh_read_click must return LIS3DH_ERR_BUS without a single HAL transaction, and
+ * lis3dh_address() must be 0. The caller has already left the driver in the not-initialised state.
+ *
+ * @return None.
+ */
+static void check_guards(void)
+{
+    uint8_t ov = 0u;
+    bool more = false;
+    fake_nack_txn(0u);
+    fake_nack_fifo_src(0u);
+    fake_nack_burst(0u);
+    fake_corrupt_readback(0xFFu);
+    fake_clear_log();
+    CHECK(lis3dh_address() == 0u);
+    CHECK(lis3dh_drain(null_cb, 0, &ov, &more) == LIS3DH_ERR_BUS);
+    CHECK(lis3dh_read_click() == LIS3DH_ERR_BUS);
+    CHECK(fake_log_count() == 0u);                   /* zero HAL transactions */
+}
+
+/**
+ * Stop-at-first-fault check on the log of a failed init. The faulted transaction has 0-based log
+ * index f. Afterwards the log may hold nothing more, or exactly one best-effort power-down write
+ * (CTRL_REG1 = 0x00 at the sensor address, nothing else), and that only if CTRL_REG1 was already
+ * written with a non-zero value at or before the fault.
+ *
+ * @param f 0-based log index of the faulted transaction.
+ * @param addr Sensor address.
+ * @return None.
+ */
+static void check_stop_at(uint16_t f, uint8_t addr)
+{
+    uint16_t n = fake_log_count(), j;
+    uint8_t pd_ok = 0u;
+    for (j = 0u; j <= f && j < n; j++) {
+        const fake_txn_t *t = fake_log_get(j);
+        if (t->is_read == 0u && t->reg == 0x20u && t->val != 0u) { pd_ok = 1u; }
+    }
+    CHECK(n >= (uint16_t)(f + 1u));
+    CHECK(n <= (uint16_t)(f + 1u + pd_ok));
+    if (n == (uint16_t)(f + 2u) && pd_ok != 0u) {
+        const fake_txn_t *t = fake_log_get((uint16_t)(f + 1u));
+        CHECK(t->is_read == 0u && t->addr == addr && t->reg == 0x20u && t->val == 0x00u);
+        CHECK((t->flags & FAKE_F_NACK) == 0u);
+    }
+}
+
 /* ---------------------------------------------------------------- init tests */
 
 typedef struct { uint8_t reg, val; } regval_t;
@@ -226,6 +311,7 @@ static void t_init_ok(uint8_t addr)
     CHECK(fake_reg(0x20u) == 0x57u && fake_reg(0x2Eu) == 0x8Fu && fake_reg(0x24u) == 0x40u);
     CHECK(fake_fifo_active() == 1u);              /* Stream mode, FIFO enabled */
     CHECK(fake_fifo_level() == 0u);
+    check_r5();
     printf("INFO init@0x%02X: %u txns, read-back immediately after write: %u of %u\n",
            (unsigned)addr, (unsigned)n, (unsigned)immediate, (unsigned)N_EXP_W);
 }
@@ -279,6 +365,9 @@ static void t_init_faults(void)
             fake_nack_txn(t);
             r = lis3dh_init(&AX_ID);
             CHECK(r == LIS3DH_ERR_BUS);
+            check_stop_at((uint16_t)(t - 1u), a);     /* WP1-bT3: nothing written after the fault */
+            check_r5();
+            check_guards();                           /* WP1-bT3: address 0, guards, zero traffic */
         }
     }
     /* read-back mismatch of each configuration register: -3 */
@@ -289,7 +378,30 @@ static void t_init_faults(void)
         fake_corrupt_readback(EXP_W[i].reg);
         r = lis3dh_init(&AX_ID);
         CHECK(r == LIS3DH_ERR_BUS);
+        {   /* the fault is the first read-back of that register; nothing may follow it */
+            uint16_t j, f = 0xFFFFu;
+            for (j = 0u; j < fake_log_count() && f == 0xFFFFu; j++) {
+                const fake_txn_t *u = fake_log_get(j);
+                if (u->is_read == 1u && u->reg == EXP_W[i].reg && u->n == 1u) { f = j; }
+            }
+            CHECK(f != 0xFFFFu);
+            if (f != 0xFFFFu) { check_stop_at(f, 0x18u); }
+        }
+        check_guards();
     }
+    /* no sensor / wrong WHO_AM_I after a successful init: address back to 0, guards active */
+    (void)setup(0x19u, &AX_ID);
+    CHECK(lis3dh_address() == 0x19u);
+    fake_reset(0u);
+    CHECK(lis3dh_init(&AX_ID) == LIS3DH_ERR_SENSOR);
+    fake_reset(0x18u);
+    check_guards();
+    (void)setup(0x18u, &AX_ID);
+    fake_reset(0x18u);
+    fake_set_who(0x32u);
+    CHECK(lis3dh_init(&AX_ID) == LIS3DH_ERR_SENSOR);
+    fake_set_who(0x33u);
+    check_guards();
     /* a failed init does not poison the next one */
     g_c1 = 0u;
     fake_reset(0x18u);
@@ -644,6 +756,7 @@ static void run_drain(const lis3dh_axes_t *ax, uint16_t level, uint8_t k)
             CHECK((t->flags & FAKE_F_MSB) != 0u);   /* R5: reg | 0x80 on a multi-byte read */
         }
     }
+    check_r5();                                    /* WP1-bT3: single-byte FIFO_SRC reads have bit 7 clear */
 }
 
 /**
@@ -897,9 +1010,126 @@ static void t_click(void)
     fake_set_click_src(0x60u);
     CHECK(lis3dh_read_click() == 1);
     CHECK(fake_log_count() == 1u && fake_log_get(0u)->addr == 0x19u);
+    check_r5();                                      /* CLICK_SRC read is single-byte: bit 7 clear */
     fake_clear_log();
     fake_nack_txn(1u);
     CHECK(lis3dh_read_click() == LIS3DH_ERR_BUS);
+}
+
+/* ---------------------------------------------------------------- WP1-bT3 groups */
+
+/**
+ * Pre-init guards from a driver that has never been initialised (called first in main).
+ *
+ * @return None.
+ */
+static void t_guards_fresh(void)
+{
+    fake_reset(0x18u);
+    check_guards();
+}
+
+/**
+ * NULL axis tables are identity: lis3dh_init(NULL) followed by a drain, lis3dh_unpack(raw, NULL, out)
+ * for a range of words, and init(NULL) after an init with a non-identity table.
+ *
+ * @return None.
+ */
+static void t_null_tables(void)
+{
+    static const uint16_t W[] = {0x8000u, 0x7FF0u, 0x1230u, 0xFFF0u, 0x0010u, 0xA5A5u};
+    uint8_t a, k;
+    uint16_t i;
+    rec_t rec;
+    uint8_t ov = 0u;
+    bool more = false;
+    CHECK(setup(0x18u, &AX_CYC) == LIS3DH_OK);       /* a non-identity table first */
+    fake_reset(0x18u);
+    CHECK(lis3dh_init(0) == LIS3DH_OK);              /* NULL must reset to identity */
+    CHECK(lis3dh_address() == 0x18u);
+    fake_push_next(10u);
+    rec.n = 0u;
+    CHECK(lis3dh_drain(rec_cb, &rec, &ov, &more) == 10);
+    CHECK(rec.n == 10u);
+    for (i = 0u; i < 10u && i < rec.n; i++) {
+        g_c1 = i;
+        for (a = 0u; a < 3u; a++) {
+            CHECK(rec.s[i][a] == ref_value(fake_sample_word(i, a)));
+        }
+    }
+    for (i = 0u; i < (uint16_t)(sizeof W / sizeof W[0]); i++) {
+        for (k = 0u; k < 3u; k++) {
+            uint16_t w3[3];
+            uint8_t raw[6];
+            int16_t out[3];
+            w3[k] = W[i];
+            w3[(k + 1u) % 3u] = (uint16_t)(W[i] ^ 0x5A5Au);
+            w3[(k + 2u) % 3u] = (uint16_t)(~W[i]);
+            make_raw(w3, raw);
+            lis3dh_unpack(raw, 0, out);
+            g_c1 = W[i];
+            g_c2 = k;
+            CHECK(out[0] == ref_value(w3[0]) && out[1] == ref_value(w3[1]) && out[2] == ref_value(w3[2]));
+        }
+    }
+}
+
+/**
+ * Out-of-range src (> 2 behaves as 0) and signs other than -1 (behave as +1), through
+ * lis3dh_unpack and through init + drain.
+ *
+ * @return None.
+ */
+static void t_odd_tables(void)
+{
+    static const uint16_t W3[3] = {0x8000u, 0x7FF0u, 0x1230u};   /* -2048, 2047, 291 */
+    static const uint8_t  SRC[] = {3u, 4u, 7u, 200u, 255u};
+    static const int8_t   SGN[] = {0, 2, -2, 3, 127, -128, 1, -1};
+    static const lis3dh_axes_t AX_ODD = {{3u, 255u, 2u}, {-2, 0, -1}};
+    uint8_t raw[6];
+    int16_t in[3], out[3], exp[3];
+    uint8_t i, j, k;
+    rec_t rec;
+    uint8_t ov = 0u;
+    bool more = false;
+    make_raw(W3, raw);
+    for (k = 0u; k < 3u; k++) { in[k] = ref_value(W3[k]); }
+    for (i = 0u; i < (uint8_t)sizeof SRC; i++) {
+        for (j = 0u; j < (uint8_t)sizeof SGN; j++) {
+            lis3dh_axes_t t, n;
+            t.src[0] = SRC[i];
+            t.src[1] = 2u;
+            t.src[2] = SRC[(uint8_t)((i + 1u) % (uint8_t)sizeof SRC)];
+            for (k = 0u; k < 3u; k++) { t.sign[k] = SGN[j]; }
+            g_c1 = SRC[i];
+            g_c2 = (uint16_t)(uint8_t)SGN[j];
+            lis3dh_unpack(raw, &t, out);
+            /* oracle: normalise to the specified behaviour, then the plain remap */
+            for (k = 0u; k < 3u; k++) {
+                n.src[k] = (t.src[k] > 2u) ? 0u : t.src[k];
+                n.sign[k] = (t.sign[k] == -1) ? (int8_t)-1 : (int8_t)1;
+            }
+            ref_remap(in, &n, exp);
+            CHECK(out[0] == exp[0] && out[1] == exp[1] && out[2] == exp[2]);
+        }
+    }
+    /* literal: src 3 -> X (-2048), sign -2 -> +1; src 255 -> X, sign 0 -> +1; src 2 sign -1 */
+    lis3dh_unpack(raw, &AX_ODD, out);
+    CHECK(out[0] == -2048);
+    CHECK(out[1] == -2048);
+    CHECK(out[2] == -291);
+    /* the same table through init + drain */
+    CHECK(setup(0x18u, &AX_ODD) == LIS3DH_OK);
+    fake_push_next(4u);
+    rec.n = 0u;
+    CHECK(lis3dh_drain(rec_cb, &rec, &ov, &more) == 4);
+    for (i = 0u; i < 4u && i < rec.n; i++) {
+        lis3dh_axes_t n = {{0u, 0u, 2u}, {1, 1, -1}};
+        for (k = 0u; k < 3u; k++) { in[k] = ref_value(fake_sample_word(i, k)); }
+        ref_remap(in, &n, exp);
+        g_c1 = i;
+        CHECK(rec.s[i][0] == exp[0] && rec.s[i][1] == exp[1] && rec.s[i][2] == exp[2]);
+    }
 }
 
 /**
@@ -911,9 +1141,12 @@ int main(void)
 {
     sim16_init();
     printf("sizeof(int)=%u\n", (unsigned)sizeof(int));
+    group_begin("pre-init guards (fresh)"); t_guards_fresh(); group_end();
     group_begin("init@0x18"); t_init_ok(0x18u); group_end();
     group_begin("init@0x19"); t_init_ok(0x19u); group_end();
     group_begin("init faults"); t_init_faults(); group_end();
+    group_begin("NULL tables"); t_null_tables(); group_end();
+    group_begin("odd tables"); t_odd_tables(); group_end();
     group_begin("unpack table"); t_unpack_table(); group_end();
     group_begin("unpack axes"); t_unpack_axes(); group_end();
     g_enc = FAKE_FSS32_SATURATE;                /* full FIFO reported as FSS = 31, OVRN = 1 */
