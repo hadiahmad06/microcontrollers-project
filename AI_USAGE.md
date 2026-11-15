@@ -533,3 +533,7 @@ which person.
 | firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_unpack` | test stand-in (doc in its header) | 2026-11-14 | agent |
 | firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_drain` | test stand-in (doc in its header) | 2026-11-14 | agent |
 | firmware/test/lis3dh/standin/lis3dh.c | `lis3dh_read_click` | test stand-in (doc in its header) | 2026-11-14 | agent |
+| firmware/src/lis3dh.c | `fifo_unread` | Decode unread count from FIFO_SRC; FSS=0 with OVRN and not EMPTY means 32 | 2026-11-15 | agent |
+| tools/infer_ref.py | `arr` | parse_header helper: read one array literal | 2026-11-15 | agent |
+| tools/infer_ref.py | `bad` | parse_header helper: raise a ValueError naming the bound | 2026-11-15 | agent |
+| tools/infer_ref.py | `dim` | parse_header helper: resolve one array dimension | 2026-11-15 | agent |
