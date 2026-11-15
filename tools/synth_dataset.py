@@ -21,9 +21,15 @@ Swipe signs follow the C1 wand frame, Y = left: a swipe to the RIGHT moves the t
 splitting mechanics only.
 
 Motion onset is near sample 15 (the trigger position, C1.5) with +-3 samples of jitter.
+Option --onset-jitter LO,HI (default off, output byte-identical to before): each GESTURE onset is drawn
+uniformly in [15+LO, 15+HI] instead (class 0 is unchanged). It approximates the trigger latency: the live
+trigger fires a few to ~40 samples after the true onset, so the onset sits at window index ~0..27 rather
+than 15 (integration spike S3-1 finding 5; e.g. --onset-jitter=-25,12). It is only an approximation;
+real data should instead be cut by the real trigger from continuous recordings (C1b section 3.4).
 Shapes are adapted from our own spike docs/agent/hadi/spikes/trigger/synth.py (not copied code).
 
 Usage:  python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1
+        python3 tools/synth_dataset.py --out ds.npz --onset-jitter=-25,12   # onset index 0..27
         python3 tools/synth_dataset.py --selftest
 """
 import argparse
@@ -76,17 +82,22 @@ def _rot(v, axis, ang):
     return v[None, :] * c + cr[None, :] * s + axis[None, :] * np.dot(axis, v) * (1.0 - c)
 
 
-def make_window(cls, rng):
+def make_window(cls, rng, onset_jitter=None):
     """Generate one synthetic window.
 
-    Args: cls (int 0..8 class id); rng (numpy Generator, advanced in place).
+    Args: cls (int 0..8 class id); rng (numpy Generator, advanced in place); onset_jitter (None for the
+    default onset 15 + integers(-3, 3), or a (lo, hi) tuple of ints, lo <= hi: gesture onset
+    15 + integers(lo, hi) inclusive; class 0 ignores it; the number of rng draws is the same either way).
     Returns: int16 ndarray [150,3], clipped to [-2048, 2047].
     """
     t = np.arange(WINDOW_LEN, dtype=np.float64)
     gmag = rng.uniform(490.0, 530.0)
     acc = np.zeros((WINDOW_LEN, 3))
     noise = rng.uniform(2.0, 6.0)
-    onset = 15 + int(rng.integers(-3, 4))
+    if onset_jitter is None or cls == 0:
+        onset = 15 + int(rng.integers(-3, 4))
+    else:
+        onset = 15 + int(rng.integers(onset_jitter[0], onset_jitter[1] + 1))
     dur = int(rng.integers(30, 101))
     amp = rng.uniform(200.0, 1400.0)
     u = (t - onset) / dur
@@ -144,10 +155,11 @@ def make_window(cls, rng):
     return np.clip(np.rint(sig), -2048, 2047).astype(np.int16)
 
 
-def make_dataset(per_class, seed):
+def make_dataset(per_class, seed, onset_jitter=None):
     """Build a whole synthetic dataset.
 
-    Args: per_class (int windows per class, >= 1); seed (int, deterministic output).
+    Args: per_class (int windows per class, >= 1); seed (int, deterministic output); onset_jitter (None or
+    (lo, hi) as in make_window; None keeps the output byte-identical to the original generator).
     Returns: dict with windows int16 [N,150,3], labels uint8 [N], subject uint8 [N], session uint16 [N];
     rows are shuffled. Sessions are 12 pseudo-sessions, each inside one of 4 pseudo-subjects.
     """
@@ -158,7 +170,7 @@ def make_dataset(per_class, seed):
     i = 0
     for c in range(N_CLASSES):
         for _ in range(per_class):
-            win[i] = make_window(c, rng)
+            win[i] = make_window(c, rng, onset_jitter)
             lab[i] = c
             i += 1
     perm = rng.permutation(n)
@@ -218,6 +230,20 @@ def _selftest():
     if not (m1 < -10.0 and m2 > 10.0):
         print("FAIL swipe signs not in the C1.3 wand frame")
         return 1
+    j = (-25, 12)
+    dj = make_dataset(60, 4, j)
+    if not np.array_equal(make_dataset(60, 4, j)["windows"], dj["windows"]) or int(dj["windows"].min()) < -2048 \
+            or int(dj["windows"].max()) > 2047:
+        print("FAIL onset-jitter dataset not deterministic or out of range")
+        return 1
+    if not np.array_equal(make_dataset(60, 4)["windows"], make_dataset(60, 4, None)["windows"]):
+        print("FAIL default dataset changed")
+        return 1
+    # onset of a swipe = first sample where |Y - start| leaves the noise: check the mean early/late motion
+    wj = dj["windows"].astype(np.float64)
+    sw = wj[dj["labels"] == 1][:, :, 1]
+    early = np.abs(sw[:, 0:5] - sw[:, :1]).mean()
+    print("onset-jitter -25,12: swipe windows with motion by sample 5: %.1f counts mean |dY| (default would be ~noise)" % early)
     print("synth_dataset selftest PASS")
     return 0
 
@@ -229,6 +255,8 @@ def main(argv=None):
     ap.add_argument("--out", help="output .npz path")
     ap.add_argument("--per-class", type=int, default=120)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--onset-jitter", metavar="LO,HI", default=None,
+                    help="gesture onset uniform in [15+LO, 15+HI] (e.g. --onset-jitter=-25,12); default off = onset 15 +- 3")
     a = ap.parse_args(argv)
     if a.selftest:
         return _selftest()
@@ -237,7 +265,18 @@ def main(argv=None):
     if a.per_class < 1:
         print("error: --per-class must be >= 1", file=sys.stderr)
         return 2
-    d = make_dataset(a.per_class, a.seed)
+    jit = None
+    if a.onset_jitter is not None:
+        try:
+            lo, hi = (int(v) for v in a.onset_jitter.split(","))
+        except ValueError:
+            print("error: --onset-jitter needs LO,HI integers", file=sys.stderr)
+            return 2
+        if lo > hi or 15 + lo < -60 or 15 + hi > 120:
+            print("error: --onset-jitter needs LO <= HI with onset in [-60, 120]", file=sys.stderr)
+            return 2
+        jit = (lo, hi)
+    d = make_dataset(a.per_class, a.seed, jit)
     np.savez_compressed(a.out, **d)
     print("SYNTHETIC dataset (pipeline testing only, not for accuracy claims): %d windows -> %s"
           % (len(d["labels"]), a.out))
