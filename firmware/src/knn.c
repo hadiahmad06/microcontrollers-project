@@ -9,6 +9,7 @@
  * Nearest-neighbour ratio idea: Lowe 2004 (see knn.h).
  * CRC-16/IBM-3740 (CCITT-FALSE): bitwise form of the standard algorithm, check("123456789") = 0x29B1.
  */
+#include <stddef.h>   /* NULL */
 #include "knn.h"
 
 #define NCLS  ((uint8_t)GESTURE_MAX_LEARNED)
@@ -260,7 +261,7 @@ uint16_t knn_export(uint8_t *buf, uint16_t cap)
     uint16_t crc;
     uint8_t  c, s, i;
 
-    if (cap < KNN_BLOB_SIZE) {
+    if (buf == NULL || cap < KNN_BLOB_SIZE) {
         return 0u;
     }
     buf[n++] = (uint8_t)KNN_BLOB_VERSION;
@@ -290,7 +291,7 @@ int8_t knn_import(const uint8_t *buf, uint16_t len)
     uint16_t crc, n;
     uint8_t  c, s, i;
 
-    if (len != KNN_BLOB_SIZE) {
+    if (buf == NULL || len != KNN_BLOB_SIZE) {
         return -1;
     }
     if (buf[0] != KNN_BLOB_VERSION || buf[1] != GESTURE_MAX_LEARNED ||
@@ -310,6 +311,16 @@ int8_t knn_import(const uint8_t *buf, uint16_t len)
         }
     }
     n = 4u + 2u * NCLS;
+    for (c = 0u; c < NCLS; c++) {                 /* every byte of an unused slot (index >= count) must be 0 */
+        uint8_t cnt = buf[4u + 2u * c];
+        for (s = cnt; s < NSLOT; s++) {
+            for (i = 0u; i < KNN_DIM; i++) {
+                if (buf[n + ((uint16_t)((uint16_t)c * NSLOT + s) * KNN_DIM) + i] != 0u) {
+                    return -2;
+                }
+            }
+        }
+    }
     for (c = 0u; c < NCLS; c++) {
         s_count[c] = buf[4u + 2u * c];
         s_next[c] = buf[5u + 2u * c];

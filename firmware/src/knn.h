@@ -84,7 +84,7 @@ bool knn_query(const int8_t x8[KNN_DIM], knn_result_t *out);
  * no reflection, xorout 0) low byte first.
  * @param buf output buffer
  * @param cap capacity of buf in bytes
- * @return KNN_BLOB_SIZE bytes written, or 0 if cap is too small
+ * @return KNN_BLOB_SIZE bytes written, or 0 if cap is too small or buf is NULL (store untouched)
  */
 uint16_t knn_export(uint8_t *buf, uint16_t cap);
 
@@ -92,8 +92,9 @@ uint16_t knn_export(uint8_t *buf, uint16_t cap);
  * Replace the store from a blob made by knn_export(). The store is unchanged on error.
  * @param buf blob
  * @param len length of blob in bytes
- * @return 0 ok; -1 bad length; -2 bad version/shape (header, or count/next-slot values out of range);
- *         -3 bad CRC
+ * @return 0 ok; -1 bad length or NULL buf; -2 bad version/shape (header, count/next-slot values out of
+ *         range, or any template byte of an unused slot (slot index >= class count) non-zero); -3 bad CRC.
+ *         Checks run in that order (length, header, CRC, per-class shape, unused-slot zeros).
  */
 int8_t knn_import(const uint8_t *buf, uint16_t len);
 
