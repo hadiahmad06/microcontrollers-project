@@ -126,6 +126,8 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open; review-17 running | `reviews/PR-2R.md` | merge if MERGE |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | in progress | `reviews/WP1-bR.md` | – |
+| SW-2a | knn_import: reject non-zero unused slots, NULL buffers (ruling, 3.5R F4) | fix-knn | in progress | `firmware/src/knn.*` | SW-2b |
+| SW-2b | classify suite: F4 ruling, -128 inputs, conf edges (3.5R F4-F6) | test-classify (2nd instance) | in progress | `firmware/test/classify/**` | – |
 | 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | resumed after the API limit (edits saved, uncommitted) | `firmware/test/e2e/**` | – |
 | 3.7 | `gesture.c` public API (8 functions); design note `proposals/API_glue.md` | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
 | WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
