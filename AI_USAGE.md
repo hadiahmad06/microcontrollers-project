@@ -645,3 +645,4 @@ which person.
 | docs/agent/hadi/spikes/integration/evaluate.py | `main` | CLI. Args: --build DIR --runs "a b c" --sim NAME. Returns: exit code (1 on host/sim16 or Python mismatch). | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/integration/evaluate.py | `clean` | Read an output file without the SIM16_EXIT line (run_sim16.sh strips it, the host build prints it). | 2026-11-14 | agent |
 | docs/agent/hadi/spikes/integration/fake_lis3dh.c | `fake_push_sample` (+ copy of firmware/test/lis3dh fake) | Inject one recorded sample into the fake FIFO | 2026-11-15 | agent |
+| docs/agent/hadi/spikes/integration/fake_lis3dh.c | `push_one_w` | Push one raw sample word into the fake FIFO (helper of fake_push_sample) | 2026-11-15 | agent |

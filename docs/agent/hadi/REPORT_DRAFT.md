@@ -26,7 +26,7 @@ then isqrt; 15 pre-trigger samples; status return codes; `gesture_events()`; a c
 
 ## 2. Architecture
 ```
-LIS3DH FIFO (stream mode, watermark 16 -> INT1 -> PIC INT0 flag)
+LIS3DH FIFO (stream mode, watermark FTH = 15, flag at 16 unread -> INT1 -> PIC INT0 flag)
   -> lis3dh_drain   (main loop; bursts <= 16; byte assembly, >>4, axis remap to wand frame)
   -> trigger        (software threshold, proposal C1b; not yet in firmware/src)
   -> capture        (16-entry pre-trigger ring, window = samples t-15 .. t+134, single locked buffer)
@@ -100,7 +100,7 @@ Public API (CONTRACTS "API"): `gesture_init`, `gesture_set_trigger`, `gesture_po
   main       48    46  96%  87%     0     0     2      1       47      0
   big       160   154  96%  91%     0     0     6      5      159      0
   tight      32    25  78%  48%     6     0     1      1       26      0
-  stall0     24    23  96%  91%     0     1     0      0       23      2
+  stall0     24    23  96%  91%     0     1     0      0       23      2   <- superseded overrun order, kept as a bug demo
   stall1     24    22  92%  91%     0     2     0      0       22      0
   short       8     7  88% 100%     0     0     1      0        7      0
   ```
@@ -127,7 +127,7 @@ Public API (CONTRACTS "API"): `gesture_init`, `gesture_set_trigger`, `gesture_po
 - **Accuracy on real gestures:** unknown; no recordings exist yet.
 
 ## 6. Process and AI usage
-The work ran as sprints on a board (`docs/agent/hadi/BOARD.md`): 19 review reports in `docs/agent/hadi/reviews/`,
+The work ran as sprints on a board (`docs/agent/hadi/BOARD.md`): 21 review reports in `docs/agent/hadi/reviews/`,
 every implementation with its own tester and reviewer, two pre-merge reviews before Sprint 2 was merged into `main`
 (PR hadiahmad06/microcontrollers-project#1). Top-level decisions were made only by Hadi and are logged with
 provenance in `docs/human/hadi/DECISIONS.md` and the top-level docs.

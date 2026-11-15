@@ -38,7 +38,7 @@ Line numbers are for this commit and will drift; re-grep the token (for example 
 
 ---
 
-## (b) Papers (4)
+## (b) Papers (5)
 
 | # | Exact title | Authors, venue, year, ID | URL as written | Cited at (file:line) | Used for | Read? |
 |---|---|---|---|---|---|---|
@@ -46,6 +46,7 @@ Line numbers are for this commit and will drift; re-grep the token (for example 
 | B2 | "Distinctive Image Features from Scale-Invariant Keypoints" | Lowe, IJCV, 2004. No volume, pages or DOI anywhere | none | code: `firmware/src/knn.h:10-11` (full title); `firmware/src/knn.c:9` ("Lowe 2004"). docs: `proposals/C5_classifier_output.md:107`; `reviews/3.5R.md:23,97` (F8); `reviews/S1-3R.md:54`; `DECISION_SHEET.md:183`. **Not in CONTRACTS.md or any top-level doc** | Nearest-neighbour distance-ratio idea, used as "1 - d1/d2" confidence (C5.2) | **FROM MEMORY**: C5:107 says "from memory, UNVERIFIED citation detail"; S1-3R:54 "STILL UNVERIFIED, not checked" |
 | B3 | "Adam: A Method for Stochastic Optimization" (title inferred; the repo gives no title) | Kingma and Ba, 2015, arXiv:1412.6980 | none | `tools/train.py:28`; `tools/README.md:137-138`; `reviews/W2-2R.md:102` | Optimizer in `train.py`; "textbook algorithm, no code borrowed" | **UNTAGGED**. Textbook-level citation, author did not state it was read. Not in any top-level doc |
 | B4 | Wilson score interval (Wilson 1927; no title, journal or pages given) | E. B. Wilson, 1927 | none | `tools/train.py:29,356`; formula use without citation: `docs/agent/CONTRACTS.md:148` (C4.3 criterion), `proposals/C4_model_header.md:15`, `tools/export_model.py:243`, `spikes/quant/quant_ref.py:177` | 95 % interval on accuracy; C4.3 fallback rule | **UNTAGGED**; stated as "the standard formula" |
+| B5 | "Xorshift RNGs" | G. Marsaglia, Journal of Statistical Software 8(14), 2003 | none | test drivers and Python oracles that implement xorshift32 (shifts 13/17/5), e.g. `firmware/test/{capture,classify,display,features,mlp,e2e}` (added by SW-3) | Deterministic PRNG mirrored in C and Python for test vectors | **FROM MEMORY** (citation added by the main agent's brief, SW-3; not re-read) |
 
 ---
 
@@ -104,6 +105,12 @@ Spikes state "No borrowed code" or equivalent: `spikes/trigger/trigger.c:5`. `sp
 ---
 
 ## Gaps
+
+> **Status after SW-3 (2026-11-15):** gaps 1, 2, 3, 5, 6 and 7 are closed in the code: the comments now carry the
+> citation and, where applicable, the "from memory / UNVERIFIED" tag (comments only; objects byte-identical, review PR-3R).
+> Gap 4 stays open until the C2 TX pump is promoted; gaps 8-11 are documentation gaps that still need a person.
+> File:line references below were taken before SW-3 added comment lines, so some point a few lines early (PR-3R F-03):
+> search for the quoted text instead.
 
 1. **Lowe 2004 cited from memory in code.** `firmware/src/knn.h:10-11` and `knn.c:9` cite it; `C5_classifier_output.md:107` says "from memory, UNVERIFIED citation detail"; no volume, pages or DOI; absent from CONTRACTS.md (`reviews/3.5R.md` F8). The code comment does not carry the UNVERIFIED tag. Fix: either read the paper and add volume/pages, or reword to "nearest-neighbour distance ratio (cf. Lowe 2004)" and keep the tag.
 2. **CRC-16/IBM-3740 catalogue entry from memory.** Stated in `c2_frame.h:15-16`, `c2_ref.py:8`, `spikes/uart/README.md:26`, `C2_uart_stream.md:7`, `S2-1R.md:55`. The product code (`knn.c:10,89,110`, `knn.h:83`, oracles) names the algorithm with no source and no tag. The check value 0x29B1 is tested, so the parameters are probably right; the catalogue page itself was never opened. Cheap fix: someone opens the URL once and removes the caveat.
