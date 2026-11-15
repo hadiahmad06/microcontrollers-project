@@ -1,5 +1,7 @@
 // [AI-GENERATED: Claude Code]
-/* TEST STAND-IN written from CONTRACTS.md C1 and the main-agent rulings only, to prove the capture
+/* Ring ruling: every pushed sample enters the ring in every state; arm, disarm and release leave it
+ * alone; overrun empties it. push/disarm/overrun return bool (window opened / window dropped).
+ * TEST STAND-IN written from CONTRACTS.md C1 and the main-agent rulings only, to prove the capture
  * test harness. The real implementation is firmware/src/capture.c. Do not ship this file. */
 #include <string.h>
 #include "capture.h"
@@ -32,12 +34,15 @@ void capture_arm(void)
     }
 }
 
-void capture_disarm(void)
+bool capture_disarm(void)
 {
+    bool dropped = (s_state == CAPTURE_CAPTURING);
+
     if (s_state != CAPTURE_READY) {
         s_state = CAPTURE_IDLE;
         s_fill = 0u;
     }
+    return dropped;
 }
 
 /**
@@ -56,9 +61,11 @@ static void start_window(void)
     s_state = CAPTURE_CAPTURING;
 }
 
-void capture_push(const int16_t s[3], bool trigger)
+bool capture_push(const int16_t s[3], bool trigger)
 {
     uint8_t before = s_count;
+    bool opened = false;
+
     memcpy(s_ring[s_head], s, sizeof s_ring[0]);
     s_head = (uint8_t)((s_head + 1u) % CAPTURE_RING);
     if (s_count < CAPTURE_RING) {
@@ -67,6 +74,7 @@ void capture_push(const int16_t s[3], bool trigger)
     if (s_state == CAPTURE_ARMED && trigger) {
         if (before >= CAPTURE_PRE) {
             start_window();
+            opened = true;
         } else {
             s_stats.early_triggers++;
         }
@@ -78,17 +86,21 @@ void capture_push(const int16_t s[3], bool trigger)
             s_stats.windows++;
         }
     }
+    return opened;
 }
 
-void capture_overrun(void)
+bool capture_overrun(void)
 {
+    bool dropped = (s_state == CAPTURE_CAPTURING);
+
     s_stats.overruns++;
     s_count = 0u;
     s_head = 0u;
-    if (s_state == CAPTURE_CAPTURING) {
+    if (dropped) {
         s_state = CAPTURE_ARMED;
         s_fill = 0u;
     }
+    return dropped;
 }
 
 bool capture_release(void)
