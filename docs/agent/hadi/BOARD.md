@@ -181,7 +181,7 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
 | S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | **done**, merged: 20 sources + provenance; 11 gaps |  `CITATIONS.md` | – |
-| S4-2 | Project report draft (PLAN WP5) | doc-report | in progress | `REPORT_DRAFT.md` | Hadi edits |
+| S4-2 | Project report draft (PLAN WP5) | doc-report + main | **done**: the agent's Write was refused by a harness rule for subagent report files; it returned sourced facts and the main agent wrote the file (numbers re-checked) | `REPORT_DRAFT.md` | Hadi edits |
 | S4-3 | Review of the S3-1 integration spike and its findings | review-20 | in progress | `reviews/S4-3R.md` | – |
 | SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | in progress | comments in firmware/src, tests, tools | – |
 
