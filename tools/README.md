@@ -84,6 +84,14 @@ python3 tools/train.py --data ds.npz --out-dir DIR [--seed S | --seeds 1,2,3] [-
         [--lr 3e-3] [--batch 32] [--weight-decay 1e-4] [--k 64] [--eval-every 5] [--split-seed S]
 python3 tools/train.py --selftest        # prints "train selftest PASS"
 ```
+Onset-jitter augmentation (W2-3, SYNTHETIC): `synth_dataset.py --onset-jitter=LO,HI` (use the `=` form, the
+value starts with a minus sign) draws each gesture's onset uniformly in `[15+LO, 15+HI]` instead of `15 +- 3`
+(class 0 and the default output are unchanged: the default `.npz` is byte-identical to before, checked by hash). It
+approximates trigger latency: the live trigger fires a few to ~40 samples after the true onset, so the onset
+lands at window index ~0..27 (`--onset-jitter=-25,12`), as seen in the integration spike (S3-1 finding 5). It is
+only an approximation; real data should instead be cut by the real trigger from continuous recordings (C1b
+section 3.4). `train.py` needs no flag, it just trains on the resulting `.npz`.
+
 Pipeline: features (`features_ref`, cached in `DIR/features.npy`; the cache key hashes the windows and
 `FEATURES_VERSION`) -> split into train / validation / test (seeded) -> `export_model.py norm` on TRAIN
 features only -> `x8 = infer_ref.normalize` -> float 60-16-9 MLP in numpy (ReLU, softmax cross-entropy,
