@@ -190,7 +190,8 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
 | W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | **done**, merged: +5/+6 pts end to end (synthetic); main re-verified hash (seed 4) and the spike | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
-| W2-3R | Review W2-3 | review-22 | **done**: MERGE (0 blockers, 0 majors; wording minors F1, F2, F5 fixed) | `reviews/W2-3R.md` | PR-4 |
+| W2-3R | Review W2-3 | review-22 | **done**: MERGE (0 blockers, 0 majors; wording minors F1, F2, F5 fixed) | `reviews/W2-3R.md` | – |
+| PR-4 | Sprint 5 PR to `main` (hadiahmad06/microcontrollers-project#3) | main | **MERGED** 2026-11-15 as `0cae026` after W2-3R and a clean run | – | – |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
@@ -209,7 +210,7 @@ different subagents from the implementer.
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
 ## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
-1. **Where things are:** Sprints 2-4 are MERGED into `main` (PR hadiahmad06/microcontrollers-project#1 `4cc0fe2`, PR #2 `c82ad0a`). New work continues on
+1. **Where things are:** Sprints 2-5 are MERGED into `main` (PR hadiahmad06/microcontrollers-project#1 `4cc0fe2`, #2 `c82ad0a`, #3 `0cae026`). New work continues on
    `claude/optimistic-meitner-67qdon` (fast-forwarded to `main`); open a new PR per sprint. `make test` at the repo root runs 8 suites (host + sim16).
 2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
    (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
@@ -227,6 +228,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (ab): **SPRINT 5 CLOSED.** PR #3 merged (`0cae026`). Decision-free work is exhausted: everything left needs Hadi (Q1-Q8), the team (D-1..D-11), the bench (Part C) or the Mac (G3, HAL, WS2812 asm).
 - 2026-11-15 (aa): **SPRINTS 3-4 CLOSED.** PR #2 merged (`c82ad0a`) after PR-3R and a clean run. Remaining work needs Hadi (Q1-Q8) or the Mac (G3, HAL, WS2812 asm). Report draft and citations are ready for the team to edit.
 - 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
