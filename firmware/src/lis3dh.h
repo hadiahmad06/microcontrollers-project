@@ -25,7 +25,11 @@ typedef void (*lis3dh_sample_cb)(const int16_t s[3], void *ctx);
 /**
  * Probe, configure and start the sensor (C6.1, C1.4, C0).
  * @param axes sensor-to-wand axis table, kept by pointer (must outlive the driver);
- *             NULL selects the identity table
+ *             NULL selects the identity table (src = {0,1,2}, sign = {+1,+1,+1}). A table entry
+ *             with src > 2 is treated as 0; a sign other than -1 is treated as +1.
+ *             Init stops at the first fault. On any failure after the probe, lis3dh_address()
+ *             returns 0, and if CTRL_REG1 may have been written non-zero, one best-effort write
+ *             of CTRL_REG1 = 0x00 (power down) is made (its result ignored).
  * @return LIS3DH_OK, LIS3DH_ERR_SENSOR (no WHO_AM_I = 0x33 at 0x18/0x19) or
  *         LIS3DH_ERR_BUS (HAL error or a config register read back differently)
  */
@@ -40,7 +44,7 @@ uint8_t lis3dh_address(void);
 /**
  * Convert one 6-byte OUT_X_L..OUT_Z_H record to wand-frame samples (C1.1, C1.3).
  * @param raw  X_L, X_H, Y_L, Y_H, Z_L, Z_H as read from the sensor
- * @param axes axis table (NULL = identity)
+ * @param axes axis table (NULL = identity; src > 2 is treated as 0, sign other than -1 as +1)
  * @param out  receives wand X, Y, Z, each in [-2048, 2047]
  */
 void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[3]);
@@ -51,13 +55,14 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
  * @param ctx      passed to cb
  * @param overrun  set to 1 if FIFO_SRC had OVRN_FIFO at the first read of this call, else 0 (may be NULL)
  * @param more     set true if the call stopped at the 4-burst bound with FSS still >= 16 (may be NULL)
- * @return samples delivered (>= 0) or LIS3DH_ERR_BUS
+ * @return samples delivered (>= 0) or LIS3DH_ERR_BUS (bus error, or no successful init: no HAL call is made)
  */
 int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *more);
 
 /**
  * Read CLICK_SRC (this also clears a latched click interrupt, since CLICK_THS bit 7 latches).
- * @return 1 if IA and DCLICK are both set, 0 if not, LIS3DH_ERR_BUS on a bus error
+ * @return 1 if IA and DCLICK are both set, 0 if not, LIS3DH_ERR_BUS on a bus error or if
+ *         called before a successful init (no HAL call is made)
  */
 int8_t lis3dh_read_click(void);
 

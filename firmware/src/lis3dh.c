@@ -43,7 +43,16 @@ static const lis3dh_axes_t *s_axes = &s_identity;
 static uint8_t s_addr;                                   /* 0 until init succeeds */
 static uint8_t s_stage[LIS3DH_BURST_MAX * BYTES_PER_SAMPLE]; /* drain staging, 96 B (C1.10) */
 
-/** Write a config register and read it back (main-agent ruling: every config write is verified). */
+/**
+ * @brief Write a config register and read it back (main-agent ruling: every config write is verified).
+ *
+ * Uses the address found by the probe (s_addr), so it must only be called after the probe.
+ *
+ * @param reg  Register sub-address to write (no auto-increment bit).
+ * @param val  Byte to write and expect back.
+ * @return     LIS3DH_OK if the write and the read-back succeeded and the read-back equals val;
+ *             LIS3DH_ERR_BUS on any HAL error or a read-back mismatch.
+ */
 static int8_t write_verify(uint8_t reg, uint8_t val)
 {
     uint8_t rb = 0u;
@@ -56,11 +65,32 @@ static int8_t write_verify(uint8_t reg, uint8_t val)
     return (rb == val) ? LIS3DH_OK : LIS3DH_ERR_BUS;
 }
 
+/**
+ * @brief Common exit for every init failure after a successful probe.
+ *
+ * If CTRL_REG1 may have been written non-zero (sampling), makes one best-effort write of
+ * CTRL_REG1 = 0x00 (power down) and ignores its result. Then clears s_addr so that
+ * lis3dh_address() returns 0 and lis3dh_drain / lis3dh_read_click refuse to run.
+ *
+ * @param sampling  true if the CTRL_REG1 = 0x57 write has been attempted.
+ * @return          always LIS3DH_ERR_BUS.
+ */
+static int8_t init_fail(bool sampling)
+{
+    if (sampling) {
+        /* CTRL_REG1 = 0x00: ODR3..0 (7:4) = 0000 power-down, LPen (3) = 0, Zen/Yen/Xen (2:0) = 0. */
+        (void)lis3dh_hal_write(s_addr, REG_CTRL1, 0x00u);
+    }
+    s_addr = 0u;
+    return LIS3DH_ERR_BUS;
+}
+
 int8_t lis3dh_init(const lis3dh_axes_t *axes)
 {
     static const uint8_t cand[2] = { 0x18u, 0x19u };
     uint8_t i;
     uint8_t who;
+    bool    sampling = false;  /* true once CTRL_REG1 = 0x57 has been attempted */
 
     s_axes = (axes != 0) ? axes : &s_identity;
     s_addr = 0u;
@@ -84,53 +114,56 @@ int8_t lis3dh_init(const lis3dh_axes_t *axes)
 
     /* CTRL_REG1 = 0x00: ODR3..0 (7:4) = 0000 power-down, LPen (3) = 0, Zen/Yen/Xen (2:0) = 0.
      * Configure with the sensor stopped. */
-    if (write_verify(REG_CTRL1, 0x00u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_CTRL1, 0x00u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CTRL_REG4 = 0x18: BDU (7) = 0, BLE (6) = 0, FS1:FS0 (5:4) = 01 (+/-4 g), HR (3) = 1
      * (high resolution, 12-bit), ST1:ST0 (2:1) = 00 self-test off, SIM (0) = 0. */
-    if (write_verify(REG_CTRL4, 0x18u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_CTRL4, 0x18u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CTRL_REG3 = 0x06: I1_CLICK (7) = 0, I1_IA1 (6) = 0, I1_IA2 (5) = 0, I1_ZYXDA (4) = 0,
      * I1_321DA (3) = 0, I1_WTM (2) = 1 FIFO watermark on INT1, I1_OVERRUN (1) = 1 overrun on INT1
      * (C1.6), bit 0 unused = 0. */
-    if (write_verify(REG_CTRL3, 0x06u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_CTRL3, 0x06u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CTRL_REG6 = 0x80: I2_CLICK (7) = 1 click on INT2, I2_IA1 (6) = 0, I2_IA2 (5) = 0,
-     * I2_BOOT (4) = 0, I2_ACT (3) = 0, bit 2 = 0, INT_POLARITY (1) = 0 active high (rising edge). */
-    if (write_verify(REG_CTRL6, 0x80u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+     * I2_BOOT (4) = 0, I2_ACT (3) = 0, bit 2 unused = 0, INT_POLARITY (1) = 0 active high (rising edge),
+     * bit 0 unused = 0. */
+    if (write_verify(REG_CTRL6, 0x80u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CLICK_CFG = 0x2A: ZD (5) = 1, ZS (4) = 0, YD (3) = 1, YS (2) = 0, XD (1) = 1, XS (0) = 0
-     * (double click on X, Y, Z); bits 7:6 = 0 (LIR reserved / unused). */
-    if (write_verify(REG_CLICK_CFG, 0x2Au) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+     * (double click on X, Y, Z); bits 7:6 = AOI (7) = 0, 6D (6) = 0 (CLICK_CFG has no LIR bit; the
+     * click latch LIR_Click is CLICK_THS bit 7, below). */
+    if (write_verify(REG_CLICK_CFG, 0x2Au) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CLICK_THS = 0xB0: bit 7 = 1 (latch interrupt until CLICK_SRC is read), bits 6:0 = 0x30
      * = 48 counts (1.5 g at +/-4 g). Bench question C-7: does bit 7 read back as written? */
-    if (write_verify(REG_CLICK_THS, 0xB0u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_CLICK_THS, 0xB0u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* TIME_LIMIT = 0x04: bits 6:0 = max click duration, 4 ODR periods (40 ms). */
-    if (write_verify(REG_TIME_LIMIT, 0x04u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_TIME_LIMIT, 0x04u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* TIME_LATENCY = 0x10: dead time after a click, 16 ODR periods (160 ms). */
-    if (write_verify(REG_TIME_LATENCY, 0x10u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_TIME_LATENCY, 0x10u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* TIME_WINDOW = 0x30: window for the second click, 48 ODR periods (480 ms). */
-    if (write_verify(REG_TIME_WINDOW, 0x30u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_TIME_WINDOW, 0x30u) != LIS3DH_OK) { return init_fail(sampling); }
 
-    /* CTRL_REG5 = 0x40: BOOT (7) = 0, FIFO_EN (6) = 1, LIR_INT1 (3) = 0, D4D_INT1 (2) = 0,
+    /* CTRL_REG5 = 0x40: BOOT (7) = 0, FIFO_EN (6) = 1, bits 5:4 unused = 0, LIR_INT1 (3) = 0, D4D_INT1 (2) = 0,
      * LIR_INT2 (1) = 0, D4D_INT2 (0) = 0. */
-    if (write_verify(REG_CTRL5, 0x40u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_CTRL5, 0x40u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* FIFO_CTRL_REG = 0x00: FM1:FM0 (7:6) = 00 Bypass (this clears the FIFO), TR (5) = 0,
      * FTH4:0 (4:0) = 0. */
-    if (write_verify(REG_FIFO_CTRL, 0x00u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_FIFO_CTRL, 0x00u) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* FIFO_CTRL_REG = 0x8F: FM1:FM0 (7:6) = 10 Stream mode, TR (5) = 0 (trigger on INT1),
      * FTH4:0 (4:0) = 01111 = 15 (watermark, C1.4). */
-    if (write_verify(REG_FIFO_CTRL, 0x8Fu) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    if (write_verify(REG_FIFO_CTRL, 0x8Fu) != LIS3DH_OK) { return init_fail(sampling); }
 
     /* CTRL_REG1 = 0x57 (last: starts sampling): ODR3..0 (7:4) = 0101 (100 Hz), LPen (3) = 0
      * (with HR = 1: high resolution), Zen (2) = 1, Yen (1) = 1, Xen (0) = 1. */
-    if (write_verify(REG_CTRL1, 0x57u) != LIS3DH_OK) { return LIS3DH_ERR_BUS; }
+    sampling = true;  /* from here CTRL_REG1 may be non-zero, so a failure powers down */
+    if (write_verify(REG_CTRL1, 0x57u) != LIS3DH_OK) { return init_fail(sampling); }
 
     return LIS3DH_OK;
 }
@@ -155,12 +188,12 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
     for (k = 0u; k < 3u; k++) {
         s = a->src[k];
         if (s > 2u) {
-            s = 0u;  /* defensive: a bad table must not index out of range */
+            s = 0u;  /* defensive: a src entry > 2 is treated as 0 so a bad table cannot index out of range */
         }
         /* C1.3: wand axis k = sign * sensor axis src. -(-2048) = 2048 does not fit in the
          * contract range, so clamp it to 2047 (cannot occur with a +/-1 sign on a 12-bit value
          * except for the one value -2048). */
-        if (a->sign[k] < 0) {
+        if (a->sign[k] < 0) {  /* sign -1 negates; any other value is treated as +1 */
             out[k] = (sv[s] == -2048) ? (int16_t)2047 : (int16_t)(-sv[s]);
         } else {
             out[k] = sv[s];
@@ -203,6 +236,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
 
     if (overrun != 0) { *overrun = 0u; }
     if (more != 0)    { *more = false; }
+    if (s_addr == 0u) { return LIS3DH_ERR_BUS; }  /* no successful init: no HAL call (address 0 is the general call) */
 
     for (;;) {
         if (lis3dh_hal_read(s_addr, REG_FIFO_SRC, &src, 1u) < 0) {
@@ -241,6 +275,9 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
 int8_t lis3dh_read_click(void)
 {
     uint8_t v = 0u;
+    if (s_addr == 0u) {
+        return LIS3DH_ERR_BUS;  /* no successful init: no HAL call */
+    }
     if (lis3dh_hal_read(s_addr, REG_CLICK_SRC, &v, 1u) < 0) {
         return LIS3DH_ERR_BUS;
     }
