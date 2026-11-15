@@ -121,15 +121,19 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | 3.8 | End-to-end bit-exact harness (C vs tools, host + sim16) | impl-e2e | **done**, merged: **gate G2 met** (every stage, 3 exporter models, host + sim16); all 5 suites PASS (main reran) | `firmware/test/e2e/**` | 3.8R |
 | 3.8R | Review e2e harness | review-13 | **done**, merged: APPROVE WITH NITS (4 medium: boundary coverage incidental, skewed models, few sim16 windows) | `reviews/3.8R.md` | 3.8F |
 | 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | in progress | `firmware/test/e2e/**` | – |
-| W2-2 | `tools/train.py` + `tools/synth_dataset.py` (training pipeline, integer-path evaluation) | impl-train | in progress | `tools/{train,synth_dataset}.py` | review |
+| W2-2 | `tools/train.py` + `tools/synth_dataset.py` | impl-train | **done**, merged; main reran selftest + full run (seed 7): integer path 100 % on synthetic, header compiles for sim16 | `tools/{train,synth_dataset}.py` | W2-2R |
+| W2-2R | Review training pipeline (leakage, val/test split) | review-16 | in progress | `reviews/W2-2R.md` | – |
 | 3.7 | `gesture.c` public API (8 functions) | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
-| WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock (trigger flag is an input) | impl-capture | code done (branch); main read diff: OK; waits for WP1-aT | `firmware/src/capture.*` | WP1-aT, review |
-| WP1-aT | Capture suite (host + sim16) | test-capture | in progress | `firmware/test/capture/**` | – |
+| WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
+| WP1-aT | Capture suite (host + sim16) | test-capture | **done**, merged: real capture.c matches 477,753 host + 38,463 sim16 lines | `firmware/test/capture/**` | – |
+| WP1-aR | Review capture | review-15 | in progress | `reviews/WP1-aR.md` | – |
 | WP4-a | `display.c` + `icons.c` (no asm) | impl-display | **done**, merged; main applied ruling: out-of-range `display_get` leaves rgb unchanged (briefs had disagreed) | `firmware/src/{display,icons}.*` | WP4-aR |
 | WP4-aT | Display suite (host + sim16) | test-display | **done**, merged; display suite PASS (6 suites total) | `firmware/test/display/**` | – |
 | WP4-aR | Review display | review-14 | in progress | `reviews/WP4-aR.md` | – |
-| WP1-b | `lis3dh.c` over an I2C HAL | impl-lis3dh | code done (branch); open: FSS at 32 unread, -2048 sign flip clamp | `firmware/src/{lis3dh,lis3dh_hal,board_axes}.*` | WP1-bT, review |
-| WP1-bT | Fake LIS3DH + driver suite | test-lis3dh | in progress | `firmware/test/lis3dh/**` | – |
+| WP1-b | `lis3dh.c` over an I2C HAL | impl-lis3dh | **done**, merged; suite PASS | `firmware/src/{lis3dh,lis3dh_hal,board_axes}.*` | WP1-bF, review |
+| WP1-bT | Fake LIS3DH + driver suite | test-lis3dh | **done**, merged; found a stall: full FIFO reported as FSS=0+OVRN | `firmware/test/lis3dh/**` | – |
+| WP1-bF | Driver: FSS=0+OVRN+!EMPTY means 32 unread (ruling R1) | fix-lis3dh | in progress | `firmware/src/lis3dh.c` | – |
+| WP1-bT2 | Assert rulings R1-R5 (wrap model, -2048 clamp, click codes, axes, MSB) | test-lis3dh (2nd instance) | in progress | `firmware/test/lis3dh/**` | – |
 | WP4-b | WS2812 asm bit-bang + chunked masking | – | blocked: needs XC16 (Mac) and a scope | – | – |
 
 **Lessons (this sprint):** keep a subagent's worktree until its fix round is done (removing it made research-uart unresumable).
@@ -154,6 +158,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (s): **Done:** WP1-a + T (merged), WP1-b + T (merged), W2-2 (merged); 7 suites PASS. **Next:** WP1-bF/WP1-bT2, 3.8F, reviews WP1-aR, WP4-aR, W2-2R running. **Waiting for Hadi:** Q1-Q5. **Then:** sprint-boundary PR to `main` with a full-diff review.
 - 2026-11-14 (r): **Done:** S2-2F, W2-1F, 3.5F, 3.8R, WP4-a + T (6 suites PASS), WP1-a and WP1-b code. **Next:** WP1-aT, WP1-bT, 3.8F, W2-2, WP4-aR running. **Waiting for Hadi:** Q1-Q5 in open_questions.md. **Blocked:** G3, S2-0b (Mac).
 - 2026-11-14 (q): **Done:** 3.3R, 3.4R, 3.5/3.6 (+T, R), W2-1 (+R), S2-2 (+R), 3.8 → **gate G2 met on host and sim16**; 5 suites PASS. Two container restarts survived (work was committed). **Next:** S2-2F, W2-1F, 3.5F, 3.8R running. **Waiting for Hadi:** Q1 (C2), then Q2 (trigger). **Blocked:** S2-0b, G3 (Mac/hardware).
 - 2026-11-14 (p): **Done:** S1-7 (Hadi accepted everything; CONTRACTS.md, PLAN adopted, repo layout), S2-0R, S2-1 + S2-1R, sim16 harness, 3.3 + 3.3T (suite PASS on host and sim16, nothing skipped). **Next:** 3.3R, 3.4T, 3.5/3.6 (+T), W2-1, S2-1F all running. **Blocked:** S2-0b (Mac). C2 waits for its fix round, then Hadi.
