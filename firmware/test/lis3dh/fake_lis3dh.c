@@ -89,7 +89,12 @@ uint16_t fake_sample_word(uint16_t seq, uint8_t axis)
     return (uint16_t)((u12 << 4) | (((uint32_t)seq + axis) & 0xFu));   /* low nibble = garbage */
 }
 
-/** Push one sample (raw words) into the FIFO; discard the oldest when full (Stream mode). */
+/**
+ * Push one sample (raw words) into the FIFO; discard the oldest when full (Stream mode).
+ * Does nothing unless the FIFO is active (CTRL_REG5 FIFO_EN and FIFO_CTRL Stream).
+ *
+ * @return None.
+ */
 static void push_one(void)
 {
     uint8_t slot, a;
@@ -117,7 +122,11 @@ void fake_push_next(uint16_t count)
     }
 }
 
-/** Pop the oldest sample into the output-register latch (no-op when empty: old data stays). */
+/**
+ * Pop the oldest sample into the output-register latch (no-op when empty: old data stays).
+ *
+ * @return None.
+ */
 static void pop_one(void)
 {
     uint8_t a;
@@ -131,7 +140,12 @@ static void pop_one(void)
     F.count--;
 }
 
-/** FIFO_SRC_REG: b7 WTM (unread > FTH), b6 OVRN (32 unread), b5 EMPTY, b4:0 FSS. */
+/**
+ * Compute FIFO_SRC_REG from the fill level: b7 WTM (unread > FTH), b6 OVRN (32 unread),
+ * b5 EMPTY, b4:0 FSS (a full FIFO reports 31 or 0 depending on the fake_fss32_t model).
+ *
+ * @return The register value.
+ */
 static uint8_t fifo_src_value(void)
 {
     uint8_t u = F.count, fth = (uint8_t)(F.regs[R_FIFOCTRL] & 0x1Fu), v = 0u, fss;
@@ -146,7 +160,16 @@ static uint8_t fifo_src_value(void)
     return (uint8_t)(v | fss);
 }
 
-/** Append a log entry (counted but dropped when the log is full). */
+/**
+ * Append a transaction to the log (dropped when the log is full).
+ *
+ * @param is_read 1 for a read, 0 for a write.
+ * @param addr 7-bit address used.
+ * @param reg Sub-address as sent (bit 7 is stripped into FAKE_F_MSB).
+ * @param n Bytes read (1 for a write).
+ * @param val Value written (0 for a read; the caller fills in the first byte read).
+ * @return The new entry, or NULL if the log is full.
+ */
 static fake_txn_t *log_add(uint8_t is_read, uint8_t addr, uint8_t reg, uint8_t n, uint8_t val)
 {
     fake_txn_t *t;
@@ -163,7 +186,15 @@ static fake_txn_t *log_add(uint8_t is_read, uint8_t addr, uint8_t reg, uint8_t n
     return t;
 }
 
-/** Common NACK decision: wrong address, n-th transaction, n-th FIFO_SRC read, n-th burst. */
+/**
+ * Common NACK decision: wrong address, n-th transaction, n-th FIFO_SRC read, n-th burst.
+ * Also advances the transaction and per-register counters used by the injectors.
+ *
+ * @param is_read 1 for a read, 0 for a write.
+ * @param addr 7-bit address used.
+ * @param reg Sub-address as sent (bit 7 ignored).
+ * @return 1 if the transaction must be NACKed, else 0.
+ */
 static uint8_t should_nack(uint8_t is_read, uint8_t addr, uint8_t reg)
 {
     uint8_t r = (uint8_t)(reg & 0x7Fu), nack = 0u;

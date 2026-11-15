@@ -4,15 +4,21 @@
 #include "lis3dh.h"
 #include "lis3dh_hal.h"
 
-static uint8_t s_addr = 0x18u;
-static lis3dh_axes_t s_axes = {{0u, 1u, 2u}, {1, 1, 1}};
+static uint8_t s_addr = 0u;                 /* 0 until a full init succeeds (guards, lis3dh_address) */
+static const lis3dh_axes_t *s_axes = 0;     /* NULL = identity */
 
-/** Write a register and read it back; any HAL error or mismatch is LIS3DH_ERR_BUS. */
-static int8_t cfg(uint8_t reg, uint8_t val)
+/**
+ * Write a register and read it back; any HAL error or mismatch is LIS3DH_ERR_BUS.
+ * @param a   7-bit device address
+ * @param reg register sub-address
+ * @param val value to write and expect back
+ * @return LIS3DH_OK or LIS3DH_ERR_BUS
+ */
+static int8_t cfg(uint8_t a, uint8_t reg, uint8_t val)
 {
     uint8_t rb = 0u;
-    if (lis3dh_hal_write(s_addr, reg, val) != 0) { return LIS3DH_ERR_BUS; }
-    if (lis3dh_hal_read(s_addr, reg, &rb, 1u) != 0) { return LIS3DH_ERR_BUS; }
+    if (lis3dh_hal_write(a, reg, val) != 0) { return LIS3DH_ERR_BUS; }
+    if (lis3dh_hal_read(a, reg, &rb, 1u) != 0) { return LIS3DH_ERR_BUS; }
     return (rb == val) ? LIS3DH_OK : LIS3DH_ERR_BUS;
 }
 
@@ -41,19 +47,26 @@ int8_t lis3dh_init(const lis3dh_axes_t *axes)
         {0x2Eu, 0x8Fu},  /* FIFO_CTRL: Stream, FTH = 15 */
         {0x20u, 0x57u}   /* CTRL_REG1: 100 Hz, XYZ on */
     };
-    uint8_t i;
-    s_axes = *axes;
+    uint8_t i, a;
+    s_axes = axes;
+    s_addr = 0u;
     if (probe(0x18u)) {
-        s_addr = 0x18u;
+        a = 0x18u;
     } else if (probe(0x19u)) {
-        s_addr = 0x19u;
+        a = 0x19u;
     } else {
         return LIS3DH_ERR_SENSOR;
     }
     for (i = 0u; i < (uint8_t)(sizeof seq / sizeof seq[0]); i++) {
-        int8_t r = cfg(seq[i][0], seq[i][1]);
-        if (r != LIS3DH_OK) { return r; }
+        int8_t r = cfg(a, seq[i][0], seq[i][1]);
+        if (r != LIS3DH_OK) {
+            if (i == (uint8_t)(sizeof seq / sizeof seq[0] - 1u)) {
+                (void)lis3dh_hal_write(a, 0x20u, 0x00u);   /* best-effort power-down, then stop */
+            }
+            return r;                                       /* stop at the first fault */
+        }
     }
+    s_addr = a;
     return LIS3DH_OK;
 }
 
@@ -63,12 +76,16 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
 {
     int16_t v[3];
     uint8_t i;
+    static const lis3dh_axes_t ident = {{0u, 1u, 2u}, {1, 1, 1}};
+    if (axes == 0) { axes = &ident; }
     for (i = 0u; i < 3u; i++) {
         int16_t w = (int16_t)(((uint16_t)raw[2u * i + 1u] << 8) | raw[2u * i]);
         v[i] = (int16_t)(w >> 4);                       /* arithmetic shift (C1.1) */
     }
     for (i = 0u; i < 3u; i++) {
-        int32_t r = (int32_t)axes->sign[i] * (int32_t)v[axes->src[i]];   /* R4 */
+        uint8_t src = (axes->src[i] > 2u) ? 0u : axes->src[i];            /* out of range -> 0 */
+        int32_t sg = (axes->sign[i] == -1) ? -1L : 1L;                    /* anything but -1 is +1 */
+        int32_t r = sg * (int32_t)v[src];                                 /* R4 */
         out[i] = (int16_t)((r > 2047L) ? 2047L : r);                      /* R2: -(-2048) -> 2047 */
     }
 }
@@ -87,6 +104,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
     int16_t total = 0, s[3];
     *overrun = 0u;
     *more = false;
+    if (s_addr == 0u) { return LIS3DH_ERR_BUS; }        /* pre-init guard: no HAL traffic */
     if (lis3dh_hal_read(s_addr, 0x2Fu, &src, 1u) != 0) { return LIS3DH_ERR_BUS; }
     *overrun = (uint8_t)((src & 0x40u) != 0u);          /* OVRN_FIFO at the first read only */
     for (;;) {
@@ -95,7 +113,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
         if (n > LIS3DH_BURST_MAX) { n = (uint8_t)LIS3DH_BURST_MAX; }
         if (lis3dh_hal_read(s_addr, 0x28u | 0x80u, raw, (uint8_t)(6u * n)) != 0) { return LIS3DH_ERR_BUS; }
         for (i = 0u; i < n; i++) {
-            lis3dh_unpack(&raw[6u * i], &s_axes, s);
+            lis3dh_unpack(&raw[6u * i], s_axes, s);
             cb(s, ctx);
         }
         total = (int16_t)(total + n);
@@ -110,6 +128,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
 int8_t lis3dh_read_click(void)
 {
     uint8_t v = 0u;
+    if (s_addr == 0u) { return LIS3DH_ERR_BUS; }
     if (lis3dh_hal_read(s_addr, 0x39u, &v, 1u) != 0) { return LIS3DH_ERR_BUS; }
     return (int8_t)(((v & 0x60u) == 0x60u) ? 1 : 0);    /* R3: IA and DCLICK */
 }
