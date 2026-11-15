@@ -139,6 +139,7 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
 | PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | **done**: MERGE (0 blockers, 0 majors; minors d-1, d-3, d-4, d-5 fixed) | `reviews/PR-2R2.md` | merge if MERGE |
+| PR-3 | Sprint 3-4 PR to `main` (integration spike, citations, report draft, citation comments) + pre-merge review | main + review-21 | next | – | – |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) | main + review-17, review-19 | **MERGED** 2026-11-15 as `4cc0fe2` after PR-2R (merge after fixes; fixed) and PR-2R2 (MERGE) and a clean run at `fadde74` | `reviews/PR-2R.md`, `reviews/PR-2R2.md` | – |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | **done**, merged: APPROVE WITH NITS (0 high, 4 medium); all 256 FIFO_SRC values bounded | `reviews/WP1-bR.md` | WP1-bF2, WP1-bT3 |
 | WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments; main-agent ruling: only sign == -1 negates (WP1-bT3) | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
@@ -183,7 +184,7 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | **done**, merged: 20 sources + provenance; 11 gaps |  `CITATIONS.md` | – |
 | S4-2 | Project report draft (PLAN WP5) | doc-report + main | **done**: the agent's Write was refused by a harness rule for subagent report files; it returned sourced facts and the main agent wrote the file (numbers re-checked) | `REPORT_DRAFT.md` | Hadi edits |
 | S4-3 | Review of the S3-1 integration spike and its findings | review-20 | **done**, merged: PARTLY SUPPORTED (0 high, 3 medium: hit-window cap hides late triggers; Q8 denominator; spike defaulted to the superseded overrun order) → all three fixed by main | `reviews/S4-3R.md` | – |
-| SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | in progress | comments in firmware/src, tests, tools | – |
+| SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | **done**, merged: gaps 1-3, 5-7 closed; objects byte-identical (main re-verified 4 modules) | comments in firmware/src, tests, tools | – |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
