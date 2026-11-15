@@ -48,6 +48,16 @@ C4.3 says the float net is trained on x8 "optionally divided by a constant for c
 A net trained on x8/K has effective weights W1/K on x8, so the exporter must **divide** W1 by K (the tool does; e2e passes).
 Record as your decision: "C4.3: the exporter divides W1 by K." (yes/no)
 
+### Q6. Contract wording: which set is C4.3's "fixed held-out set"? (from review W2-2R M3)
+C4.3 says the int16 fallback is judged "on a fixed held-out set of n ≥ 500 windows", and "every reported accuracy, model
+selection and early-stopping decision uses the integer path ... on the held-out set". Using ONE set for checkpoint selection,
+for choosing GM_CONF_SHIFT/GM_DEFAULT_REJECT and for reporting makes the reported numbers optimistic (measured: 78.7 %
+reported vs a 77.8 % ceiling on a hard synthetic set). Agent recommendation, record as your decision (yes/no):
+"Training uses a train/validation/test split (about 60/20/20, grouped by subject when the data has subjects). Validation
+selects the checkpoint, GM_CONF_SHIFT and GM_DEFAULT_REJECT, and the C4.3 fallback is judged on validation (n ≥ 500).
+The test set is scored once on the final header and gives every reported accuracy and rejection rate."
+⚠️ This refines decided C4.3 (a top-level doc): options (1) overrule = adopt the wording above into C4.3, (2) discuss with the team.
+
 ## Hardware / bench (only you or the team can answer)
 - S2-0b: rerun `make selftest` in `docs/agent/hadi/spikes/sim` on your Mac (XC16 + MDB).
 - Gate G3 (PLAN 3.9): build `firmware/src/*.c` with XC16 and run the e2e vectors on the MPLAB simulator
