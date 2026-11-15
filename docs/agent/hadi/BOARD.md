@@ -186,6 +186,11 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | S4-3 | Review of the S3-1 integration spike and its findings | review-20 | **done**, merged: PARTLY SUPPORTED (0 high, 3 medium: hit-window cap hides late triggers; Q8 denominator; spike defaulted to the superseded overrun order) → all three fixed by main | `reviews/S4-3R.md` | – |
 | SW-3 | Citation comments in code per CITATIONS.md gaps (comments only, cmp/AST-verified) | sweep-3 | **done**, merged: gaps 1-3, 5-7 closed; objects byte-identical (main re-verified 4 modules) | comments in firmware/src, tests, tools | – |
 
+## Sprint 5: train/serve skew (started 2026-11-15)
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | in progress | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
+
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
 different subagents from the implementer.
