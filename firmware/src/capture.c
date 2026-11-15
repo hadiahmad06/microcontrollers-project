@@ -6,6 +6,10 @@
  * Design: the ring always tracks the stream (it is pushed in every state, so the 15 samples before
  * a trigger are available), is emptied on an overrun (sample gap), and is not touched by
  * arm/disarm/release. The trigger flag is honoured only in ARMED.
+ *
+ * C1.6 "re-arm after a quiet period" is the trigger module's job (proposal C1b REARM); here a dropped
+ * window goes straight to ARMED/IDLE. The caller must call trigger_release() whenever capture_push()
+ * returned false after a trigger fired, or capture_overrun()/capture_disarm() returned true.
  */
 #include "capture.h"
 
@@ -38,7 +42,7 @@ static void ring_push(const int16_t s[3])
 static void window_start(void)
 {
     uint8_t i;
-    uint8_t idx = (uint8_t)((s_head - s_count) & RING_MASK); /* oldest entry */
+    uint8_t idx = (uint8_t)((s_head + CAPTURE_RING - s_count) & RING_MASK); /* oldest entry; unsigned, no negative intermediate */
 
     for (i = 0u; i < s_count; i++) {
         s_buf[i][0] = s_ring[idx][0];
@@ -68,21 +72,27 @@ void capture_arm(void)
     }
 }
 
-void capture_disarm(void)
+bool capture_disarm(void)
 {
+    bool dropped = (s_state == CAPTURE_CAPTURING);
+
     if (s_state == CAPTURE_ARMED || s_state == CAPTURE_CAPTURING) {
         s_fill = 0u;
         s_state = CAPTURE_IDLE;
     }
+    return dropped;
 }
 
-void capture_push(const int16_t s[3], bool trigger)
+bool capture_push(const int16_t s[3], bool trigger)
 {
+    bool opened = false;
+
     ring_push(s);
 
     if (s_state == CAPTURE_ARMED && trigger) {
         if (s_count >= CAPTURE_RING) {   /* trigger sample + CAPTURE_PRE earlier ones present */
             window_start();
+            opened = true;
         } else {
             s_stats.early_triggers++;
         }
@@ -96,10 +106,13 @@ void capture_push(const int16_t s[3], bool trigger)
             s_stats.windows++;
         }
     }
+    return opened;
 }
 
-void capture_overrun(void)
+bool capture_overrun(void)
 {
+    bool dropped = (s_state == CAPTURE_CAPTURING);
+
     s_stats.overruns++;
     s_count = 0u;
     s_head = 0u;
@@ -107,6 +120,7 @@ void capture_overrun(void)
         s_fill = 0u;
         s_state = CAPTURE_ARMED;
     }
+    return dropped;
 }
 
 bool capture_release(void)

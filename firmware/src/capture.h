@@ -10,6 +10,19 @@
  * sample t, t itself, then the next 134 samples (window = t-15 ... t+134). A window is never padded.
  *
  * States: IDLE -> ARMED -> CAPTURING -> READY (buffer locked) -> release -> ARMED.
+ *
+ * Ring policy: the ring is fed by capture_push() in EVERY state (IDLE included), so the pre-trigger
+ * samples exist the moment the module is armed or released. capture_arm(), capture_disarm() and
+ * capture_release() never touch the ring; only capture_overrun() (a gap in the stream) and
+ * capture_init() empty it.
+ *
+ * Trigger-module glue (C1b): the trigger module stays LOCKED after it fires until the caller runs
+ * trigger_release(). The caller MUST call trigger_release() whenever (a) capture_push() returned
+ * false although a trigger fired on that sample (early or ignored trigger), or (b) capture_overrun()
+ * or capture_disarm() returned true (an open window was dropped), or (c) capture_release() returned
+ * true. C1.6's "re-arm after a quiet period" is not done here: after a dropped window this module
+ * goes straight to ARMED (or IDLE) and the refractory time comes from the trigger module's REARM
+ * rule (proposal C1b: quiet >= 16 samples).
  * No float, no malloc, no blocking. All storage is static (900 B buffer + 96 B ring + state).
  */
 #ifndef CAPTURE_H
@@ -40,14 +53,16 @@ typedef struct {
 /** Reset to IDLE, empty the ring and zero the statistics. */
 void capture_init(void);
 
-/** Arm the capture: IDLE -> ARMED. In any other state this does nothing. */
+/** Arm the capture: IDLE -> ARMED. In any other state this does nothing. The ring is not touched. */
 void capture_arm(void);
 
 /**
  * Disarm: ARMED or CAPTURING -> IDLE. An open window is dropped without counting an overrun.
- * Does nothing in READY (the locked buffer is kept) or IDLE.
+ * Does nothing in READY (the locked buffer is kept) or IDLE. The ring is not touched.
+ * @return true iff an open window was dropped (CAPTURING -> IDLE); the caller then must call
+ *         trigger_release(). False otherwise.
  */
-void capture_disarm(void);
+bool capture_disarm(void);
 
 /**
  * Process one sample. Order: ring push, trigger test, window append. The trigger flag is honoured
@@ -56,15 +71,20 @@ void capture_disarm(void);
  * per call, except for the CAPTURE_RING-entry ring unroll at trigger time.
  * @param s       three int16_t wand-frame values (X, Y, Z); copied, must not be NULL
  * @param trigger true if the trigger rule fired on this sample (computed by the caller)
+ * @return true iff this call opened a window (ARMED -> CAPTURING). False in every other case,
+ *         including an early trigger and a trigger ignored outside ARMED; if @p trigger was true
+ *         and false is returned, the caller must call trigger_release().
  */
-void capture_push(const int16_t s[3], bool trigger);
+bool capture_push(const int16_t s[3], bool trigger);
 
 /**
  * Report a FIFO overrun or missed drain deadline. Increments overruns and empties the ring (the
  * stream has a gap). In CAPTURING the open window is dropped (-> ARMED). In IDLE, ARMED and READY
  * the state is unchanged; READY keeps the locked buffer intact.
+ * @return true iff an open window was dropped (CAPTURING -> ARMED); the caller then must call
+ *         trigger_release(). False otherwise.
  */
-void capture_overrun(void);
+bool capture_overrun(void);
 
 /**
  * Release the locked buffer: READY -> ARMED.
@@ -80,7 +100,8 @@ capture_state_t capture_state(void);
 
 /**
  * The window buffer, CAPTURE_LEN rows of {X, Y, Z}, oldest sample first.
- * @return pointer to the buffer (never NULL); contents are valid only while the state is READY
+ * @return pointer to the one static buffer (always the same, never NULL); its contents are defined
+ *         only while the state is READY (it is being filled in CAPTURING, stale otherwise)
  */
 int16_t (*capture_buffer(void))[3];
 
