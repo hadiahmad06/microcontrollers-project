@@ -24,3 +24,14 @@ is the accountability mechanism.
 code apart from **human-written** code. Which agent, or which person's agent, can be worked
 out later from the git history.
 - Decided: 2026-11-14 by Hadi. Not contested.
+
+## Remote, pull requests and merging (Hadi's agents)
+Hadi's agents may push to the GitHub remote, open pull requests, and merge them. Before a
+merge the orchestrating agent takes precautions: subagent review, its own diff read, and a
+rerun of the tests. This covers Hadi's agents only; other people set the rules for theirs.
+- Decided: 2026-11-14 by Hadi. Not contested.
+
+## Git name for agent commits (Hadi's agents)
+Hadi's agents commit as `Hadi Ahmad (Claude)` with Hadi's email and a Co-Authored-By trailer
+naming the agent. That keeps agent commits distinct from Hadi's own in `git log`.
+- Decided: 2026-11-14 by Hadi. Not contested.
