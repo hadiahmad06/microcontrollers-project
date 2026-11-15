@@ -78,23 +78,60 @@ Dataset format (WP2 tools): one `.npz` with `windows` int16 `[N,150,3]` (C1 wand
 
 ```
 python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1   # SYNTHETIC, pipeline test only
-python3 tools/train.py --data ds.npz --out-dir DIR [--seed S] [--hidden 16] [--epochs 60] \
-        [--val-frac 0.2] [--group subject|session|none] [--k 64] [--eval-every 5]
+python3 tools/synth_dataset.py --selftest                              # "synth_dataset selftest PASS"
+python3 tools/train.py --data ds.npz --out-dir DIR [--seed S | --seeds 1,2,3] [--epochs 60] \
+        [--val-frac 0.2] [--test-frac 0.2] [--group subject|session|none] [--fallback-set val|test] \
+        [--lr 3e-3] [--batch 32] [--weight-decay 1e-4] [--k 64] [--eval-every 5] [--split-seed S]
 python3 tools/train.py --selftest        # prints "train selftest PASS"
 ```
-Pipeline: features (`features_ref`, cached in `DIR/features.npy`) -> split (stratified, or whole
-subjects/sessions to validation with `--group`; seeded) -> `export_model.py norm` on TRAIN features
-only -> `x8 = infer_ref.normalize` -> float 60-H-9 MLP in numpy (ReLU, softmax cross-entropy, Adam,
-trained on `x8 / K`, default K = 64) -> every `--eval-every` epochs a candidate header is exported
-with `export_model.py header --val ...` and scored with `infer_ref.forward` on the validation set;
-the best integer accuracy wins (patience 6 candidates). Per C4.3 every reported accuracy comes from
-the integer path; float accuracy and float-vs-int agreement are diagnostic. The validation set also
-picks the checkpoint, so its integer accuracy is slightly optimistic.
+Pipeline: features (`features_ref`, cached in `DIR/features.npy`; the cache key hashes the windows and
+`FEATURES_VERSION`) -> split into train / validation / test (seeded) -> `export_model.py norm` on TRAIN
+features only -> `x8 = infer_ref.normalize` -> float 60-16-9 MLP in numpy (ReLU, softmax cross-entropy,
+Adam, trained on `x8 / K`, default K = 64; typical `|x8/K|` is about 0.2, extremes about 2) -> every
+`--eval-every` epochs a candidate header is exported with `export_model.py header --val ...` and scored
+with `infer_ref.forward` on the VALIDATION set; the best integer accuracy wins (patience 6 candidates).
+`--hidden` is accepted only as 16 (C4.2: `mlp.c` static-asserts `GM_N_HIDDEN == 16`); anything else is
+refused with exit 2.
 
-Outputs in `DIR`: `gesture_model.h`, `norm.json`, `net.npz` (with `K`), `report.json`, `report.md`
-(accuracies, per-class confusion matrix, C4.3 fallback verdict with the n >= 500 check,
-`GM_CONF_SHIFT`, `GM_DEFAULT_REJECT` and its rejection rate), plus `split.npz`, `features.npy` and a
-`work/` scratch folder. Exit codes: 0 ok, 2 bad input, 3 exporter refusal (message names the bound).
+**Three sets (review W2-2R M1/M2).** Train fits weights and normalisation. Validation selects the
+checkpoint and, through the exporter's `--val`, `GM_CONF_SHIFT` and `GM_DEFAULT_REJECT`. The TEST set is
+scored once, on the final header with the integer path, and gives every reported accuracy (with a Wilson
+95 % interval), confusion matrix and rejection rate in `report.md` / `report.json`; float accuracy and
+float-vs-int agreement are diagnostics. Validation numbers are reported too, labelled "selection set
+(optimistic)": the best of up to 12 candidates and an in-sample threshold, so they are biased upward (the
+rejection rate there is at most 2 % by construction). `--val-frac` and `--test-frac` default to 0.2 each.
+`--test-frac 0` gives a two-way split; the report then says all its numbers are optimistic.
+
+**Grouping (M4).** If the dataset has `subject` (else `session`) and `--group` is not given, the split
+is grouped by it automatically (whole groups per set, shuffled by the split seed) and the choice is
+printed and written to the report; with fewer than 3 groups (2 without a test set) it falls back to a
+stratified split and says so. `--group none` forces the stratified split (every class in every set where
+the class has at least 3 windows). After any split a warning (stderr and report) lists each class missing
+from train, validation or test. Pseudo-groups in the synthetic data carry no signal (S3: ids are drawn
+independently of class, with no per-subject offset or gain), so a grouped synthetic run tests only the
+splitting mechanics, not the generalisation across people.
+
+**C4.3 fallback (M3, open question Q6).** `--fallback-set val|test` (default `val`, the agent's
+recommendation pending Hadi's decision) picks the set that judges the int16 fallback. `test` makes the
+test set part of a design decision, so it is then no longer untouched (the report says so). The report
+names the set and n, and prints "CANNOT be assessed" when n < 500.
+
+**Other flags.** `--lr`, `--batch`, `--weight-decay` (defaults 3e-3, 32, 1e-4). `--seeds 1,2,3` runs one
+training per seed in `DIR/seed_N/` and writes `DIR/seeds.md` / `seeds.json` with the mean and min/max of
+the reported integer accuracy; the split follows each seed unless `--split-seed` fixes it (then the
+test set is the same for all seeds). When `GM_DEFAULT_REJECT` is 0 the report says "rejection disabled
+(GM_DEFAULT_REJECT = 0)" instead of a bare 0.00 % rate.
+
+Outputs in `DIR`: `gesture_model.h`, `norm.json`, `net.npz` (with `K`), `report.json`, `report.md`,
+plus `split.npz` (train, val, test indices), `features.npy` and a `work/` scratch folder. Exit codes:
+0 ok, 2 bad input (including an exporter exit 2), 3 exporter refusal (decided by the exporter's exit
+code 3, message names the bound).
+
+`synth_dataset.py`: class 0 ("none") starts in the same cone around up (35 degrees) as the gestures, so
+the start orientation alone does not reveal it; `--selftest` checks that the best start-tilt-only rule
+at zero false positives recognises under 60 % of class 0 (it prints the number, about 0 %). Swipes
+follow the C1.3 wand frame (Y = left): a swipe to the right moves the tip toward -Y first. The circle
+classes still have a small nonzero mean Y (cos x Hann window), a mild artefact.
 
 `synth_dataset.py` shapes are adapted from our own spike `docs/agent/hadi/spikes/trigger/synth.py`;
 the data is invented and must never be quoted as an accuracy result. Adam: Kingma and Ba 2015,
