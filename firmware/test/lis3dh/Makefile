@@ -3,7 +3,7 @@
 #   make test                       test the real firmware/src implementation
 #   make test IMPL_DIR=standin      prove the harness against the spec stand-in in standin/
 #   make test DRAIN_MODEL=B         oracle reading B: after each burst keep draining while FSS > 0
-#                                   (default A: stop as soon as the re-read FSS < 16, C1.4 literal)
+#                                   (default A, the only asserted one: stop when the re-read n < 16)
 ROOT := ../../..
 include $(ROOT)/firmware/test/common.mk
 IMPL_DIR ?= $(SRC_DIR)

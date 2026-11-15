@@ -68,8 +68,17 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
         v[i] = (int16_t)(w >> 4);                       /* arithmetic shift (C1.1) */
     }
     for (i = 0u; i < 3u; i++) {
-        out[i] = (int16_t)(axes->sign[i] * v[axes->src[i]]);
+        int32_t r = (int32_t)axes->sign[i] * (int32_t)v[axes->src[i]];   /* R4 */
+        out[i] = (int16_t)((r > 2047L) ? 2047L : r);                      /* R2: -(-2048) -> 2047 */
     }
+}
+
+/** R1: unread count from a FIFO_SRC byte; FSS = 0 with OVRN = 1 and EMPTY = 0 means 32. */
+static uint8_t unread(uint8_t src)
+{
+    uint8_t fss = (uint8_t)(src & 0x1Fu);
+    if (fss == 0u && (src & 0x40u) != 0u && (src & 0x20u) == 0u) { return 32u; }
+    return fss;
 }
 
 int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *more)
@@ -81,7 +90,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
     if (lis3dh_hal_read(s_addr, 0x2Fu, &src, 1u) != 0) { return LIS3DH_ERR_BUS; }
     *overrun = (uint8_t)((src & 0x40u) != 0u);          /* OVRN_FIFO at the first read only */
     for (;;) {
-        n = (uint8_t)(src & 0x1Fu);                     /* FSS */
+        n = unread(src);
         if (n == 0u) { break; }
         if (n > LIS3DH_BURST_MAX) { n = (uint8_t)LIS3DH_BURST_MAX; }
         if (lis3dh_hal_read(s_addr, 0x28u | 0x80u, raw, (uint8_t)(6u * n)) != 0) { return LIS3DH_ERR_BUS; }
@@ -92,7 +101,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
         total = (int16_t)(total + n);
         bursts++;
         if (lis3dh_hal_read(s_addr, 0x2Fu, &src, 1u) != 0) { return LIS3DH_ERR_BUS; }
-        if ((src & 0x1Fu) < 16u) { break; }
+        if (unread(src) < 16u) { break; }
         if (bursts >= 4u) { *more = true; break; }
     }
     return total;
@@ -102,6 +111,6 @@ int8_t lis3dh_read_click(void)
 {
     uint8_t v = 0u;
     if (lis3dh_hal_read(s_addr, 0x39u, &v, 1u) != 0) { return LIS3DH_ERR_BUS; }
-    return (int8_t)v;
+    return (int8_t)(((v & 0x60u) == 0x60u) ? 1 : 0);    /* R3: IA and DCLICK */
 }
 // [END AI-GENERATED]
