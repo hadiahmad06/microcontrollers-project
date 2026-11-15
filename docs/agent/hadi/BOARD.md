@@ -138,13 +138,14 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2R | Review training pipeline | review-16 | **done**, merged: 0 high, 5 medium (val set both selects and reports; class-0 separable by orientation). Raised Q6 | `reviews/W2-2R.md` | W2-2F |
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
+| PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | in progress | `reviews/PR-2R2.md` | merge if MERGE |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open. PR-2R: MERGE AFTER FIXES (2 majors: 3.8F not landed; code-vs-CONTRACTS wording differences not disclosed → now disclosed in the PR body; minors fixed) | `reviews/PR-2R.md` | merge when 3.8F, WP1-bF2/bT3, SW-2 land and all suites PASS |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | **done**, merged: APPROVE WITH NITS (0 high, 4 medium); all 256 FIFO_SRC values bounded | `reviews/WP1-bR.md` | WP1-bF2, WP1-bT3 |
-| WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments | fix-lis3dh (2nd instance) | in progress | `firmware/src/lis3dh.*` | – |
-| WP1-bT3 | lis3dh tests: stop at first fault, guards, NULL tables, R5 both ways | test-lis3dh (3rd instance) | in progress | `firmware/test/lis3dh/**` | – |
-| SW-2a | knn_import: reject non-zero unused slots, NULL buffers (ruling, 3.5R F4) | fix-knn | code done (branch); merge with SW-2b | `firmware/src/knn.*` | SW-2b |
-| SW-2b | classify suite: F4 ruling, -128 inputs, conf edges (3.5R F4-F6) | test-classify (2nd instance) | in progress | `firmware/test/classify/**` | – |
-| 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | resumed after the API limit (edits saved, uncommitted) | `firmware/test/e2e/**` | – |
+| WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
+| WP1-bT3 | lis3dh tests: stop at first fault, guards, NULL tables, R5 both ways | test-lis3dh (3rd instance) | **done**, merged; lis3dh suite PASS on the real driver | `firmware/test/lis3dh/**` | – |
+| SW-2a | knn_import: reject non-zero unused slots, NULL buffers (ruling, 3.5R F4) | fix-knn | **done**, merged | `firmware/src/knn.*` | SW-2b |
+| SW-2b | classify suite: F4 ruling, -128 inputs, conf edges (3.5R F4-F6) | test-classify (2nd instance) | **done**, merged; classify suite PASS on host + sim16 | `firmware/test/classify/**` | – |
+| 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | **done**, merged: every boundary hit on purpose on host + sim16; 4 models incl. a tie model; 5/5 mutations caught | `firmware/test/e2e/**` | – |
 | 3.7 | `gesture.c` public API (8 functions); design note `proposals/API_glue.md` | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
 | WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
 | WP1-aT | Capture suite (host + sim16) | test-capture | **done**, merged: real capture.c matches 477,753 host + 38,463 sim16 lines | `firmware/test/capture/**` | – |
@@ -200,6 +201,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (w): **Done:** 3.8F, WP1-bF2/bT3, SW-2a/b; all 8 suites PASS. **Next:** delta review PR-2R2, then merge PR #1. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (v): Hadi signed off ("continue running, don't ask questions, leave notes in the chat"). The API spend limit stopped 3.8F mid-task; resumed after reset. PR #1 opened; pre-merge review running.
 - 2026-11-15 (u): **Done:** all fix rounds except 3.8F; 8 suites PASS; e2e soak (3 extra seeds × 4 models) PASS; proxy RAM 2512 B vs C7 2500 B; glue design note for 3.7. **Next:** PR-2 (session branch → main) with a full-diff review. **Waiting for Hadi:** Q1-Q6.
 - 2026-11-15 (t): **Done:** WP1-bF + bT2 (lis3dh stall fixed, rulings asserted), WP1-aR, WP4-aR, W2-2R; 8 suites PASS. **Next:** 5 fix rounds running (3.8F, W2-2F, WP4-aF, WP1-aF, WP1-aT2), then the sprint PR to `main`. **Waiting for Hadi:** Q1-Q6.
