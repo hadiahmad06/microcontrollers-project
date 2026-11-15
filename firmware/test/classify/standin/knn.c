@@ -160,7 +160,7 @@ static uint16_t crc16(const uint8_t *p, uint16_t n)
 uint16_t knn_export(uint8_t *buf, uint16_t cap)
 {
     uint16_t p = 0u;
-    if (cap < KNN_BLOB_SIZE) { return 0u; }
+    if (buf == NULL || cap < KNN_BLOB_SIZE) { return 0u; }
     buf[p++] = KNN_BLOB_VERSION; buf[p++] = GESTURE_MAX_LEARNED;
     buf[p++] = GESTURE_TEMPLATES_PER_CLASS; buf[p++] = KNN_DIM;
     for (uint8_t c = 0u; c < NC; c++) { buf[p++] = s_cnt[c]; buf[p++] = s_next[c]; }
@@ -180,11 +180,12 @@ uint16_t knn_export(uint8_t *buf, uint16_t cap)
  *
  * @param buf Blob.
  * @param len Blob length.
- * @return 0 ok; -1 bad length; -2 bad version/shape; -3 bad CRC. Store unchanged on error.
+ * @return 0 ok; -1 bad length or NULL buf; -2 bad version/shape/metadata/non-zero unused-slot byte; -3 bad CRC.
+ *         Store unchanged on error.
  */
 int8_t knn_import(const uint8_t *buf, uint16_t len)
 {
-    if (len != KNN_BLOB_SIZE) { return -1; }
+    if (buf == NULL || len != KNN_BLOB_SIZE) { return -1; }
     if (buf[0] != KNN_BLOB_VERSION || buf[1] != GESTURE_MAX_LEARNED ||
         buf[2] != GESTURE_TEMPLATES_PER_CLASS || buf[3] != KNN_DIM) { return -2; }
     uint16_t crc = crc16(buf, (uint16_t)(len - 2u));
@@ -193,6 +194,14 @@ int8_t knn_import(const uint8_t *buf, uint16_t len)
     for (uint8_t c = 0u; c < NC; c++) {
         uint8_t cn = buf[4u + 2u * c], nx = buf[5u + 2u * c];
         if (cn > NS || nx >= NS || (cn < NS && nx != cn)) { return -2; }
+    }
+    /* unused slots (slot >= count) must be all zero (3.5R F4 ruling) */
+    for (uint8_t c = 0u; c < NC; c++) {
+        uint8_t cn = buf[4u + 2u * c];
+        for (uint8_t sl = cn; sl < NS; sl++) {
+            uint16_t at = (uint16_t)(4u + 2u * NC + ((uint16_t)((uint16_t)c * NS + sl)) * (uint16_t)KNN_DIM);
+            for (uint8_t i = 0u; i < KNN_DIM; i++) { if (buf[at + i] != 0u) { return -2; } }
+        }
     }
     uint16_t p = 4u;
     for (uint8_t c = 0u; c < NC; c++) { s_cnt[c] = buf[p++]; s_next[c] = buf[p++]; }
