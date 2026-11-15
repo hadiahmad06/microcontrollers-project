@@ -139,7 +139,7 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
 | PR-2R2 | Delta pre-merge review (22 commits since PR-2R) | review-19 | **done**: MERGE (0 blockers, 0 majors; minors d-1, d-3, d-4, d-5 fixed) | `reviews/PR-2R2.md` | merge if MERGE |
-| PR-3 | Sprint 3-4 PR to `main` (integration spike, citations, report draft, citation comments) + pre-merge review | main + review-21 | next | – | – |
+| PR-3 | Sprint 3-4 PR to `main` (hadiahmad06/microcontrollers-project#2) | main + review-21 | **MERGED** 2026-11-15 as `c82ad0a` after PR-3R (merge after fixes; docs-only fixes applied) and a clean run | `reviews/PR-3R.md` | – |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) | main + review-17, review-19 | **MERGED** 2026-11-15 as `4cc0fe2` after PR-2R (merge after fixes; fixed) and PR-2R2 (MERGE) and a clean run at `fadde74` | `reviews/PR-2R.md`, `reviews/PR-2R2.md` | – |
 | WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | **done**, merged: APPROVE WITH NITS (0 high, 4 medium); all 256 FIFO_SRC values bounded | `reviews/WP1-bR.md` | WP1-bF2, WP1-bT3 |
 | WP1-bF2 | lis3dh: address reset on failure, pre-init guards, power-down on failure, comments; main-agent ruling: only sign == -1 negates (WP1-bT3) | fix-lis3dh (2nd instance) | **done**, merged; main fixed sign check to == -1 (ruling) | `firmware/src/lis3dh.*` | – |
@@ -203,7 +203,7 @@ different subagents from the implementer.
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
 ## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
-1. **Where things are:** Sprint 2 is MERGED into `main` (PR hadiahmad06/microcontrollers-project#1, `4cc0fe2`). New work continues on
+1. **Where things are:** Sprints 2-4 are MERGED into `main` (PR hadiahmad06/microcontrollers-project#1 `4cc0fe2`, PR #2 `c82ad0a`). New work continues on
    `claude/optimistic-meitner-67qdon` (fast-forwarded to `main`); open a new PR per sprint. `make test` at the repo root runs 8 suites (host + sim16).
 2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
    (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
@@ -221,6 +221,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (aa): **SPRINTS 3-4 CLOSED.** PR #2 merged (`c82ad0a`) after PR-3R and a clean run. Remaining work needs Hadi (Q1-Q8) or the Mac (G3, HAL, WS2812 asm). Report draft and citations are ready for the team to edit.
 - 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (x): **SPRINT 2 CLOSED.** PR #1 merged after PR-2R2 = MERGE and a clean run at `fadde74`. **Sprint 3 started:** S3-1 integration spike. **Waiting for Hadi:** Q1-Q7.
