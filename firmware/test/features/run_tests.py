@@ -9,6 +9,7 @@ Usage: run_tests.py --host BIN --elf ELF --sim-run run_sim16.sh --tools DIR [--s
                     [--seed N] [--n-host N] [--n-sim N] [--sim-timeout S]
 """
 import argparse
+import os
 import subprocess
 import sys
 
@@ -120,11 +121,11 @@ def run_driver(label, cmd, timeout):
     return p.returncode, p.stdout
 
 
-def test_ref(tools, edges_ok_windows, n_random, seed):
+def test_ref(tools, n_random, seed):
     """Check tools/features_ref.py against the oracle and its ValueError behaviour.
 
     Args:
-        tools: path of the tools directory. edges_ok_windows: unused marker.
+        tools: path of the tools directory.
         n_random: number of random windows. seed: generator seed.
     Returns:
         None.
@@ -175,6 +176,14 @@ def test_ref(tools, edges_ok_windows, n_random, seed):
             except ValueError:
                 ok = True
             report("features_ref raises ValueError for %d at %s" % (badv, pos), ok)
+    for rows, width in ((149, 3), (151, 3), (150, 2), (150, 4)):
+        w = [[0] * width for _ in range(rows)]
+        try:
+            fr.features_extract(w)
+            ok = False
+        except ValueError:
+            ok = True
+        report("features_ref raises ValueError for %d rows of width %d" % (rows, width), ok)
     for edge in (-2048, 2047):
         w = [[edge] * 3 for _ in range(150)]
         try:
@@ -182,6 +191,20 @@ def test_ref(tools, edges_ok_windows, n_random, seed):
         except ValueError:
             ok = False
         report("features_ref accepts boundary value %d" % edge, ok)
+
+
+def run_selftest(tools):
+    """Run `python3 tools/features_ref.py --selftest` and report its exit status.
+
+    Args:
+        tools: path of the tools directory.
+    Returns:
+        None.
+    """
+    p = subprocess.run([sys.executable, os.path.join(tools, "features_ref.py"), "--selftest"],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    report("tools/features_ref.py --selftest", p.returncode == 0,
+           "rc=%d %s" % (p.returncode, (p.stdout + p.stderr).strip()[-300:]))
 
 
 def main():
@@ -219,7 +242,8 @@ def main():
     if a.spike:
         print("SKIP tools/features_ref.py checks (spike stand-in)")
     else:
-        test_ref(a.tools, None, min(a.n_host, 2000), a.seed)
+        run_selftest(a.tools)
+        test_ref(a.tools, min(a.n_host, 2000), a.seed)
 
     if FAILED:
         print("features suite FAIL (%d failed checks)" % len(FAILED))

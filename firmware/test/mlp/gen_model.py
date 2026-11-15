@@ -64,7 +64,9 @@ def make_model(seed):
         if kind == 2:
             v = r.choice([-1, 1]) * (LIM29 - 1 - r.randint(0, 3))
         if var == "negb1":
-            v = -abs(v) - 1
+            # -1 keeps B1 strictly negative for v == 0; skip it at the +-(2^29-1) corner, where
+            # it would reach 2^29 (outside the exporter bound). Found by seed 7 (review 3.4R F6).
+            v = -abs(v) - 1 if abs(v) < LIM29 - 1 else -abs(v)
         b1.append(v)
         if var == "corners":
             m1.append([16384, 32767][j % 2])
