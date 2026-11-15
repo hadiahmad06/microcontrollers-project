@@ -125,6 +125,7 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
 | SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
 | PR-2 | Sprint-2 PR to `main` (hadiahmad06/microcontrollers-project#1) + pre-merge review | main + review-17 | PR open; review-17 running | `reviews/PR-2R.md` | merge if MERGE |
+| WP1-bR | Review lis3dh driver (missing review ticket found by main) | review-18 | in progress | `reviews/WP1-bR.md` | – |
 | 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | resumed after the API limit (edits saved, uncommitted) | `firmware/test/e2e/**` | – |
 | 3.7 | `gesture.c` public API (8 functions); design note `proposals/API_glue.md` | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
 | WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
@@ -161,6 +162,23 @@ different subagents from the implementer.
 | 3.8 / 3.8R | Bit-exact harness (host and simulator) | impl / review | 3.3, 3.4, S1-4 |
 | 3.9 | On-target verification on real hardware | Hadi + main | 3.8 |
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
+
+## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
+1. **Where things are:** all work is on `claude/optimistic-meitner-67qdon`; PR hadiahmad06/microcontrollers-project#1 → `main`
+   (merge only after the pre-merge review PR-2R says MERGE). `make test` at the repo root runs 8 suites (host + sim16).
+2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
+   (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
+   pump into `firmware/src` before Q1/Q2 are answered; design is ready in `proposals/API_glue.md`.
+3. **After Q1/Q2:** tickets T-trig (promote `spikes/trigger` → `firmware/src/trigger.*`), T-c2tx (C2 TX pump),
+   3.7 (`gesture.c`), each with T and R tickets; then paste `drafts/C2_contract_section.md` into CONTRACTS.md (C2).
+4. **Mac-only:** S2-0b `make selftest` (spikes/sim), gate G3 (XC16 build + MDB/on-target vectors), the WS2812 asm
+   driver (WP4-b), the PIC24 HAL (I2C1/UART1/INT0/INT1/PPS/config words), measurements 3.10.
+5. **Environment:** sim16 needs `apt-get install -y simavr gcc-avr avr-libc` in a fresh cloud container (not saved
+   as a setup script; Hadi has not been asked yet because he signed off).
+6. **Process lessons:** keep a subagent's worktree until its fix round is merged; a container restart or API limit
+   kills running agents and pending question dialogs, so commit early, record decisions in open_questions.md, and
+   resume agents with SendMessage when they are still resumable (else start a fresh instance from the review file).
+   Firmware headers are on the `-iquote` path only (features.h vs glibc). simavr splits UART lines > 255 chars.
 
 ## Standup log
 _(newest first: done · next · blocked)_
