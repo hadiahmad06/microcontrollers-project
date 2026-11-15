@@ -173,7 +173,16 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| S3-1 | Integration spike: fake LIS3DH → drain → trigger spike → capture → features → MLP → k-NN → decision, on continuous synthetic streams; host + sim16; Python cross-check | spike-integration | in progress | `spikes/integration/**` | findings → 3.7 brief |
+| S3-1 | Integration spike: fake LIS3DH → drain → trigger spike → capture → features → MLP → k-NN → decision, on continuous synthetic streams; host + sim16; Python cross-check | spike-integration | **done**, merged: host == sim16, Python == C; 92-96 % detection (synthetic); found the overrun-order bug in API_glue.md (fixed in the note), k-NN gate data (Q8) | `spikes/integration/**` | findings → 3.7 brief |
+
+**Sprint 3 stopping point (2026-11-15):** further product work needs Q1/Q2. Findings are in `proposals/API_glue.md` and `open_questions.md` (Q2 data, Q8).
+
+## Sprint 4: course deliverables that need no decisions (started 2026-11-15)
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| S4-1 | Consolidated citations list (AGENTS.md §7 "cite ... in the docs") | doc-citations | in progress | `CITATIONS.md` | – |
+| S4-2 | Project report draft (PLAN WP5) | doc-report | in progress | `REPORT_DRAFT.md` | Hadi edits |
+| S4-3 | Review of the S3-1 integration spike and its findings | review-20 | in progress | `reviews/S4-3R.md` | – |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
@@ -210,6 +219,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (x): **SPRINT 2 CLOSED.** PR #1 merged after PR-2R2 = MERGE and a clean run at `fadde74`. **Sprint 3 started:** S3-1 integration spike. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (w): **Done:** 3.8F, WP1-bF2/bT3, SW-2a/b; all 8 suites PASS. **Next:** delta review PR-2R2, then merge PR #1. **Waiting for Hadi:** Q1-Q7.
 - 2026-11-15 (v): Hadi signed off ("continue running, don't ask questions, leave notes in the chat"). The API spend limit stopped 3.8F mid-task; resumed after reset. PR #1 opened; pre-merge review running.
