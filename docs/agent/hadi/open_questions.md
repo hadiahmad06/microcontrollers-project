@@ -71,6 +71,9 @@ them). Record as your decision (yes/no): "C1.4: the drain may stop after 4 burst
   or the board. The cloud runs the same tests on a 16-bit-int AVR simulator (sim16) as a pre-check only.
 - LIS3DH FIFO_SRC at 32 unread: does FSS read 31 (saturate) or 0 (5-bit wrap) with OVRN = 1? The driver handles both
   (WP1-bF), but the bench answer goes into C-7's 2-minute check.
+- Datasheet check (anyone with the newest LIS3DH datasheet): the reserved-bit comments for CTRL_REG5 (bits 5:4) and
+  CTRL_REG6 (bits 2, 0) in `firmware/src/lis3dh.c` were written from memory (WP1-bF2); the written values (0x40, 0x80) are
+  from the reviewed proposals.
 - Part C of `DECISION_SHEET.md` (C-1 .. C-15): lab-board pins, ICSP set, SA0, pull-ups, oscillator,
   WS2812 revision, USB-serial adapter, bulb hardware.
 
