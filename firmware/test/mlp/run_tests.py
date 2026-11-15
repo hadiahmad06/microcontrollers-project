@@ -163,12 +163,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--impl", required=True, help="directory holding mlp.c and mlp.h")
     ap.add_argument("--build", default="build")
-    ap.add_argument("--seeds", default="1,2,3,4,5")
+    ap.add_argument("--seeds", default="1,2,3,4,5,6,7,8,9,10")
     ap.add_argument("--host-n", type=int, default=3000)
     ap.add_argument("--sim-n", type=int, default=150)
     ap.add_argument("--skip-sim", action="store_true")
     a = ap.parse_args()
     impl, bdir = os.path.abspath(a.impl), os.path.abspath(a.build)
+    # Review 3.4R F5: the implementation dir must bring its own mlp.h AND mlp.c. build() puts
+    # `-iquote impl` before every other include path (and mlp.c's own directory is searched first
+    # for "mlp.h"), so that mlp.h is the one compiled; a dir lacking either file is an error
+    # instead of a silent fallback to firmware/src.
+    missing = [f for f in ("mlp.h", "mlp.c") if not os.path.isfile(os.path.join(impl, f))]
+    if missing:
+        print("mlp suite FAIL: IMPL_DIR %s lacks %s" % (impl, " and ".join(missing)),
+              file=sys.stderr)
+        return 2
     os.makedirs(bdir, exist_ok=True)
     seeds = [int(s) for s in a.seeds.split(",")]
     assert len(seeds) >= 4

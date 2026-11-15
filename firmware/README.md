@@ -48,8 +48,8 @@ LIS3DH FIFO --lis3dh_drain--> sample (wand frame) --capture_push--> 150x3 window
 | Suite | Checks |
 |---|---|
 | `test/sim16` | the harness itself really has a 16-bit `int` |
-| `test/features` | C vs an independent oracle and vs `tools/features_ref.py` |
-| `test/mlp` | every stage vs an independent oracle, 5 generated models incl. corner cases |
+| `test/features` | C vs an independent oracle and vs `tools/features_ref.py` (incl. its `--selftest` and ValueError cases) |
+| `test/mlp` | every stage vs an independent oracle, 10 generated models (each of the 5 variants twice) incl. corner cases |
 | `test/classify` | knn + decision vs an independent oracle, C5 vector table, blob import errors |
 | `test/capture` | state machine vs an independent model (directed + random event streams) |
 | `test/lis3dh` | driver vs a fake LIS3DH register model with fault injection |

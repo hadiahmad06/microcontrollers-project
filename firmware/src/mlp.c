@@ -18,6 +18,7 @@ GM_STATIC_ASSERT(GM_N_HIDDEN == MLP_N_HIDDEN, mlp_nhidden);
 GM_STATIC_ASSERT(GM_N_CLASSES == MLP_N_CLASSES, mlp_nclasses);
 GM_STATIC_ASSERT(GM_FORMAT_VERSION == 1, mlp_fmtver);
 
+/* Documented in mlp.h. */
 void mlp_model_info(mlp_model_info_t *info)
 {
     info->model_hash      = (uint32_t)GM_MODEL_HASH;
@@ -29,6 +30,7 @@ void mlp_model_info(mlp_model_info_t *info)
     info->default_reject  = (uint8_t)GM_DEFAULT_REJECT;
 }
 
+/* Documented in mlp.h. */
 void mlp_normalize(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES])
 {
     uint8_t i;
@@ -42,6 +44,7 @@ void mlp_normalize(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES]
     }
 }
 
+/* Documented in mlp.h. */
 int8_t mlp_requant(int32_t acc, uint16_t m, uint8_t sh)
 {
     int16_t  hi = (int16_t)(acc >> 16);                         /* arithmetic shift: signed high half */
@@ -52,6 +55,7 @@ int8_t mlp_requant(int32_t acc, uint16_t m, uint8_t sh)
     return (int8_t)(r < 0 ? 0 : (r > 127 ? 127 : r));           /* ReLU = lower clamp */
 }
 
+/* Documented in mlp.h. */
 void mlp_layer1(const int8_t x8[MLP_N_FEATURES], int32_t acc1[MLP_N_HIDDEN], int8_t h[MLP_N_HIDDEN])
 {
     uint8_t i, j;
@@ -65,6 +69,7 @@ void mlp_layer1(const int8_t x8[MLP_N_FEATURES], int32_t acc1[MLP_N_HIDDEN], int
     }
 }
 
+/* Documented in mlp.h. */
 void mlp_layer2(const int8_t h[MLP_N_HIDDEN], int32_t logits[MLP_N_CLASSES])
 {
     uint8_t c, j;
@@ -77,6 +82,7 @@ void mlp_layer2(const int8_t h[MLP_N_HIDDEN], int32_t logits[MLP_N_CLASSES])
     }
 }
 
+/* Documented in mlp.h. */
 uint8_t mlp_top2(const int32_t logits[MLP_N_CLASSES], int32_t *margin)
 {
     uint8_t i1 = 0u;
@@ -93,6 +99,7 @@ uint8_t mlp_top2(const int32_t logits[MLP_N_CLASSES], int32_t *margin)
     return i1;
 }
 
+/* Documented in mlp.h. */
 uint8_t mlp_forward(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES],
                     int32_t logits[MLP_N_CLASSES], int32_t *margin)
 {

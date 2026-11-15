@@ -71,5 +71,6 @@ def main():
     print("rows", len(rows))
 
 
-main()
+if __name__ == "__main__":
+    main()
 # [END AI-GENERATED]

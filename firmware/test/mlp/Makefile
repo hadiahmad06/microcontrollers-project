@@ -6,7 +6,8 @@
 ROOT := ../../..
 include $(ROOT)/firmware/test/common.mk
 IMPL_DIR ?= $(SRC_DIR)
-SEEDS    ?= 1,2,3,4,5
+# seed % 5 picks the model variant, so 1..10 covers each of the 5 variants twice (review 3.4R F6).
+SEEDS    ?= 1,2,3,4,5,6,7,8,9,10
 HOST_N   ?= 3000
 SIM_N    ?= 150
 .PHONY: test clean

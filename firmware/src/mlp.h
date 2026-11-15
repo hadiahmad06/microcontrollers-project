@@ -36,6 +36,8 @@ void mlp_model_info(mlp_model_info_t *info);
  * @brief Stage 0: x8[i] = SAT(RSHIFT_R(feat[i] - GM_IN_OFF[i], GM_IN_SH[i]), -127, 127).
  * @param feat Input feature vector (int16, C3 layout).
  * @param x8   Output normalised vector, values in [-127, 127].
+ * @pre GM_IN_SH[i] <= 14 for every i (guaranteed by the model exporter); a larger shift would
+ *      make the rounding term (1 << sh) >> 1 overflow the intended range.
  */
 void mlp_normalize(const int16_t feat[MLP_N_FEATURES], int8_t x8[MLP_N_FEATURES]);
 

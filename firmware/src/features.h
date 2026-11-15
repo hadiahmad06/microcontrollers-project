@@ -18,7 +18,11 @@
 #define FEAT_SEGMENTS     10    /* segments per window                   */
 #define FEAT_COUNT        60    /* output features                       */
 
-/* Non-negative flag (B3): odd feature index = energy = always >= 0; even index = mean (signed). */
+/**
+ * @brief Non-negative flag of a feature (B3): odd index = energy (always >= 0), even = mean (signed).
+ * @param i Feature index, 0..FEAT_COUNT-1; evaluated once, any integer expression.
+ * @return Non-zero (true) if feature i is an energy and so never negative, 0 if it is a mean.
+ */
 #define FEAT_IS_NONNEG(i) ((((unsigned)(i)) & 1u) != 0u)
 
 /**
