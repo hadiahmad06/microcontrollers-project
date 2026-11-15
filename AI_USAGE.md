@@ -541,3 +541,28 @@ which person.
 | firmware/test/lis3dh/test_lis3dh.c | `m_fss` | Model: raw FSS field under the selected encoding | 2026-11-15 | agent |
 | firmware/test/lis3dh/standin/lis3dh.c | `unread` | Stand-in: R1 FIFO_SRC decode | 2026-11-15 | agent |
 | firmware/src/capture.c | `capture_buffer` | The 150x3 capture buffer (contents valid only in READY) | 2026-11-15 | agent |
+| firmware/test/display/run_tests.py | `mirror_lr` | Left-right mirror of an 8x8 bitmap | 2026-11-15 | agent |
+| firmware/test/display/run_tests.py | `check_golden` | Icon identity vs golden snapshot + mirror relations | 2026-11-15 | agent |
+| firmware/test/display/icons_golden.py | (data) | Golden snapshot of icon bitmaps/colours | 2026-11-15 | agent |
+| tools/train.py | `TrainError.__init__` | Exception carrying the process exit code | 2026-11-15 | agent |
+| tools/train.py | `min_groups` | Fewest groups a grouped split needs | 2026-11-15 | agent |
+| tools/train.py | `resolve_group` | Automatic/forced/requested grouping choice | 2026-11-15 | agent |
+| tools/train.py | `missing_class_warnings` | Warn about classes missing from a split set | 2026-11-15 | agent |
+| tools/train.py | `load_model` | load_header wrapper raising an exit-3 TrainError | 2026-11-15 | agent |
+| tools/train.py | `wilson_interval` | 95 % Wilson interval for reported accuracy | 2026-11-15 | agent |
+| tools/train.py | `evaluate_set` | Integer-path metrics + rejection stats for one set | 2026-11-15 | agent |
+| tools/train.py | `_accuracy_lines` | Report text: accuracy section | 2026-11-15 | agent |
+| tools/train.py | `_reject_lines` | Report text: rejection section | 2026-11-15 | agent |
+| tools/train.py | `_fallback_verdict` | Report text: C4.3 fallback verdict (set and n) | 2026-11-15 | agent |
+| tools/train.py | `summarize_seeds` | Multi-seed mean/min/max | 2026-11-15 | agent |
+| tools/train.py | `_write_seeds_summary` | Write seeds.md / seeds.json | 2026-11-15 | agent |
+| tools/train.py | `warn` | Nested helper: warning to stderr and report | 2026-11-15 | agent |
+| tools/synth_dataset.py | `_start_gravity` | Shared start orientation cone for all classes | 2026-11-15 | agent |
+| tools/synth_dataset.py | `start_tilt_deg` | Start tilt of a window from vertical | 2026-11-15 | agent |
+| tools/synth_dataset.py | `start_tilt_separability` | S1 check: class 0 not separable by start tilt | 2026-11-15 | agent |
+| tools/synth_dataset.py | `_selftest` | Shape, determinism, S1, S2 self-test | 2026-11-15 | agent |
+| firmware/test/capture/oracle.py | `expand` | Flatten a script incl. (ops)N groups | 2026-11-15 | agent |
+| firmware/test/capture/test_capture.c | `read_count` | Script parser: repeat count | 2026-11-15 | agent |
+| firmware/test/capture/test_capture.c | `exec_seq` | Script parser: run a sequence with repeat groups | 2026-11-15 | agent |
+| firmware/test/features/run_tests.py | `run_selftest` | Run tools/features_ref.py --selftest | 2026-11-15 | agent |
+| firmware/test/*/Makefile (capture, classify, display, e2e, features, lis3dh, mlp) | (build rules) | Suite build + run (host and sim16) | 2026-11-15 | agent |
