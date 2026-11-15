@@ -609,3 +609,9 @@ which person.
 | firmware/test/e2e/run_e2e.py | `calib_windows` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
 | firmware/test/e2e/run_e2e.py | `balance_bias` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
 | firmware/test/e2e/run_e2e.py | `histogram` | Coverage counting, calibration windows, class-balanced bias, top1 histogram | 2026-11-15 | agent |
+| firmware/test/classify/test_classify.c | `v_x128` | Random x8 vector including -128 | 2026-11-15 | agent |
+| firmware/test/classify/test_classify.c | `pad_tests` | knn_import padding (-2/-3) and NULL import/export cases | 2026-11-15 | agent |
+| firmware/test/classify/test_classify.c | `edges` | 3.5R F4-F6 block: conf table, -128 scenarios, round trip | 2026-11-15 | agent |
+| firmware/test/classify/oracle.py | `v_x128` | Mirror of the C -128 generator | 2026-11-15 | agent |
+| firmware/test/classify/oracle.py | `Replay.pad_tests` | Expected padding/NULL lines | 2026-11-15 | agent |
+| firmware/test/classify/oracle.py | `Replay.edges` | Expected F4-F6 lines | 2026-11-15 | agent |
