@@ -123,17 +123,19 @@ At the sprint boundary: PR session branch → `main`, reviewed by a Sonnet revie
 | 3.8F | e2e directed boundary coverage | impl-e2e (2nd instance) | in progress | `firmware/test/e2e/**` | – |
 | W2-2 | `tools/train.py` + `tools/synth_dataset.py` | impl-train | **done**, merged; main reran selftest + full run (seed 7): integer path 100 % on synthetic, header compiles for sim16 | `tools/{train,synth_dataset}.py` | W2-2R |
 | W2-2R | Review training pipeline | review-16 | **done**, merged: 0 high, 5 medium (val set both selects and reports; class-0 separable by orientation). Raised Q6 | `reviews/W2-2R.md` | W2-2F |
-| W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | in progress | `tools/{train,synth_dataset}.py` | – |
-| 3.7 | `gesture.c` public API (8 functions) | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
+| W2-2F | 3-way split, auto grouping, synth fixes | impl-train (2nd instance) | **done**, merged; `--fallback-set val` default pending Q6 | `tools/{train,synth_dataset}.py` | – |
+| SW-1 | Low findings of 3.3R/3.4R | sweep-1 | **done**, merged (found + fixed a test-generator corner bug) | tests, comments | – |
+| PR-2 | Sprint-2 PR to `main` + full-diff review | main + review-17 | next | – | – |
+| 3.7 | `gesture.c` public API (8 functions); design note `proposals/API_glue.md` | – | backlog: needs WP1 driver (`lis3dh.c`, capture state machine), the trigger decision (Q2) and C2 (Q1) for `gesture_stream_raw` | `firmware/src/gesture.*` | – |
 | WP1-a | `capture.c`: ring, window cut, overrun policy, buffer lock | impl-capture | **done**, merged; ruling: IDLE pushes enter the ring, disarm keeps it | `firmware/src/capture.*` | WP1-aR |
 | WP1-aT | Capture suite (host + sim16) | test-capture | **done**, merged: real capture.c matches 477,753 host + 38,463 sim16 lines | `firmware/test/capture/**` | – |
 | WP1-aR | Review capture | review-15 | **done**, merged: 0 high, 5 medium (ring ruling not pinned; glue needs bool returns R-2/R-3, adopted as rulings) | `reviews/WP1-aR.md` | WP1-aF, WP1-aT2 |
-| WP1-aF | capture: bool returns (R-2, R-3) + docs | fix-capture | in progress | `firmware/src/capture.*` | – |
-| WP1-aT2 | capture suite: pin ring ruling, assert returns | test-capture (2nd instance) | in progress | `firmware/test/capture/**` | – |
+| WP1-aF | capture: bool returns (R-2, R-3) + docs | fix-capture | **done**, merged | `firmware/src/capture.*` | – |
+| WP1-aT2 | capture suite: pin ring ruling, assert returns | test-capture (2nd instance) | **done**, merged: 603k host + 208k sim16 lines; m4/m5 now caught | `firmware/test/capture/**` | – |
 | WP4-a | `display.c` + `icons.c` (no asm) | impl-display | **done**, merged; main applied ruling: out-of-range `display_get` leaves rgb unchanged (briefs had disagreed) | `firmware/src/{display,icons}.*` | WP4-aR |
 | WP4-aT | Display suite (host + sim16) | test-display | **done**, merged; display suite PASS (6 suites total) | `firmware/test/display/**` | – |
 | WP4-aR | Review display | review-14 | **done**, merged: 0 high, 2 medium (icon identity untested, doc comments) | `reviews/WP4-aR.md` | WP4-aF |
-| WP4-aF | display docs + icon identity snapshot test | fix-display | in progress | `firmware/src/{display,icons}.*` (docs), `firmware/test/display/**` | – |
+| WP4-aF | display docs + icon identity snapshot test | fix-display | **done**, merged (objects byte-identical) | `firmware/src/{display,icons}.*` (docs), `firmware/test/display/**` | – |
 | WP1-b | `lis3dh.c` over an I2C HAL | impl-lis3dh | **done**, merged; suite PASS | `firmware/src/{lis3dh,lis3dh_hal,board_axes}.*` | WP1-bF, review |
 | WP1-bT | Fake LIS3DH + driver suite | test-lis3dh | **done**, merged; found a stall: full FIFO reported as FSS=0+OVRN | `firmware/test/lis3dh/**` | – |
 | WP1-bF | Driver: FSS=0+OVRN+!EMPTY means 32 unread (ruling R1) | fix-lis3dh | **done**, merged; stall gone | `firmware/src/lis3dh.c` | – |
@@ -162,6 +164,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-15 (u): **Done:** all fix rounds except 3.8F; 8 suites PASS; e2e soak (3 extra seeds × 4 models) PASS; proxy RAM 2512 B vs C7 2500 B; glue design note for 3.7. **Next:** PR-2 (session branch → main) with a full-diff review. **Waiting for Hadi:** Q1-Q6.
 - 2026-11-15 (t): **Done:** WP1-bF + bT2 (lis3dh stall fixed, rulings asserted), WP1-aR, WP4-aR, W2-2R; 8 suites PASS. **Next:** 5 fix rounds running (3.8F, W2-2F, WP4-aF, WP1-aF, WP1-aT2), then the sprint PR to `main`. **Waiting for Hadi:** Q1-Q6.
 - 2026-11-15 (s): **Done:** WP1-a + T (merged), WP1-b + T (merged), W2-2 (merged); 7 suites PASS. **Next:** WP1-bF/WP1-bT2, 3.8F, reviews WP1-aR, WP4-aR, W2-2R running. **Waiting for Hadi:** Q1-Q5. **Then:** sprint-boundary PR to `main` with a full-diff review.
 - 2026-11-14 (r): **Done:** S2-2F, W2-1F, 3.5F, 3.8R, WP4-a + T (6 suites PASS), WP1-a and WP1-b code. **Next:** WP1-aT, WP1-bT, 3.8F, W2-2, WP4-aR running. **Waiting for Hadi:** Q1-Q5 in open_questions.md. **Blocked:** G3, S2-0b (Mac).
