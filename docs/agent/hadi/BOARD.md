@@ -189,7 +189,8 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 ## Sprint 5: train/serve skew (started 2026-11-15)
 | ID | Title | Assignee | Status | Writes to | Follow-up tickets |
 |----|-------|----------|--------|-----------|-------------------|
-| W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | in progress | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
+| W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | **done**, merged: +5/+6 pts end to end (synthetic); main re-verified hash (seed 4) and the spike | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
+| W2-3R | Review W2-3 | review-22 | in progress | `reviews/W2-3R.md` | PR-4 |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
