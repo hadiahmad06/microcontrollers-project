@@ -566,3 +566,4 @@ which person.
 | firmware/test/capture/test_capture.c | `exec_seq` | Script parser: run a sequence with repeat groups | 2026-11-15 | agent |
 | firmware/test/features/run_tests.py | `run_selftest` | Run tools/features_ref.py --selftest | 2026-11-15 | agent |
 | firmware/test/*/Makefile (capture, classify, display, e2e, features, lis3dh, mlp) | (build rules) | Suite build + run (host and sim16) | 2026-11-15 | agent |
+| tools/train.py | `counting` | Self-test helper: count integer_eval calls per feature hash | 2026-11-15 | agent |

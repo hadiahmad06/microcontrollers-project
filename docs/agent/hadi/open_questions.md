@@ -58,7 +58,14 @@ selects the checkpoint, GM_CONF_SHIFT and GM_DEFAULT_REJECT, and the C4.3 fallba
 The test set is scored once on the final header and gives every reported accuracy and rejection rate."
 ⚠️ This refines decided C4.3 (a top-level doc): options (1) overrule = adopt the wording above into C4.3, (2) discuss with the team.
 
+### Q7. Contract wording FYI: drain bound per call (C1.4) (from PR-2R)
+C1.4 says the drain loops "until FSS < 16 at the re-read". `lis3dh_drain` also stops after 4 bursts (64 samples) per
+call and reports `more`, so the main loop calls it again (keeps each call bounded; no sample is lost: the FIFO keeps
+them). Record as your decision (yes/no): "C1.4: the drain may stop after 4 bursts per call and resume on the next call."
+
 ## Hardware / bench (only you or the team can answer)
+- CLICK_THS bit 7 (LIR_Click) read-back: `lis3dh_init` reads back every config write; if bit 7 of CLICK_THS (0xB0) does
+  not read back as written on the real part (C-7), init fails with LIS3DH_ERR_BUS every time. Check this first at bring-up.
 - S2-0b: rerun `make selftest` in `docs/agent/hadi/spikes/sim` on your Mac (XC16 + MDB).
 - Gate G3 (PLAN 3.9): build `firmware/src/*.c` with XC16 and run the e2e vectors on the MPLAB simulator
   or the board. The cloud runs the same tests on a 16-bit-int AVR simulator (sim16) as a pre-check only.

@@ -1,3 +1,4 @@
+<!-- [AI-GENERATED: Claude Code] -->
 # C1b proposal: software trigger rule (CONTRACTS C1.9, decision B2)
 
 Author: research-trigger (ticket S2-2), 2026-11-14. **Status: Reviewed (S2-2R), fix round applied 2026-11-14. Hadi decides.**
@@ -168,3 +169,4 @@ Spike self-checks (Python mirror = C): the recommended rule equals the code defa
 5. Should `capture_overruns` while idle also call `trigger_resync()` (proposed: yes, a gap invalidates the baseline and the ring)? This would CHANGE decided C1.6 ("OVRN while idle: count only"); without it the baseline keeps following the wand and later samples refill the ring, which is also safe with `quiet >= 16`.
 6. The Python recording tool must label continuous streams, so the raw-stream mode (C2) needs to be usable for long recordings; is that already planned (WP2)?
 7. Which hardware wake-up (IA1) threshold, if any, accompanies this rule? Not part of this proposal; it only needs to be lower than `threshold_mg` so it never masks a software trigger.
+<!-- [END AI-GENERATED] -->
