@@ -38,6 +38,7 @@ static int8_t   g_a[KNN_DIM];
 static int8_t   g_b[KNN_DIM];
 static uint8_t  g_blob1[KNN_BLOB_SIZE + 2u];
 static uint8_t  g_blob2[KNN_BLOB_SIZE + 2u];
+static uint8_t  g_blob3[KNN_BLOB_SIZE + 2u];
 
 static const uint8_t AMP_TAB[6] = {0u, 1u, 3u, 8u, 20u, 60u};
 static const uint8_t BAD_TAB[7] = {0u, 8u, 13u, 255u, 14u, 15u, 100u};
@@ -447,6 +448,193 @@ static void scenario(uint32_t seed, uint32_t s)
 }
 
 /**
+ * Fill a vector with a random "extreme" pattern that includes -128: each entry is -128, 127, uniform
+ * [-128, 127] or small [-3, 3] with equal probability (review 3.5R F5). Draws 1-2 values per entry.
+ *
+ * @param v Output vector (KNN_DIM entries).
+ * @return None.
+ */
+static void v_x128(int8_t *v)
+{
+    for (uint8_t i = 0u; i < KNN_DIM; i++) {
+        uint32_t ch = rnd() % 4u;
+        if (ch == 0u) { v[i] = (int8_t)-128; }
+        else if (ch == 1u) { v[i] = (int8_t)127; }
+        else if (ch == 2u) { v[i] = (int8_t)((int32_t)(rnd() % 256u) - 128); }
+        else { v[i] = (int8_t)((int32_t)(rnd() % 7u) - 3); }
+    }
+}
+
+/**
+ * Padding and NULL cases of knn_import / knn_export (review 3.5R F4). Store: class 9 holds 2 templates,
+ * class 10 holds 5 (no unused slot), class 11 none, class 12 one. For every class with unused slots, a
+ * non-zero byte in an unused slot with a repaired CRC must give -2 (store unchanged), the same byte
+ * without CRC repair gives -3 (CRC is checked before the padding). A changed byte in a USED slot with a
+ * repaired CRC is accepted (0). knn_import(NULL, len) must return -1 and knn_export(NULL, cap) 0, both
+ * leaving the store untouched. Prints "X name rc same" lines; leaves the original store in place.
+ *
+ * @return None.
+ */
+static void pad_tests(void)
+{
+    static const uint8_t VAL[3] = {0x01u, 0x80u, 0xFFu};
+    uint16_t size, n, same;
+    uint8_t c, kd, k;
+    char name[32];
+    static const char *const KIND[4] = {"first", "last", "mid", "norepair"};
+    knn_reset();
+    v_x128(g_a);
+    (void)knn_learn(9, g_a); v_x128(g_a); (void)knn_learn(9, g_a);
+    for (k = 0u; k < 5u; k++) { v_x128(g_a); (void)knn_learn(10, g_a); }
+    v_x128(g_a); (void)knn_learn(12, g_a);
+    size = knn_export(g_blob1, KNN_BLOB_SIZE);
+    if (size != KNN_BLOB_SIZE) { printf("X padnosize %ld\n", L(size)); return; }
+    for (c = 0u; c < GESTURE_MAX_LEARNED; c++) {
+        uint8_t cn = g_blob1[4u + 2u * c];
+        if (cn >= GESTURE_TEMPLATES_PER_CLASS) { continue; }
+        for (kd = 0u; kd < 4u; kd++) {
+            uint16_t base = (uint16_t)(4u + 2u * GESTURE_MAX_LEARNED + (uint16_t)c * GESTURE_TEMPLATES_PER_CLASS * KNN_DIM);
+            uint16_t at;
+            memcpy(g_blob2, g_blob1, size);
+            if (kd == 0u) { at = (uint16_t)(base + (uint16_t)cn * KNN_DIM); g_blob2[at] = VAL[0]; }
+            else if (kd == 1u) { at = (uint16_t)(base + (uint16_t)GESTURE_TEMPLATES_PER_CLASS * KNN_DIM - 1u); g_blob2[at] = VAL[1]; }
+            else if (kd == 2u) { at = (uint16_t)(base + (uint16_t)(GESTURE_TEMPLATES_PER_CLASS - 1u) * KNN_DIM + 30u); g_blob2[at] = VAL[2]; }
+            else { at = (uint16_t)(base + (uint16_t)cn * KNN_DIM + KNN_DIM - 1u); g_blob2[at] = 0x7Fu; }
+            (void)snprintf(name, sizeof name, "pad_%s_c%u", KIND[kd], (unsigned)c);
+            blob_case(name, size, kd < 3u);
+        }
+    }
+    /* a changed byte in a used slot (class 10, slot 0, byte 0) with a repaired CRC is a valid blob */
+    memcpy(g_blob2, g_blob1, size);
+    g_blob2[4u + 2u * GESTURE_MAX_LEARNED] ^= 0x55u;
+    {
+        uint16_t cr = crc16(g_blob2, (uint16_t)(size - 2u));
+        int8_t rc;
+        g_blob2[size - 2u] = (uint8_t)(cr & 0xFFu);
+        g_blob2[size - 1u] = (uint8_t)(cr >> 8);
+        memcpy(g_blob3, g_blob2, size);
+        rc = knn_import(g_blob2, size);
+        n = knn_export(g_blob2, KNN_BLOB_SIZE);
+        same = (n == size && memcmp(g_blob2, g_blob3, size) == 0) ? 1u : 0u;
+        printf("X pad_used_ok %ld %ld\n", L(rc), L(same));
+        rc = knn_import(g_blob1, size);
+        n = knn_export(g_blob2, KNN_BLOB_SIZE);
+        same = (n == size && memcmp(g_blob2, g_blob1, size) == 0) ? 1u : 0u;
+        printf("X pad_restore %ld %ld\n", L(rc), L(same));
+    }
+    /* NULL pointers: no crash, error value, store untouched (flush first: a crash would lose the buffer) */
+#ifndef __AVR__
+    (void)fflush(stdout);
+#endif
+    {
+        static const uint16_t LENS[3] = {KNN_BLOB_SIZE, 0u, 1u};
+        static const uint16_t CAPS[3] = {KNN_BLOB_SIZE, 0u, KNN_BLOB_SIZE + 2u};
+        static const char *const LN[3] = {"full", "zero", "one"};
+        for (k = 0u; k < 3u; k++) {
+            int8_t rc = knn_import(NULL, LENS[k]);
+            n = knn_export(g_blob2, KNN_BLOB_SIZE);
+            same = (n == size && memcmp(g_blob2, g_blob1, size) == 0) ? 1u : 0u;
+            (void)snprintf(name, sizeof name, "null_imp_%s", LN[k]);
+            printf("X %s %ld %ld\n", name, L(rc), L(same));
+        }
+        for (k = 0u; k < 3u; k++) {
+            uint16_t r = knn_export(NULL, CAPS[k]);
+            n = knn_export(g_blob2, KNN_BLOB_SIZE);
+            same = (n == size && memcmp(g_blob2, g_blob1, size) == 0) ? 1u : 0u;
+            (void)snprintf(name, sizeof name, "null_exp_%s", LN[k]);
+            printf("X %s %ld %ld\n", name, L(r), L(same));
+        }
+    }
+}
+
+/**
+ * Edge cases added for review 3.5R F4-F6, run after all older directed cases and with its own PRNG seed
+ * (so no earlier stream changes): x8 = -128 directed and random scenarios (F5), classify_mlp_conf edges
+ * "DE" (F6), padding / NULL import-export cases (F4).
+ *
+ * @return None.
+ */
+static void edges(void)
+{
+    static const int32_t E0[7] = {0, 1, 16319, 16320, 16321, 0x40000000, 0x7FFFFFFF};   /* 255<<6 +-1 */
+    static const int32_t E255[7] = {0, 1, 254, 255, 256, 0x40000000, 0x7FFFFFFF};       /* 255<<0 +-1 */
+    static const int32_t E24[6] = {0, 1, 0x00FFFFFF, 0x01000000, 0x40000000, 0x7FFFFFFF};
+    uint8_t i, j;
+    uint32_t sc;
+    knn_result_t r;
+    g_rng = 0x00128128u;
+    /* F6: classify_mlp_conf = min(255, margin >> shift) for margin >= 0, shift 0..24 */
+    for (i = 0u; i < 7u; i++) { printf("DE %ld 0 %ld\n", L(E255[i]), L(classify_mlp_conf(E255[i], 0u))); }
+    for (i = 0u; i < 7u; i++) { printf("DE %ld 6 %ld\n", L(E0[i]), L(classify_mlp_conf(E0[i], 6u))); }
+    for (i = 0u; i < 6u; i++) { printf("DE %ld 24 %ld\n", L(E24[i]), L(classify_mlp_conf(E24[i], 24u))); }
+    /* F5: directed -128 */
+    knn_reset();
+    v_mk(g_a, -128, 0, 0); v_mk(g_b, 127, 0, 0);
+    (void)knn_learn(9, g_a); (void)knn_learn(10, g_b);
+    printf("DX128 %ld %ld\n", L(knn_l1(g_a, g_b)), L(knn_l1(g_b, g_a)));
+    T_case("n_a", g_a, 3u, 0, 0u, 64u);
+    T_case("n_b", g_b, 3u, 0, 0u, 64u);
+    v_mk(g_win, 0, 0, 0);
+    T_case("n_z", g_win, 3u, 0, 0u, 64u);
+    v_mk(g_win, 127, 30, -128);
+    T_case("n_m", g_win, 3u, 0, 0u, 64u);
+    v_mk(g_win, -128, 1, 127);
+    T_case("n_o", g_win, 3u, 255, 0u, 64u);
+    knn_reset();
+    (void)knn_learn(9, g_a);
+    T_case("n_far", g_b, 3u, 255, 0u, 64u);
+    (void)knn_learn(9, g_b);
+    printf("DR %ld\n", L(knn_radius(9)));
+    T_case("n_rad", g_b, 3u, 0, 0u, 1u);
+    T_case("n_rad2", g_a, 0u, 10, 0u, 1u);
+    /* F5: random scenarios with -128 */
+    for (sc = 0u; sc < 40u; sc++) {
+        uint8_t nl = (uint8_t)(1u + rnd() % 12u);
+        printf("S128 %lu\n", (unsigned long)sc);
+        knn_reset();
+        for (i = 0u; i < nl; i++) {
+            uint8_t id = (uint8_t)(9u + rnd() % 4u);
+            v_x128(g_cur);
+            memcpy(g_last, g_cur, KNN_DIM);
+            printf("L128 %ld %ld\n", L(id), L(knn_learn(id, g_cur)));
+        }
+        report_state("e");
+        for (i = 0u; i < 5u; i++) {
+            uint32_t mode = rnd() % 3u;
+            bool have;
+            uint8_t top1;
+            uint8_t sh;
+            int32_t margin;
+            uint8_t mc;
+            if (mode == 0u) { v_x128(g_win); }
+            else if (mode == 1u) { memcpy(g_win, g_last, KNN_DIM); }
+            else {
+                int8_t fill = ((rnd() & 1u) != 0u) ? (int8_t)127 : (int8_t)-128;   /* draw order fixed */
+                uint8_t nn = (uint8_t)(rnd() % 61u);
+                v_mk(g_win, fill, nn, (int8_t)-128);
+            }
+            have = emit_query(g_win, &r);
+            for (j = 0u; j < 2u; j++) {
+                top1 = (uint8_t)(rnd() % 9u);
+                sh = (uint8_t)(rnd() % 25u);
+                margin = (int32_t)(rnd() & 0xFFFFFFu);
+                mc = MC_TAB[rnd() % 7u];
+                emit_decide("D128", top1, margin, sh, mc, have ? &r : NULL);
+            }
+        }
+    }
+    for (i = 0u; i < GESTURE_MAX_LEARNED; i++) { v_x128(g_base[i]); }
+    knn_reset();
+    for (j = 0u; j < 6u; j++) {
+        for (i = 0u; i < 4u; i++) { v_x128(g_cur); (void)knn_learn((uint8_t)(9u + i), g_cur); }
+    }
+    report_state("x");
+    io_tests(8u, 0u);
+    /* F4 */
+    pad_tests();
+}
+
+/**
  * Directed cases: C5 §2 table, min_conf sweeps, d2 == 0, radius boundaries and clamps, template growth and
  * overwrite, cross-class tie rule, x8 extremes, learn ids, classify_mlp_conf table, blob I/O.
  *
@@ -594,6 +782,7 @@ static void directed(void)
     }
     report_state("w");
     io_tests(8u, 1u);
+    edges();
 }
 
 /**

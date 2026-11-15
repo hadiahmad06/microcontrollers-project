@@ -140,6 +140,31 @@ def v_mk(fill, n, val):
     return [val if i < n else fill for i in range(DIM)]
 
 
+def v_x128(rng):
+    """Random vector that includes -128 (review 3.5R F5), mirror of test_classify.c v_x128(): per entry one
+    draw ch = next() % 4; 0 gives -128, 1 gives 127, 2 gives next() % 256 - 128 (a second draw), 3 gives
+    next() % 7 - 3 (a second draw).
+
+    Args:
+        rng: the Rng to draw from.
+
+    Returns:
+        List of DIM ints in [-128, 127].
+    """
+    v = []
+    for _ in range(DIM):
+        ch = rng.next() % 4
+        if ch == 0:
+            v.append(-128)
+        elif ch == 1:
+            v.append(127)
+        elif ch == 2:
+            v.append(rng.next() % 256 - 128)
+        else:
+            v.append(rng.next() % 7 - 3)
+    return v
+
+
 # ----------------------------------------------------------------------------- spec model
 def crc16(data):
     """CRC-16/IBM-3740: poly 0x1021, init 0xFFFF, no reflection, xorout 0.
@@ -722,6 +747,112 @@ class Replay:
                 k.learn(9 + i, v_noisy(rng, self.base[i], 8))
         self.report_state("w")
         self.io_tests(8, True)
+        self.edges()
+
+    def pad_tests(self):
+        """Expected lines of test_classify.c pad_tests() (review 3.5R F4 ruling).
+
+        Store: class 9 two templates, class 10 five, class 11 none, class 12 one (templates from v_x128).
+        For each class with an unused slot: a non-zero byte there with a repaired CRC gives -2, without
+        CRC repair -3 (CRC is checked before the padding); the store is unchanged (same = 1). A changed
+        byte of a used slot with a repaired CRC is accepted (0) and re-exports as imported; importing the
+        original blob again restores it. knn_import(NULL, len) is -1 and knn_export(NULL, cap) is 0, with
+        the store untouched.
+
+        Returns:
+            None (appends lines to self.out).
+        """
+        rng, k = self.rng, self.k
+        k.reset()
+        k.learn(9, v_x128(rng))
+        k.learn(9, v_x128(rng))
+        for _ in range(5):
+            k.learn(10, v_x128(rng))
+        k.learn(12, v_x128(rng))
+        for c in range(NCLS):
+            if k.cnt[c] >= NSLOT:
+                continue
+            for kind, rc in (("first", -2), ("last", -2), ("mid", -2), ("norepair", -3)):
+                self.p("X pad_%s_c%d %d 1" % (kind, c, rc))
+        self.p("X pad_used_ok 0 1")
+        self.p("X pad_restore 0 1")
+        for nm in ("full", "zero", "one"):
+            self.p("X null_imp_%s -1 1" % nm)
+        for nm in ("full", "zero", "one"):
+            self.p("X null_exp_%s 0 1" % nm)
+
+    def edges(self):
+        """Edge cases of review 3.5R F4-F6, mirror of test_classify.c edges(): classify_mlp_conf lines "DE",
+        directed -128 cases, 40 random scenarios with -128 (own PRNG state), a -128 blob round trip, pad_tests.
+
+        Returns:
+            None (appends lines to self.out).
+        """
+        k, rng = self.k, self.rng
+        rng.s = 0x00128128
+        e255 = [0, 1, 254, 255, 256, 0x40000000, 0x7FFFFFFF]
+        e6 = [0, 1, 16319, 16320, 16321, 0x40000000, 0x7FFFFFFF]
+        e24 = [0, 1, 0x00FFFFFF, 0x01000000, 0x40000000, 0x7FFFFFFF]
+        for m in e255:
+            self.p("DE %d 0 %d" % (m, mlp_conf(m, 0)))
+        for m in e6:
+            self.p("DE %d 6 %d" % (m, mlp_conf(m, 6)))
+        for m in e24:
+            self.p("DE %d 24 %d" % (m, mlp_conf(m, 24)))
+        k.reset()
+        a = v_mk(-128, 0, 0)
+        b = v_mk(127, 0, 0)
+        k.learn(9, a)
+        k.learn(10, b)
+        self.p("DX128 %d %d" % (l1(a, b), l1(b, a)))
+        self.T_case("n_a", a, 3, 0, 0, 64)
+        self.T_case("n_b", b, 3, 0, 0, 64)
+        self.T_case("n_z", v_mk(0, 0, 0), 3, 0, 0, 64)
+        self.T_case("n_m", v_mk(127, 30, -128), 3, 0, 0, 64)
+        self.T_case("n_o", v_mk(-128, 1, 127), 3, 255, 0, 64)
+        k.reset()
+        k.learn(9, a)
+        self.T_case("n_far", b, 3, 255, 0, 64)
+        k.learn(9, b)
+        self.p("DR %d" % k.radius(9))
+        self.T_case("n_rad", b, 3, 0, 0, 1)
+        self.T_case("n_rad2", a, 0, 10, 0, 1)
+        for sc in range(40):
+            nl = 1 + rng.next() % 12
+            self.p("S128 %d" % sc)
+            k.reset()
+            for _ in range(nl):
+                ident = 9 + rng.next() % 4
+                cur = v_x128(rng)
+                self.last = list(cur)
+                self.p("L128 %d %d" % (ident, k.learn(ident, cur)))
+            self.report_state("e")
+            for _ in range(5):
+                mode = rng.next() % 3
+                if mode == 0:
+                    win = v_x128(rng)
+                elif mode == 1:
+                    win = list(self.last)
+                else:
+                    fill = 127 if (rng.next() & 1) else -128
+                    nn = rng.next() % 61
+                    win = v_mk(fill, nn, -128)
+                q = self.emit_query(win)
+                for _j in range(2):
+                    top1 = rng.next() % 9
+                    sh = rng.next() % 25
+                    margin = rng.next() & 0xFFFFFF
+                    mc = MC_TAB[rng.next() % 7]
+                    self.emit_decide("D128", top1, margin, sh, mc, q)
+        for i in range(NCLS):
+            self.base[i] = v_x128(rng)
+        k.reset()
+        for _j in range(6):
+            for i in range(4):
+                k.learn(9 + i, v_x128(rng))
+        self.report_state("x")
+        self.io_tests(8)
+        self.pad_tests()
 
 
 def expected(seed, nscen):

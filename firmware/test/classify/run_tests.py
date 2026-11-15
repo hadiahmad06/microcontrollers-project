@@ -39,7 +39,14 @@ LITERAL_T = {"rmin_eq": (9, 255), "rmin_over": (-1, 0), "rdef_eq": (9, 255), "rd
              "rmax_eq": (9, 255), "rmax_over": (-1, 0), "rmid_eq": (9, 255), "rmid_over": (-1, 0)}
 # Metadata import cases: 3 directed io_tests calls x 4 classes x 8 cases (6 repaired-CRC -> -2, 2 unrepaired -> -3).
 META_EXPECTED = 3 * 4 * 8
-LITERAL_LINES = ["G 10673", "DX 15240", "DR 600", "DR 1200", "DR 4000", "DR 2000"]
+LITERAL_LINES = ["G 10673", "DX 15240", "DR 600", "DR 1200", "DR 4000", "DR 2000",
+                 "DX128 15300 15300", "DE 2147483647 0 255", "DE 16319 6 254", "DE 16320 6 255",
+                 "DE 16321 6 255", "DE 1073741824 24 64", "DE 2147483647 24 127", "DE 0 24 0"]
+# Review 3.5R F4: padding / NULL import cases: 3 classes with unused slots x 4 kinds + used_ok + restore; 6 NULL calls.
+PAD_EXPECTED = 3 * 4 + 2
+NULL_EXPECTED = 6
+# Review 3.5R F6: classify_mlp_conf edge lines "DE margin shift conf": 7 + 7 + 6.
+DE_EXPECTED = 20
 
 
 def compare(label, got, exp, fails):
@@ -86,6 +93,7 @@ def literal_checks(label, got, fails):
     lastq = None
     seen_t = set()
     nmeta = 0
+    nde = npad = nnull = 0
     for ln in got:
         if ln.startswith("X meta_"):
             f = ln.split()
@@ -93,6 +101,27 @@ def literal_checks(label, got, fails):
             nmeta += 1
             if (int(f[2]), int(f[3])) != (want, 1):
                 fails.append("%s: metadata case %s got rc %s same %s, expected rc %d same 1" % (label, f[1], f[2], f[3], want))
+        if ln.startswith("DE "):
+            f = ln.split()
+            nde += 1
+            if int(f[3]) != min(255, int(f[1]) >> int(f[2])):
+                fails.append("%s: classify_mlp_conf edge '%s' expected %d" % (label, ln, min(255, int(f[1]) >> int(f[2]))))
+        if ln.startswith("X pad_") or ln.startswith("X null_"):
+            f = ln.split()
+            if f[1].startswith("null_imp_"):
+                want = (-1, 1)
+            elif f[1].startswith("null_exp_"):
+                want = (0, 1)
+            elif f[1] in ("pad_used_ok", "pad_restore"):
+                want = (0, 1)
+            else:
+                want = (-3 if "norepair" in f[1] else -2, 1)
+            if f[1].startswith("null_"):
+                nnull += 1
+            else:
+                npad += 1
+            if (int(f[2]), int(f[3])) != want:
+                fails.append("%s: case %s got rc %s same %s, expected rc %d same %d" % (label, f[1], f[2], f[3], want[0], want[1]))
         if ln.startswith("Q "):
             lastq = ln
         elif ln.startswith("T "):
@@ -114,6 +143,10 @@ def literal_checks(label, got, fails):
             fails.append("%s: expected line '%s' not found" % (label, lit))
     if nmeta != META_EXPECTED:
         fails.append("%s: %d metadata import lines, expected %d" % (label, nmeta, META_EXPECTED))
+    for what, have, want in (("padding import", npad, PAD_EXPECTED), ("NULL", nnull, NULL_EXPECTED),
+                             ("mlp_conf edge", nde, DE_EXPECTED)):
+        if have != want:
+            fails.append("%s: %d %s lines, expected %d" % (label, have, what, want))
     return nmeta
 
 
@@ -165,6 +198,7 @@ def check(label, cmd, seed, nscen, timeout):
         return False
     print("PASS %s: metadata import checks, %d cases (count > 5, next >= 5, count < 5 with next != count -> -2; "
           "flip without CRC repair -> -3; store unchanged)" % (label, nmeta))
+    print("PASS %s: F4 padding/NULL import cases, F5 -128 inputs, F6 classify_mlp_conf edges" % label)
     print("PASS %s: directed cases + %d scenarios, %d lines match the oracle" % (label, nscen, len(exp)))
     return True
 
