@@ -19,17 +19,19 @@ typedef struct { uint16_t overruns; uint16_t windows; uint16_t early_triggers; }
 void capture_init(void);
 /** IDLE -> ARMED, any other state unchanged. @return None. */
 void capture_arm(void);
-/** Any state except READY -> IDLE (an open window is dropped, nothing counted). @return None. */
-void capture_disarm(void);
+/** Any state except READY -> IDLE (an open window is dropped, nothing counted); ring untouched.
+ *  @return true iff an open window was dropped (CAPTURING -> IDLE). */
+bool capture_disarm(void);
 /**
- * Feed one sample in stream order.
+ * Feed one sample in stream order; it enters the ring in every state.
  * @param s       Wand-frame X, Y, Z.
  * @param trigger True when the trigger rule fired on this sample.
- * @return None.
+ * @return true iff this call opened a window (ARMED -> CAPTURING); false otherwise.
  */
-void capture_push(const int16_t s[3], bool trigger);
-/** FIFO overrun seen: count it, empty the ring, drop an open window. @return None. */
-void capture_overrun(void);
+bool capture_push(const int16_t s[3], bool trigger);
+/** FIFO overrun seen: count it, empty the ring (all states), drop an open window.
+ *  @return true iff an open window was dropped (CAPTURING -> ARMED). */
+bool capture_overrun(void);
 /** READY -> ARMED. @return true if the state was READY, else false with no change. */
 bool capture_release(void);
 /** @return Current state. */

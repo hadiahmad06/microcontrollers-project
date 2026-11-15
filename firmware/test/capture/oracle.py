@@ -14,11 +14,14 @@ rulings in the ticket), never from the implementation. It holds
 Script grammar (space separated tokens, op letter + optional decimal count, default 1):
   I init   A arm   D disarm   R release   O overrun   P plain push   T push with trigger flag
 
-Unknown-ring rule ("amb"): the spec does not say whether a push while IDLE enters the ring, nor
-whether disarm clears it. After such an event the oracle treats the ring count as unknown (the
-expected line holds "*", a wildcard) until 16 pushes happened in a non-IDLE state, and it refuses
-(ScriptError) to build a script that fires a trigger while the honour/early decision would depend
-on that unknown. See the report for the open question.
+Ring rulings (main agent, final): every pushed sample enters the 16-entry ring in EVERY state
+(IDLE included); arm, disarm and release never touch the ring; overrun empties it in every state.
+Return values: push is True iff the call opened a window (ARMED -> CAPTURING); disarm and overrun
+are True iff the call dropped an open window; release is True iff READY -> ARMED.
+
+Script grammar additions: "(body)N" repeats body N times (no nesting). Dump mode 3 is "sparse": an E
+line is printed only for every 4096th event of the script and while a counter is within 2 of the
+uint16_t wrap point (used by the counter-wrap scripts).
 
 Usage: python3 oracle.py --emit-header | python3 oracle.py SEED NEPISODES
 """
@@ -33,12 +36,15 @@ OVR_TAB = [0, 2, 6, 20]         # per mille of events that are overruns
 REL_TAB = [10, 30, 80]          # per mille of events that are releases
 
 
-class ScriptError(Exception):
-    """A script asks for a behaviour the spec leaves open."""
-
-
 def sample(n):
-    """Return the 3-axis sample for stream index n (unique per n below 2**24, axes differ)."""
+    """Return the 3-axis sample for a stream index.
+
+    Args:
+        n: stream index (unique samples below 2**24; the three axes differ).
+
+    Returns:
+        A tuple (x, y, z), every value in [-2048, 2047].
+    """
     x = (n & 0xFFF) - 2048
     y = ((n >> 12) & 0xFFF) - 2048
     z = ((((n * 37) & M32) ^ (n >> 5)) & 0xFFF) - 2048
@@ -46,11 +52,24 @@ def sample(n):
 
 
 def _build_directed():
-    """Build the list of (name, script, dump) directed scenarios from the ticket's mandatory list."""
+    """Build the directed scenarios.
+
+    Returns:
+        A list of (name, script, dump) tuples; dump is 0 none, 1 full dumps, 3 sparse output.
+    """
     d = []
 
     def add(name, script, dump=1):
-        """Append one directed scenario."""
+        """Append one directed scenario.
+
+        Args:
+            name: scenario name (printed in the S line).
+            script: script text, grammar in the module docstring.
+            dump: dump mode (0 none, 1 full buffer dumps, 3 sparse).
+
+        Returns:
+            None.
+        """
         d.append((name, script, dump))
 
     # trigger at the 15th pushed sample is early, at the 16th it is honoured
@@ -83,6 +102,34 @@ def _build_directed():
     add("disarm_ready", "I A P15 T P134 D P3 A R P20 T P134")
     add("init_midstream", "I A P20 T P50 I A P15 T P134")
     add("init_in_ready", "I A P15 T P134 I A P15 T P133 P R")
+    # ring rulings: IDLE pushes enter the ring; disarm/arm/release leave it alone; overrun empties it
+    add("idle_ring_honoured", "I P20 A T P134 R")
+    add("idle_ring_exact15", "I P15 A T P134 R")
+    add("idle_ring_14_early", "I P14 A T P1 T P134 R")
+    add("idle_ring_5_early", "I P5 A T")
+    add("idle_ring_5_early_more", "I P5 A T P3 T P10 T P134")
+    add("disarm_keeps_ring", "I A P20 D P3 A T P134 R")
+    add("disarm_keeps_ring_idle_fill", "I A P3 D P12 A T P134 R")
+    add("disarm_short_ring_early", "I A P5 D A T P3 T P134")
+    add("disarm_open_window_ring", "I A P20 T P5 D P20 A T P134 R")
+    add("disarm_open_window_early", "I A P20 T P5 D O P5 A T P3 T P134")
+    add("idle_after_overrun_early", "I A P20 D O P10 A T P3 T P134")
+    add("idle_after_overrun_honoured", "I A P20 D O P15 A T P134 R")
+    add("idle_overrun_idle_push", "I P20 O P3 A T P5")
+    add("overrun_empties_idle_ring", "I P20 O A T P20 T P134")
+    add("arm_keeps_ring", "I P3 A P12 T P134 R")
+    add("arm_keeps_ring_early", "I P3 A P11 T P3 T P134 R")
+    add("release_keeps_ring", "I A P15 T P134 P3 R T P134 R")
+    add("disarm_ready_ring", "I A P15 T P134 D D P5 R P20 T P134 R")
+    add("disarm_ready_ring_keep", "I A P15 T P134 D P3 R D P3 A T P134")
+    add("disarm_capt_then_trig", "I A P20 T P5 D A T P134 R")
+    add("disarm_capt_149", "I A P20 T P133 D A T P134 R")
+    add("ovr_after_disarm_ready", "I A P15 T P134 D O R P5 T P1 T P134")
+    # NOTE: the windows counter (uint16_t) is NOT wrap-tested: 65536 windows need 9.8 M pushes, and the
+    # Python oracle needs well over 5 s for that (about 1-2 us per event), so the check is not cheap.
+    # counter wrap (uint16_t): 65536 overruns, 65536 early triggers (O empties the ring so the next T is early)
+    add("wrap_overruns", "I O65535 A P20 O T P2 O65536 P3 T", 3)
+    add("wrap_early_triggers", "I A (O T)65538 P20 T P134 R", 3)
     # long runs / wrap
     add("wrap5000", "I A P5000 T P134 R", 1)
     add("back_to_back", "I A P16 " + "T P134 R " * 12 + "T P134", 0)
@@ -96,12 +143,46 @@ def _build_directed():
 DIRECTED = _build_directed()
 
 
-def parse(script):
-    """Split a script into (op, count) pairs."""
+def expand(script):
+    """Expand a script into the flat sequence of event letters.
+
+    Args:
+        script: script text; tokens are an op letter with an optional decimal repeat count, or a
+            group "(ops)N" (no nesting) that repeats its ops N times.
+
+    Returns:
+        A list of single-character op letters.
+    """
     out = []
-    for tok in script.split():
-        cnt = int(tok[1:]) if len(tok) > 1 else 1
-        out.append((tok[0], cnt))
+    i = 0
+    n = len(script)
+
+    def count(j):
+        """Parse an optional decimal repeat count.
+
+        Args:
+            j: index of the first possible digit.
+
+        Returns:
+            (count, next_index); count is 1 when there are no digits.
+        """
+        k = j
+        while k < n and script[k].isdigit():
+            k += 1
+        return (int(script[j:k]) if k > j else 1), k
+
+    while i < n:
+        c = script[i]
+        if c == " ":
+            i += 1
+        elif c == "(":
+            e = script.index(")", i)
+            body = expand(script[i + 1:e])
+            cnt, i = count(e + 1)
+            out.extend(body * cnt)
+        else:
+            cnt, i = count(i + 1)
+            out.extend([c] * cnt)
     return out
 
 
@@ -109,13 +190,24 @@ class Rng:
     """xorshift32 (13, 17, 5), identical to test_capture.c."""
 
     def __init__(self, seed):
-        """Seed the generator exactly like the C driver."""
+        """Seed the generator exactly like the C driver.
+
+        Args:
+            seed: test seed (any integer; masked to 32 bits).
+
+        Returns:
+            None.
+        """
         self.s = (seed ^ 0x9E3779B9) & M32
         if self.s == 0:
             self.s = 1
 
     def next(self):
-        """Return the next 32-bit value."""
+        """Advance the generator.
+
+        Returns:
+            The next 32-bit value.
+        """
         x = self.s
         x ^= (x << 13) & M32
         x ^= x >> 17
@@ -128,60 +220,81 @@ class Model:
     """The capture state machine as written in the spec and the main-agent rulings."""
 
     def __init__(self):
-        """Start in the post-init state."""
+        """Start in the post-init state.
+
+        Returns:
+            None.
+        """
         self.init()
 
     def init(self):
-        """capture_init: IDLE, ring empty, no window, statistics zero (assumption, see report)."""
+        """capture_init: IDLE, ring empty, no window, statistics zero.
+
+        Returns:
+            None.
+        """
         self.state = IDLE
         self.ring = []
-        self.amb = 0
         self.buf = []
         self.ov = self.wi = self.et = 0
         self.cache = None
 
     def ring_count(self):
-        """Ring fill count, or None when unknown (see module docstring)."""
-        return None if self.amb > 0 else len(self.ring)
+        """Report the ring fill.
+
+        Returns:
+            Number of samples in the ring, 0..16.
+        """
+        return len(self.ring)
 
     def push(self, s, trig):
-        """capture_push: ring push, trigger test (ARMED only), window append, strictly in order."""
+        """capture_push: ring push (every state), trigger test (ARMED only), window append.
+
+        Args:
+            s: the (x, y, z) sample.
+            trig: True when the trigger flag is set on this sample.
+
+        Returns:
+            True iff this call opened a window (ARMED -> CAPTURING); False otherwise.
+        """
         st = self.state
-        since = RING - self.amb            # pushes since the unknown event (valid when amb > 0)
         before = len(self.ring)
         self.ring.append(s)
         del self.ring[:-RING]
-        if st == IDLE:
-            self.amb = RING
-            return
         if st == ARMED and trig:
-            if self.amb > 0 and since < PRE:
-                raise ScriptError("trigger decision depends on the unspecified ring state")
             if before >= PRE:
                 self.buf = list(self.ring)          # 15 before (oldest first) + the trigger sample
                 self.state = CAPT
-            else:
-                self.et += 1
+                return True
+            self.et = (self.et + 1) & 0xFFFF
         elif st == CAPT:
             self.buf.append(s)
             if len(self.buf) == LEN:
                 self.state = READY
-                self.wi += 1
+                self.wi = (self.wi + 1) & 0xFFFF
                 self.cache = None
-        if self.amb > 0:
-            self.amb -= 1
+        return False
 
     def overrun(self):
-        """capture_overrun: count it, empty the ring, drop an open window (CAPTURING -> ARMED)."""
-        self.ov += 1
+        """capture_overrun: count it, empty the ring (all states), drop an open window.
+
+        Returns:
+            True iff an open window was dropped (CAPTURING -> ARMED); False otherwise.
+        """
+        self.ov = (self.ov + 1) & 0xFFFF
         self.ring = []
-        self.amb = 0
         if self.state == CAPT:
             self.state = ARMED
             self.buf = []
+            return True
+        return False
 
     def release(self):
-        """capture_release: READY -> ARMED returning True, anything else False with no change."""
+        """capture_release: READY -> ARMED; the ring is not touched.
+
+        Returns:
+            True when the state was READY, else False with no change.
+        """
         if self.state == READY:
             self.state = ARMED
             self.buf = []
@@ -189,20 +302,37 @@ class Model:
         return False
 
     def arm(self):
-        """capture_arm: IDLE -> ARMED only."""
+        """capture_arm: IDLE -> ARMED only; the ring is not touched.
+
+        Returns:
+            None.
+        """
         if self.state == IDLE:
             self.state = ARMED
 
     def disarm(self):
-        """capture_disarm: any state except READY -> IDLE, an open window is dropped, no count."""
-        if self.state != READY:
-            self.state = IDLE
-            self.buf = []
-            self.amb = RING
+        """capture_disarm: any state except READY -> IDLE; the ring is not touched, no count.
+
+        Returns:
+            True iff an open window was dropped (CAPTURING -> IDLE); False otherwise.
+        """
+        if self.state == READY:
+            return False
+        dropped = self.state == CAPT
+        self.state = IDLE
+        self.buf = []
+        return dropped
 
 
 def _checksum(buf):
-    """Order-sensitive 32-bit checksum of all 450 buffer values (mirror of the C driver)."""
+    """Order-sensitive 32-bit checksum of all 450 buffer values (mirror of the C driver).
+
+    Args:
+        buf: list of (x, y, z) rows.
+
+    Returns:
+        The checksum as an unsigned 32-bit integer.
+    """
     cs = 0
     for row in buf:
         for v in row:
@@ -211,7 +341,14 @@ def _checksum(buf):
 
 
 def _tri(rows):
-    """Format up to three samples as 'x,y,z x,y,z x,y,z'."""
+    """Format up to three samples as 'x,y,z x,y,z x,y,z'.
+
+    Args:
+        rows: list of (x, y, z) tuples.
+
+    Returns:
+        The formatted string.
+    """
     return " ".join("%d,%d,%d" % r for r in rows)
 
 
@@ -219,23 +356,47 @@ class Replay:
     """Mirror of the event executor and reporter of test_capture.c; collects the output lines."""
 
     def __init__(self):
-        """Create an empty replay."""
+        """Create an empty replay.
+
+        Returns:
+            None.
+        """
         self.out = []
         self.m = Model()
         self.n = 0
         self.prev = IDLE
         self.entries = 0
         self.dump = 0
+        self.idx = 0
         self.rng = None
 
     def begin(self, name, dump):
-        """Start a scenario: print its header and reset the per-scenario state."""
+        """Start a scenario: print its header and reset the per-scenario state.
+
+        Args:
+            name: scenario name.
+            dump: dump mode (0 none, 1 directed full dumps, 2 random, 3 sparse).
+
+        Returns:
+            None.
+        """
         self.out.append("S %s" % name)
         self.dump = dump
         self.prev = IDLE
+        self.idx = 0
 
     def ev(self, op):
-        """Execute one event on the model and append its report lines."""
+        """Execute one event on the model and append its report lines.
+
+        E line: E op ret state ring overruns windows early_triggers. ret is "-" for I and A and
+        the 0/1 return value of capture_push / disarm / overrun / release for the other ops.
+
+        Args:
+            op: one of I A D R O P T.
+
+        Returns:
+            None.
+        """
         m = self.m
         ret = "-"
         if op == "I":
@@ -243,16 +404,20 @@ class Replay:
         elif op == "A":
             m.arm()
         elif op == "D":
-            m.disarm()
+            ret = "1" if m.disarm() else "0"
         elif op == "R":
             ret = "1" if m.release() else "0"
         elif op == "O":
-            m.overrun()
+            ret = "1" if m.overrun() else "0"
         else:
-            m.push(sample(self.n), op == "T")
+            ret = "1" if m.push(sample(self.n), op == "T") else "0"
             self.n += 1
-        rc = m.ring_count()
-        self.out.append("E %s %s %d %s %d %d %d" % (op, ret, m.state, "*" if rc is None else rc,
+        self.idx += 1
+        if self.dump == 3 and not (self.idx % 4096 == 0 or m.ov <= 1 or m.ov >= 65534
+                                   or m.et <= 1 or m.et >= 65534):
+            self.prev = m.state
+            return
+        self.out.append("E %s %s %d %d %d %d %d" % (op, ret, m.state, m.ring_count(),
                                                     m.ov, m.wi, m.et))
         if m.state == READY:
             entry = self.prev != READY
@@ -272,15 +437,32 @@ class Replay:
         self.prev = m.state
 
     def script(self, name, text, dump):
-        """Run one directed script."""
+        """Run one directed script.
+
+        Args:
+            name: scenario name.
+            text: script text.
+            dump: dump mode.
+
+        Returns:
+            None.
+        """
         self.begin(name, dump)
         self.n = 0
-        for op, cnt in parse(text):
-            for _ in range(cnt):
-                self.ev(op)
+        for op in expand(text):
+            self.ev(op)
 
     def episode(self, k):
-        """Run random episode k, mirroring run_random() in test_capture.c exactly."""
+        """Run random episode k, mirroring run_random() in test_capture.c exactly.
+
+        Idle pushes (plain and with trigger flag) and mid-episode disarms are generated.
+
+        Args:
+            k: episode number.
+
+        Returns:
+            None.
+        """
         r = self.rng
         self.begin("rand%d" % k, 2)
         ptrig = TRIG_TAB[r.next() % 4]
@@ -292,15 +474,19 @@ class Replay:
         for _ in range(nev):
             x = r.next() % 1000
             if idle:
-                if x < 500:
+                if x < 400:
                     self.ev("A")
                     idle = False
-                elif x < 700:
+                elif x < 500:
                     self.ev("O")
-                elif x < 900:
+                elif x < 600:
                     self.ev("R")
-                else:
+                elif x < 650:
                     self.ev("I")
+                elif x < 900:
+                    self.ev("P")
+                else:
+                    self.ev("T")
             elif x < povr:
                 self.ev("O")
             elif x < povr + prel:
@@ -310,7 +496,10 @@ class Replay:
             elif x < povr + prel + 8:
                 self.ev("I")
                 idle = True
-            elif x < povr + prel + 8 + ptrig:
+            elif x < povr + prel + 12:
+                self.ev("D")
+                idle = True
+            elif x < povr + prel + 12 + ptrig:
                 self.ev("T")
             else:
                 self.ev("P")
@@ -319,7 +508,15 @@ class Replay:
 
 
 def expected(seed, nep):
-    """Expected program output for `seed` and `nep` random episodes (directed scripts first)."""
+    """Compute the expected program output.
+
+    Args:
+        seed: random-episode seed.
+        nep: number of random episodes (directed scripts always come first).
+
+    Returns:
+        The list of expected output lines.
+    """
     rp = Replay()
     for name, text, dump in DIRECTED:
         rp.script(name, text, dump)
@@ -332,7 +529,11 @@ def expected(seed, nep):
 
 
 def emit_header():
-    """Print build/scripts.h: the directed scripts as C data (single source of truth)."""
+    """Print build/scripts.h: the directed scripts as C data (single source of truth).
+
+    Returns:
+        None.
+    """
     print("/* GENERATED by oracle.py --emit-header. Do not edit. */")
     print("#define N_DIRECTED %du" % len(DIRECTED))
     print("static const struct { const char *name; const char *script; uint8_t dump; } DIRECTED[N_DIRECTED] = {")

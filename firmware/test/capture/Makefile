@@ -8,7 +8,7 @@ include $(ROOT)/firmware/test/common.mk
 IMPL_DIR ?= $(SRC_DIR)
 SEED  ?= 1
 NHOST ?= 1500
-NSIM  ?= 40
+NSIM  ?= 150
 IMPL_SRC := $(IMPL_DIR)/capture.c
 IMPL_HDR := $(wildcard $(IMPL_DIR)/*.h)
 .PHONY: test clean
