@@ -8,15 +8,20 @@
  * Oracles here are independent of the driver: the sample value is computed by floor division,
  * not by ">>", and the drain schedule comes from a counting model of the FIFO (model_drain).
  *
- * Reading of C1.4 used by default (DRAIN_MODEL A, "FSS < 16 at the re-read" is the stop test):
- *   F = read FIFO_SRC; if FSS == 0 stop; loop { burst min(FSS,16); re-read FIFO_SRC;
- *   if FSS < 16 stop; if 4 bursts done: more = true, stop }.   => FIFO_SRC reads = bursts + 1.
- * DRAIN_MODEL_B (make DRAIN_MODEL=B) instead keeps draining while FSS > 0 after the re-read.
+ * Main-agent rulings asserted here (ticket WP1-bT2):
+ *   R1 FIFO_SRC decode: unread n = FSS, except FSS == 0 && OVRN == 1 && EMPTY == 0 means n = 32.
+ *      Drain tests run under BOTH encodings of a full FIFO (saturating FSS = 31, wrapping FSS = 0).
+ *      Schedule (DRAIN_MODEL A, the only asserted one): F = read FIFO_SRC; if n == 0 stop;
+ *      loop { burst min(n,16); re-read FIFO_SRC; if n < 16 stop; if 4 bursts done: more = true,
+ *      stop }.   => FIFO_SRC reads = bursts + 1; *overrun from the first read only.
+ *      DRAIN_MODEL_B (make DRAIN_MODEL=B) is an optional oracle: keep draining while n > 0.
+ *   R2 unpack: a sign flip of -2048 gives 2047 (clamp to [-2048, 2047]); all else exact negation.
+ *   R3 lis3dh_read_click: exactly 1 if CLICK_SRC has IA (bit 6) and DCLICK (bit 5), else 0, or -3.
+ *   R4 axis table: out[k] = sign[k] * in[src[k]].
+ *   R5 the driver sets bit 7 of the sub-address (reg | 0x80) for every multi-byte read.
  *
- * Assumptions that the spec does not pin down (reported to the main agent as open questions):
- *   - axis table meaning: out[i] = sign[i] * in[src[i]]
- *   - lis3dh_address() returns the 7-bit address; lis3dh_read_click() returns > 0 for a double
- *     click (IA|DCLICK pending), 0 for none, LIS3DH_ERR_BUS on a bus error
+ * Assumptions the spec does not pin down:
+ *   - lis3dh_address() returns the 7-bit address
  *   - config registers CLICK_CFG 0x38, CLICK_THS 0x3A, TIME_LIMIT 0x3B, TIME_LATENCY 0x3C,
  *     TIME_WINDOW 0x3D (LIS3DH datasheet register map)
  */
@@ -33,6 +38,7 @@ static uint16_t g_fails;
 static uint16_t g_group_start;
 static uint16_t g_c1, g_c2;          /* case parameters printed with a failure */
 static const char *g_group = "";
+static fake_fss32_t g_enc = FAKE_FSS32_SATURATE;   /* how the fake reports a full FIFO (R1) */
 
 /**
  * Record one check result; prints the first few failures of a group.
@@ -106,7 +112,8 @@ static int16_t ref_value(uint16_t w)
 }
 
 /**
- * Reference axis remap: out[i] = sign[i] * in[src[i]].
+ * Reference axis remap (R4, R2): out[i] = sign[i] * in[src[i]], clamped to [-2048, 2047] so that
+ * -(-2048) gives 2047.
  *
  * @param in Sensor-frame values.
  * @param ax Axis table.
@@ -117,7 +124,8 @@ static void ref_remap(const int16_t in[3], const lis3dh_axes_t *ax, int16_t out[
 {
     uint8_t i;
     for (i = 0u; i < 3u; i++) {
-        out[i] = (int16_t)((int32_t)ax->sign[i] * (int32_t)in[ax->src[i]]);
+        int32_t v = (int32_t)ax->sign[i] * (int32_t)in[ax->src[i]];
+        out[i] = (int16_t)((v > 2047L) ? 2047L : v);
     }
 }
 
@@ -159,6 +167,7 @@ static const regval_t EXP_W[] = {
 static int8_t setup(uint8_t addr, const lis3dh_axes_t *ax)
 {
     fake_reset(addr);
+    fake_set_fss32(g_enc);
     return lis3dh_init(ax);
 }
 
@@ -393,15 +402,61 @@ static void t_unpack_axes(void)
             CHECK(out[0] == exp[0] && out[1] == exp[1] && out[2] == exp[2]);
         }
     }
-    /* sign flip of -2048: outside the C1 range [-2048, 2047]. NOT asserted: report only. */
+    /* R2: extremes through every permutation x sign pattern against the clamping reference,
+     * with the three extreme values rotated through the three input axes. */
     {
-        static const uint16_t E[3] = {0x8000u, 0x8000u, 0x8000u};
-        lis3dh_axes_t flip = {{0u, 1u, 2u}, {-1, -1, 1}};
-        make_raw(E, raw);
-        lis3dh_unpack(raw, &flip, out);
-        printf("INFO unpack(-2048) with sign -1 -> %d (C1 range max 2047); sign +1 -> %d\n",
-               (int)out[0], (int)out[2]);
-        CHECK(out[2] == -2048);                     /* sign +1 must stay -2048 */
+        static const uint16_t EXW[3] = {0x8000u, 0x7FF0u, 0x8010u};   /* -2048, 2047, -2047 */
+        uint8_t rot;
+        for (rot = 0u; rot < 3u; rot++) {
+            uint16_t w3[3];
+            int16_t ein[3];
+            for (i = 0u; i < 3u; i++) {
+                w3[i] = EXW[((uint16_t)i + rot) % 3u];
+                ein[i] = ref_value(w3[i]);
+            }
+            make_raw(w3, raw);
+            for (p = 0u; p < 6u; p++) {
+                for (s = 0u; s < 8u; s++) {
+                    lis3dh_axes_t ax;
+                    g_c1 = (uint16_t)(rot * 6u + p);
+                    g_c2 = s;
+                    for (i = 0u; i < 3u; i++) {
+                        ax.src[i] = P[p][i];
+                        ax.sign[i] = (int8_t)((((s >> i) & 1) != 0) ? -1 : 1);
+                    }
+                    ref_remap(ein, &ax, exp);
+                    lis3dh_unpack(raw, &ax, out);
+                    CHECK(out[0] == exp[0] && out[1] == exp[1] && out[2] == exp[2]);
+                }
+            }
+        }
+    }
+    /* R2 literals: sign -1 on each output position with the identity source: -2048 -> 2047,
+     * 2047 -> -2047, -2047 -> 2047; sign +1 leaves -2048 alone. */
+    {
+        static const uint16_t LW[3] = {0x8000u, 0x7FF0u, 0x8010u};
+        static const int16_t LV3[3][2] = {{2047, -2048}, {-2047, 2047}, {2047, -2047}};  /* flipped, kept */
+        uint8_t v, k, a;
+        for (v = 0u; v < 3u; v++) {
+            for (k = 0u; k < 3u; k++) {
+                for (a = 0u; a < 3u; a++) {            /* which input axis carries the value */
+                    uint16_t w3[3];
+                    lis3dh_axes_t ax = {{0u, 1u, 2u}, {1, 1, 1}};
+                    w3[0] = 0x0010u; w3[1] = 0x0010u; w3[2] = 0x0010u;
+                    w3[a] = LW[v];
+                    ax.src[k] = a;
+                    ax.sign[k] = -1;
+                    g_c1 = (uint16_t)(v * 3u + k);
+                    g_c2 = a;
+                    make_raw(w3, raw);
+                    lis3dh_unpack(raw, &ax, out);
+                    CHECK(out[k] == LV3[v][0]);
+                    ax.sign[k] = 1;
+                    lis3dh_unpack(raw, &ax, out);
+                    CHECK(out[k] == LV3[v][1]);
+                }
+            }
+        }
     }
 }
 
@@ -449,15 +504,29 @@ static void m_push(mdl_t *m, uint16_t k)
 }
 
 /**
- * FSS as the fake reports it in FAKE_FSS32_SATURATE mode: min(unread, 31).
+ * Raw FSS field (FIFO_SRC bits 4..0) as the fake reports it under the current encoding g_enc:
+ * saturating = min(unread, 31), wrapping = unread & 0x1F (0 at 32).
  *
  * @param m Model.
- * @return FSS value.
+ * @return FSS field value.
  */
 static uint8_t m_fss(const mdl_t *m)
 {
     uint16_t u = (uint16_t)(m->tail - m->head);
+    if (g_enc == FAKE_FSS32_WRAP) { return (uint8_t)(u & 0x1Fu); }
     return (uint8_t)((u > 31u) ? 31u : u);
+}
+
+/**
+ * Unread count a correct driver decodes from FIFO_SRC (R1): the true unread count 0..32,
+ * independent of the encoding.
+ *
+ * @param m Model.
+ * @return Unread samples.
+ */
+static uint8_t m_n(const mdl_t *m)
+{
+    return (uint8_t)(m->tail - m->head);
 }
 
 /** What one lis3dh_drain call must do, from the spec. */
@@ -466,14 +535,15 @@ typedef struct {
     uint16_t count;            /**< samples delivered */
     uint8_t  bursts;           /**< burst reads */
     uint8_t  bsz[4];           /**< samples in each burst */
-    uint8_t  fss[5];           /**< FSS seen by each FIFO_SRC read */
+    uint8_t  fss[5];           /**< raw FSS field seen by each FIFO_SRC read (encoding g_enc) */
     uint8_t  nreads;           /**< FIFO_SRC reads */
     uint8_t  more;             /**< expected *more */
     uint8_t  overrun;          /**< expected *overrun */
 } expect_t;
 
 /**
- * Run the C1.4 drain schedule on the model (see the file header for the two readings).
+ * Run the C1.4 drain schedule on the model with the R1 decode (see the file header for the two
+ * readings).
  *
  * @param m Model; advanced to the state after the drain.
  * @param k Samples that arrive after every burst.
@@ -482,35 +552,33 @@ typedef struct {
  */
 static void model_drain(mdl_t *m, uint8_t k, expect_t *e)
 {
-    uint8_t fss, n, i;
+    uint8_t n, i;
     e->count = 0u;
     e->bursts = 0u;
     e->more = 0u;
     e->nreads = 1u;
     e->overrun = (uint8_t)((uint16_t)(m->tail - m->head) == 32u);   /* OVRN = 32 unread, first read only */
-    fss = m_fss(m);
-    e->fss[0] = fss;
-    if (fss == 0u) { return; }
+    e->fss[0] = m_fss(m);
+    n = m_n(m);
+    if (n == 0u) { return; }
     for (;;) {
-        n = (uint8_t)((fss < 16u) ? fss : 16u);
+        n = (uint8_t)((n < 16u) ? n : 16u);
         e->bsz[e->bursts] = n;
         for (i = 0u; i < n; i++) { e->seq[e->count++] = m->head++; }
         e->bursts++;
         m_push(m, k);
-        fss = m_fss(m);
-        e->fss[e->bursts] = fss;
+        n = m_n(m);
+        e->fss[e->bursts] = m_fss(m);
         e->nreads++;
 #ifdef DRAIN_MODEL_B
-        if (fss == 0u) { break; }
-        if (e->bursts >= 4u) { e->more = (uint8_t)(fss >= 16u); break; }
+        if (n == 0u) { break; }
+        if (e->bursts >= 4u) { e->more = (uint8_t)(n >= 16u); break; }
 #else
-        if (fss < 16u) { break; }
+        if (n < 16u) { break; }
         if (e->bursts >= 4u) { e->more = 1u; break; }
 #endif
     }
 }
-
-static uint8_t g_msb_seen, g_msb_missing;   /* did the driver set bit 7 of the burst sub-address */
 
 /**
  * One drain scenario: init, preload level samples, add k samples after every burst, call
@@ -573,14 +641,15 @@ static void run_drain(const lis3dh_axes_t *ax, uint16_t level, uint8_t k)
             CHECK(t->reg == 0x28u);                /* starts at OUT_X_L */
             CHECK(b < 4u && t->n == (uint8_t)(6u * e.bsz[b]));
             CHECK(t->n % 6u == 0u && t->n / 6u >= 1u && t->n / 6u <= LIS3DH_BURST_MAX);
-            if ((t->flags & FAKE_F_MSB) != 0u) { g_msb_seen = 1u; } else { g_msb_missing = 1u; }
+            CHECK((t->flags & FAKE_F_MSB) != 0u);   /* R5: reg | 0x80 on a multi-byte read */
         }
     }
 }
 
 /**
- * Drain with 0, 1, 15, 16, 17, 31, 32 unread and overflowed FIFOs, no arrivals; plus literal
- * expectations (reading A only) so the model is not the only judge.
+ * Drain with 0, 1, 15, 16, 17, 31, 32 unread and overflowed FIFOs, no arrivals, under the
+ * encoding g_enc; plus literal expectations (reading A only) so the model is not the only judge,
+ * including the delivered order (R1: a full FIFO is drained, not skipped).
  *
  * @return None.
  */
@@ -604,15 +673,24 @@ static void t_drain_levels(void)
             uint8_t ov = 0xAAu;
             bool more = true;
             int16_t r;
+            uint16_t first, q;
             g_c1 = LIT[i].level;
-            g_c2 = 0u;
+            g_c2 = (uint16_t)g_enc;
             (void)setup(0x18u, &AX_ID);
             fake_push_next(LIT[i].level);
+            first = (LIT[i].level > 32u) ? (uint16_t)(LIT[i].level - 32u) : 0u;  /* oldest retained */
             rec.n = 0u;
             r = lis3dh_drain(rec_cb, &rec, &ov, &more);
             CHECK(r == LIT[i].ret);
+            CHECK(rec.n == (uint16_t)LIT[i].ret);
             CHECK(ov == LIT[i].ovr);
             CHECK(more == false);
+            for (q = 0u; q < rec.n && q < DRAIN_MAX; q++) {      /* oldest first, no gap */
+                CHECK(rec.s[q][0] == ref_value(fake_sample_word((uint16_t)(first + q), 0u)));
+                CHECK(rec.s[q][1] == ref_value(fake_sample_word((uint16_t)(first + q), 1u)));
+                CHECK(rec.s[q][2] == ref_value(fake_sample_word((uint16_t)(first + q), 2u)));
+            }
+
         }
     }
 #endif
@@ -631,7 +709,7 @@ static void t_drain_arrivals(void)
     static const struct { uint16_t level; uint8_t k; } BOUND[] = {
         {19u, 15u},  /* 19 -> 18 -> 17 -> 16 -> 15: 4 bursts, FSS 15 at the end: more = false */
         {20u, 15u},  /* ends at FSS 16: stopped by the bound, more = true */
-        {17u, 16u}, {32u, 16u}, {24u, 8u}
+        {17u, 16u}, {32u, 16u}, {24u, 8u}, {32u, 1u}, {32u, 15u}
     };
     uint8_t i, j;
     for (i = 0u; i < (uint8_t)(sizeof LV / sizeof LV[0]); i++) {
@@ -660,6 +738,27 @@ static void t_drain_arrivals(void)
         CHECK(more == true);                  /* FSS still >= 16 when the bound stopped it */
         CHECK(ov == 0u);                      /* 17 unread at the first read: no OVRN */
         CHECK(fake_log_count() == 9u);        /* 4 x (FIFO_SRC + burst) + final FIFO_SRC */
+    }
+    /* explicit: 32 unread (first FIFO_SRC may read FSS = 0) with 16 arriving per burst: 4 bursts of 16,
+     * the 5th FIFO_SRC read sees a full FIFO again (n = 32), so the bound stops it: more = true */
+    {
+        rec_t rec;
+        uint8_t ov = 0u;
+        bool more = false;
+        int16_t r;
+        g_c1 = 32u;
+        g_c2 = 16u;
+        (void)setup(0x18u, &AX_ID);
+        fake_push_next(32u);
+        fake_clear_log();
+        fake_set_arrivals(16u, 0xFFFFu);
+        rec.n = 0u;
+        r = lis3dh_drain(rec_cb, &rec, &ov, &more);
+        CHECK(r == 64);
+        CHECK(rec.n == 64u);
+        CHECK(more == true);
+        CHECK(ov == 1u);                      /* OVRN_FIFO at the first read */
+        CHECK(fake_log_count() == 9u);
     }
     /* overrun only from the FIRST FIFO_SRC read: later reads see 32 unread, flag stays 0 */
     {
@@ -762,62 +861,41 @@ static void t_drain_bus(void)
     }
 }
 
-/**
- * Informational runs (never fail the suite): FSS reported as 0 at 32 unread, burst sub-address
- * bit 7.
- *
- * @return None.
- */
-static void info_runs(void)
-{
-    rec_t rec;
-    uint8_t ov = 0xAAu;
-    bool more = false;
-    int16_t r;
-    (void)setup(0x18u, &AX_ID);
-    fake_set_fss32(FAKE_FSS32_WRAP);
-    fake_push_next(32u);
-    rec.n = 0u;
-    r = lis3dh_drain(rec_cb, &rec, &ov, &more);
-    printf("INFO FSS-wrap model (FSS=0, OVRN=1 at 32 unread): ret=%d delivered=%u overrun=%u more=%u left=%u\n",
-           (int)r, (unsigned)rec.n, (unsigned)ov, (unsigned)more, (unsigned)fake_fifo_level());
-    printf("INFO burst sub-address bit 7 (auto-increment) set by driver: %s%s\n",
-           g_msb_seen ? "yes" : "no", g_msb_missing ? " (missing on some bursts)" : "");
-}
-
 /* ---------------------------------------------------------------- click */
 
 /**
- * lis3dh_read_click: one CLICK_SRC read, clear-on-read seen through the driver, bus error.
+ * lis3dh_read_click (R3): exactly 1 when IA (bit 6) and DCLICK (bit 5) are both set, exactly 0
+ * otherwise, for all 256 CLICK_SRC values; one CLICK_SRC read per call; clear-on-read seen through
+ * the driver; LIS3DH_ERR_BUS on a bus error.
  *
  * @return None.
  */
 static void t_click(void)
 {
-    int8_t d, s, again, none;
+    uint16_t v;
+    int8_t r;
     (void)setup(0x18u, &AX_ID);
-    fake_clear_log();
-    fake_set_click_src(0x60u);                      /* IA | DCLICK */
-    d = lis3dh_read_click();
-    CHECK(fake_log_count() == 1u);
-    if (fake_log_count() >= 1u) {
-        const fake_txn_t *t = fake_log_get(0u);
-        CHECK(t->is_read == 1u && t->addr == 0x18u && t->reg == 0x39u && t->n == 1u);
+    for (v = 0u; v < 256u; v++) {
+        int8_t exp = (int8_t)(((v & 0x60u) == 0x60u) ? 1 : 0);
+        g_c1 = v;
+        fake_clear_log();
+        fake_set_click_src((uint8_t)v);
+        r = lis3dh_read_click();
+        CHECK(r == exp);
+        CHECK(fake_log_count() == 1u);
+        if (fake_log_count() >= 1u) {
+            const fake_txn_t *t = fake_log_get(0u);
+            CHECK(t->is_read == 1u && t->addr == 0x18u && t->reg == 0x39u && t->n == 1u);
+        }
     }
-    CHECK(d > 0);                                   /* a double click is reported */
-    again = lis3dh_read_click();                    /* CLICK_SRC cleared by the first read */
-    CHECK(again == 0);
-    fake_set_click_src(0x00u);
-    none = lis3dh_read_click();
-    CHECK(none == 0);
-    fake_set_click_src(0x50u);                      /* IA | SCLICK */
-    s = lis3dh_read_click();
-    CHECK(s >= 0);
-    printf("INFO click return codes: double=%d single=%d none=%d\n", (int)d, (int)s, (int)none);
-    (void)setup(0x19u, &AX_ID);                     /* address follows the probe result */
+    g_c1 = 0u;
+    fake_set_click_src(0x60u);
+    CHECK(lis3dh_read_click() == 1);
+    CHECK(lis3dh_read_click() == 0);                 /* CLICK_SRC cleared by the first read */
+    (void)setup(0x19u, &AX_ID);                      /* address follows the probe result */
     fake_clear_log();
     fake_set_click_src(0x60u);
-    CHECK(lis3dh_read_click() > 0);
+    CHECK(lis3dh_read_click() == 1);
     CHECK(fake_log_count() == 1u && fake_log_get(0u)->addr == 0x19u);
     fake_clear_log();
     fake_nack_txn(1u);
@@ -838,11 +916,16 @@ int main(void)
     group_begin("init faults"); t_init_faults(); group_end();
     group_begin("unpack table"); t_unpack_table(); group_end();
     group_begin("unpack axes"); t_unpack_axes(); group_end();
-    group_begin("drain levels"); t_drain_levels(); group_end();
-    group_begin("drain arrivals/bound/overrun"); t_drain_arrivals(); group_end();
-    group_begin("drain bus errors"); t_drain_bus(); group_end();
+    g_enc = FAKE_FSS32_SATURATE;                /* full FIFO reported as FSS = 31, OVRN = 1 */
+    group_begin("drain levels (FSS sat)"); t_drain_levels(); group_end();
+    group_begin("drain arrivals/bound/overrun (FSS sat)"); t_drain_arrivals(); group_end();
+    group_begin("drain bus errors (FSS sat)"); t_drain_bus(); group_end();
+    g_enc = FAKE_FSS32_WRAP;                    /* full FIFO reported as FSS = 0, OVRN = 1, EMPTY = 0 (R1) */
+    group_begin("drain levels (FSS wrap)"); t_drain_levels(); group_end();
+    group_begin("drain arrivals/bound/overrun (FSS wrap)"); t_drain_arrivals(); group_end();
+    group_begin("drain bus errors (FSS wrap)"); t_drain_bus(); group_end();
+    g_enc = FAKE_FSS32_SATURATE;
     group_begin("click"); t_click(); group_end();
-    info_runs();
     if (g_fails != 0u) {
         printf("lis3dh tests: %u checks FAILED\n", (unsigned)g_fails);
     } else {
