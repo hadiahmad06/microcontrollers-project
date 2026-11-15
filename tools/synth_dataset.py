@@ -14,10 +14,17 @@ Dataset format (WP2 tools): one .npz with
   session  uint16 [N]       optional, for grouped splits (here: pseudo-sessions, 12 groups)
   synthetic uint8 scalar    optional marker, 1 = synthetic (train.py then stamps its report)
 
+Class 0 ("none") starts in the same orientation distribution as the gestures (within 35 degrees of
+up), so the start orientation alone does not reveal the class (review W2-2R S1; checked by --selftest).
+Swipe signs follow the C1 wand frame, Y = left: a swipe to the RIGHT moves the tip toward -Y first
+(W2-2R S2). Pseudo-subject and pseudo-session ids carry NO signal (W2-2R S3): grouped splits test the
+splitting mechanics only.
+
 Motion onset is near sample 15 (the trigger position, C1.5) with +-3 samples of jitter.
 Shapes are adapted from our own spike docs/agent/hadi/spikes/trigger/synth.py (not copied code).
 
 Usage:  python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1
+        python3 tools/synth_dataset.py --selftest
 """
 import argparse
 import math
@@ -27,6 +34,7 @@ import numpy as np
 
 WINDOW_LEN = 150
 N_CLASSES = 9
+START_TILT_MAX_DEG = 35.0   # all classes start within this cone around up (Z)
 CLASS_NAMES = ["none", "swipe_right", "swipe_left", "raise", "push_down",
                "circle_cw", "circle_ccw", "twist", "thrust"]
 
@@ -37,6 +45,17 @@ def _unit(rng):
     a = rng.uniform(0.0, 2.0 * math.pi)
     r = math.sqrt(1.0 - z * z)
     return np.array([r * math.cos(a), r * math.sin(a), z])
+
+
+def _start_gravity(rng):
+    """Draw the starting gravity direction shared by ALL classes (including class 0).
+
+    Args: rng (numpy Generator, advanced in place: tilt first, then azimuth).
+    Returns: ndarray[3] unit vector within START_TILT_MAX_DEG of up (+Z), tilt uniform in angle.
+    """
+    tilt = math.radians(rng.uniform(0.0, START_TILT_MAX_DEG))
+    az = rng.uniform(0.0, 2.0 * math.pi)
+    return np.array([math.sin(tilt) * math.cos(az), math.sin(tilt) * math.sin(az), math.cos(tilt)])
 
 
 def _smooth(u):
@@ -74,7 +93,7 @@ def make_window(cls, rng):
     inside = ((u >= 0) & (u < 1)).astype(np.float64)
     uu = np.clip(u, 0.0, 1.0)
     if cls == 0:
-        g0 = _unit(rng)
+        g0 = _start_gravity(rng)
         kind = int(rng.integers(0, 4))
         g = np.tile(g0, (WINDOW_LEN, 1))
         if kind == 1:        # tremor
@@ -93,15 +112,13 @@ def make_window(cls, rng):
             ang = math.radians(rng.uniform(40, 110)) * _smooth((t - start) / span)
             g = _rot(g0, ax, ang)
     else:
-        tilt = math.radians(rng.uniform(0.0, 35.0))
-        az = rng.uniform(0.0, 2.0 * math.pi)
-        g0 = np.array([math.sin(tilt) * math.cos(az), math.sin(tilt) * math.sin(az), math.cos(tilt)])
+        g0 = _start_gravity(rng)
         g = np.tile(g0, (WINDOW_LEN, 1))
         s2 = np.sin(2 * math.pi * uu)
         c2 = np.cos(2 * math.pi * uu)
         hann = np.sin(math.pi * uu) ** 2
-        if cls in (1, 2):    # swipe along Y, push then brake
-            acc[:, 1] = (1 if cls == 1 else -1) * amp * s2 * inside
+        if cls in (1, 2):    # swipe along Y, push then brake; Y = left (C1.3), so right = -Y first
+            acc[:, 1] = (-1 if cls == 1 else 1) * amp * s2 * inside
         elif cls in (3, 4):  # pitch up / down about Y plus a Z pulse
             sg = 1 if cls == 3 else -1
             ang = sg * math.radians(rng.uniform(40, 80)) * _smooth(u)
@@ -151,13 +168,72 @@ def make_dataset(per_class, seed):
             "synthetic": np.array(1, dtype=np.uint8)}
 
 
+def start_tilt_deg(windows):
+    """Start tilt of each window, the angle between the median of its first 10 samples and +Z.
+
+    Args: windows (int16 ndarray [N,150,3]). Returns: float ndarray [N] degrees (0 = upright).
+    """
+    v = np.median(windows[:, :10, :].astype(np.float64), axis=1)
+    return np.degrees(np.arccos(np.clip(v[:, 2] / np.linalg.norm(v, axis=1), -1.0, 1.0)))
+
+
+def start_tilt_separability(d):
+    """Best a start-tilt-only rule can do for class 0 (review W2-2R S1).
+
+    The rule "class 0 iff start tilt > t" uses the tightest t with ZERO false positives among the
+    gesture windows (t = the largest gesture start tilt). Args: d (dict from make_dataset).
+    Returns: float, the share of class-0 windows that rule recognises (0..1).
+    """
+    tilt = start_tilt_deg(d["windows"])
+    lab = d["labels"]
+    t = float(tilt[lab != 0].max())
+    return float((tilt[lab == 0] > t).mean())
+
+
+def _selftest():
+    """Check shapes, determinism, the S1 orientation artefact and the S2 swipe signs.
+
+    Returns: 0 and prints "synth_dataset selftest PASS" on success; 1 after printing the reason.
+    """
+    d = make_dataset(150, 4)
+    d2 = make_dataset(150, 4)
+    if d["windows"].shape != (150 * N_CLASSES, WINDOW_LEN, 3) or d["windows"].dtype != np.int16:
+        print("FAIL windows shape or dtype")
+        return 1
+    if not (np.array_equal(d["windows"], d2["windows"]) and np.array_equal(d["labels"], d2["labels"])):
+        print("FAIL not deterministic for a fixed seed")
+        return 1
+    if int(d["windows"].min()) < -2048 or int(d["windows"].max()) > 2047:
+        print("FAIL values outside the 12-bit range")
+        return 1
+    rec = start_tilt_separability(d)
+    print("start-tilt-only rule at 0 false positives recognises %.1f %% of class 0 (limit 60 %%)" % (100 * rec))
+    if rec >= 0.60:
+        print("FAIL class 0 separable by start orientation")
+        return 1
+    w = d["windows"].astype(np.float64)
+    dy = w[:, 20:27, 1].mean(axis=1) - w[:, :10, 1].mean(axis=1)
+    m1, m2 = float(dy[d["labels"] == 1].mean()), float(dy[d["labels"] == 2].mean())
+    print("early Y change: swipe_right %+.1f, swipe_left %+.1f counts (expect - and +)" % (m1, m2))
+    if not (m1 < -10.0 and m2 > 10.0):
+        print("FAIL swipe signs not in the C1.3 wand frame")
+        return 1
+    print("synth_dataset selftest PASS")
+    return 0
+
+
 def main(argv=None):
     """CLI entry. Args: argv (list of str or None for sys.argv). Returns: int exit code (0 ok)."""
     ap = argparse.ArgumentParser(description="Write a SYNTHETIC gesture dataset (.npz); pipeline testing only.")
-    ap.add_argument("--out", required=True, help="output .npz path")
+    ap.add_argument("--selftest", action="store_true", help="run the built-in checks and exit")
+    ap.add_argument("--out", help="output .npz path")
     ap.add_argument("--per-class", type=int, default=120)
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args(argv)
+    if a.selftest:
+        return _selftest()
+    if not a.out:
+        ap.error("--out is required (or use --selftest)")
     if a.per_class < 1:
         print("error: --per-class must be >= 1", file=sys.stderr)
         return 2
