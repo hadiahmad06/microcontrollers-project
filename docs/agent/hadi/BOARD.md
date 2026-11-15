@@ -219,8 +219,9 @@ different subagents from the implementer.
    3.7 (`gesture.c`), each with T and R tickets; then paste `drafts/C2_contract_section.md` into CONTRACTS.md (C2).
 4. **Mac-only:** S2-0b `make selftest` (spikes/sim), gate G3 (XC16 build + MDB/on-target vectors), the WS2812 asm
    driver (WP4-b), the PIC24 HAL (I2C1/UART1/INT0/INT1/PPS/config words), measurements 3.10.
-5. **Environment:** sim16 needs `apt-get install -y simavr gcc-avr avr-libc` in a fresh cloud container (not saved
-   as a setup script; Hadi has not been asked yet because he signed off).
+5. **Environment:** use the personal cloud environment `microcontrollers-project` (created 2026-11-15, approved by Hadi):
+   its setup script installs `simavr gcc-avr avr-libc` for sim16. The script is unproven until a fresh session starts on it;
+   if sim16 is missing, run `apt-get install -y simavr gcc-avr avr-libc` by hand.
 6. **Process lessons:** keep a subagent's worktree until its fix round is merged; a container restart or API limit
    kills running agents and pending question dialogs, so commit early, record decisions in open_questions.md, and
    resume agents with SendMessage when they are still resumable (else start a fresh instance from the review file).
