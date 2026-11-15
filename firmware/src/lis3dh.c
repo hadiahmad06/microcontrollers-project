@@ -30,6 +30,8 @@
 #define AUTO_INC          0x80u  /* sub-address MSB: auto-increment on multi-byte reads */
 #define FSS_MASK          0x1Fu  /* FIFO_SRC bits 4:0, unread samples */
 #define FIFO_SRC_OVRN     0x40u  /* FIFO_SRC bit 6 OVRN_FIFO */
+#define FIFO_SRC_EMPTY    0x20u  /* FIFO_SRC bit 5 EMPTY */
+#define FIFO_DEPTH        32u    /* FIFO capacity in samples */
 #define CLICK_SRC_IA      0x40u  /* CLICK_SRC bit 6 */
 #define CLICK_SRC_DCLICK  0x20u  /* CLICK_SRC bit 5 */
 #define MAX_BURSTS        4u     /* bursts per lis3dh_drain call (main-agent ruling: 64 samples) */
@@ -166,6 +168,28 @@ void lis3dh_unpack(const uint8_t raw[6], const lis3dh_axes_t *axes, int16_t out[
     }
 }
 
+/**
+ * @brief Decode the number of unread samples from a FIFO_SRC_REG value.
+ *
+ * FSS is only 5 bits (0..31), so a completely full FIFO (32 unread) may be reported as
+ * FSS = 0 with OVRN_FIFO = 1 and EMPTY = 0. Taken literally that reads as "nothing to
+ * drain" and the FIFO would stay full forever. Rule: n = FSS, except that
+ * FSS == 0 && OVRN_FIFO == 1 && EMPTY == 0 means n = 32. Bench item C-7 decides which
+ * encoding the real part uses; the rule is correct under both (a part that saturates FSS
+ * at 31 never produces the FSS = 0 case).
+ *
+ * @param src  Raw FIFO_SRC_REG byte.
+ * @return     Unread sample count, 0..32.
+ */
+static uint8_t fifo_unread(uint8_t src)
+{
+    uint8_t n = (uint8_t)(src & FSS_MASK);
+    if ((n == 0u) && ((src & FIFO_SRC_OVRN) != 0u) && ((src & FIFO_SRC_EMPTY) == 0u)) {
+        n = (uint8_t)FIFO_DEPTH;
+    }
+    return n;
+}
+
 int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *more)
 {
     uint8_t src = 0u;
@@ -187,7 +211,7 @@ int16_t lis3dh_drain(lis3dh_sample_cb cb, void *ctx, uint8_t *overrun, bool *mor
         if (first && (overrun != 0) && ((src & FIFO_SRC_OVRN) != 0u)) {
             *overrun = 1u;  /* OVRN_FIFO seen at drain start (C1.6); caller decides */
         }
-        n = (uint8_t)(src & FSS_MASK);
+        n = fifo_unread(src);  /* applies to the first read and every re-read */
         /* First read: stop when empty. Re-reads: stop when FSS < 16 (C1.4). */
         if (first ? (n == 0u) : (n < LIS3DH_BURST_MAX)) {
             break;
