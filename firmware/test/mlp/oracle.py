@@ -25,6 +25,7 @@ def to_s16(v):
     return v - 65536 if v >= 32768 else v
 
 
+# xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
 class XorShift32:
     """xorshift32 (13,17,5), identical to the C driver's rng()."""
 

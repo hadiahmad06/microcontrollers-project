@@ -4,7 +4,8 @@
  * @brief LIS3DH accelerometer driver over an I2C HAL (ticket WP1-b; contracts C0, C1, C6.1).
  *
  * 100 Hz, +/-4 g, high resolution, FIFO in Stream mode (FTH = 15 on INT1), double click on INT2.
- * Register facts: ST LIS3DH datasheet DocID17530, and AN3308 Rev 3 (FIFO and click usage).
+ * Register facts: ST LIS3DH datasheet DocID17530 Rev 1 (May 2010), https://cdn-shop.adafruit.com/datasheets/LIS3DH.pdf (Adafruit mirror; newer revisions not read),
+ * and ST AN3308 DocID18198 Rev 3 (June 2017), https://core-electronics.com.au/attachments/uploads/lis3dh-application-note.pdf (FIFO and click usage).
  * No float, no malloc, no blocking delays; the HAL (lis3dh_hal.h) is the only hardware access.
  */
 #ifndef LIS3DH_H

@@ -14,6 +14,7 @@ FRAME_NAMES = ["zero", "all255", "one_r255", "one_white", "ramp_a", "ramp_c", "r
                "lim_m1", "lim_eq", "lim_p1", "lim_p2", "lim_x15", "half128"]
 
 
+# xorshift32: G. Marsaglia, "Xorshift RNGs", J. Statistical Software 8(14), 2003; shifts 13/17/5.
 class Rng:
     """xorshift32 (13, 17, 5), identical to rnd() in test_display.c."""
 

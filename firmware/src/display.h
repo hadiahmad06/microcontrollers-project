@@ -4,6 +4,10 @@
  * @brief 8x8 WS2812 framebuffer, brightness cap, current limiter and GRB serialisation
  *        (docs/agent/CONTRACTS.md C6.3, C7; docs/agent/hadi/proposals/C6b_display_bulb.md 2.1, 5).
  *
+ * Sources: WS2812B wire format (GRB order, MSB first) per the Worldsemi WS2812B datasheet (old revision, 2013;
+ * no document ID); 20 mA per channel current estimate per the Adafruit NeoPixel Uberguide, "Powering NeoPixels",
+ * https://learn.adafruit.com/adafruit-neopixel-uberguide/powering-neopixels (no revision or date).
+ *
  * Hardware independent: the cycle-counted bit-bang and interrupt masking live elsewhere
  * (XC16 asm, later ticket). This module only prepares the 192 wire bytes.
  *
