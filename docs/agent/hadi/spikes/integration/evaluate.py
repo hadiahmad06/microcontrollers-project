@@ -358,7 +358,7 @@ def main(argv=None):
                                                               pct(o["ok0"], o["hit"]), o["lock"], o["gap"], o["miss"],
                                                               o["false"], o["windows"], o["corrupt"]))
     print("run: main = 1-4 s idle, tight = 0.2-0.6 s idle + rotated windows (accC unreliable), stall0/1/2 = main-style "
-          "stream with 3 stalls of 45 samples and 40-sample busy classify, overrun order 0 (API_glue.md), "
+          "stream with 3 stalls of 45 samples and 40-sample busy classify, overrun order 0 (SUPERSEDED, bug demo), "
           "1 (at the first delivered sample), 2 (1 + trigger_resync); short = the sim16 stream")
     if fail:
         print("FAIL: host/sim16 or Python mismatch (see above)")

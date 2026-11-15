@@ -16,7 +16,8 @@ HCF    := $(HOST_CFLAGS) $(SPIKE_INC)
 ACF    := $(AVR_CFLAGS) $(SPIKE_INC)
 
 # host runs: NAME:STREAM:OVR_MODE
-HOSTRUNS := main:main:0 big:big:0 tight:tight:0 stall0:stall:0 stall1:stall:1 stall2:stall:2 stallw:stall:1 short:short:0
+# OVR_MODE 1 = corrected order (default); stall0 keeps 0 on purpose to demonstrate the bug fixed by S3-1 finding 1.
+HOSTRUNS := main:main:1 big:big:1 tight:tight:1 stall0:stall:0 stall1:stall:1 stall2:stall:2 stallw:stall:1 short:short:1
 EXTRA_stallw := -DFSS_WRAP   # FIFO_SRC reports a full FIFO as FSS = 0 + OVRN (bench item C-7 alternative)
 NAMES    := $(foreach r,$(HOSTRUNS),$(word 1,$(subst :, ,$(r))))
 
@@ -50,7 +51,7 @@ $(foreach r,$(HOSTRUNS),$(eval $(call HOSTRULE,$(word 1,$(subst :, ,$(r))),$(wor
 # ---- sim16: avr-gcc ATmega2560, 16-bit int, under simavr; short stream only ----
 build/glue_short_avr.elf: $(SRCS) $(HDRS) build/short.h $(MODEL)/gesture_model.h
 	@mkdir -p build
-	$(AVR_CC) $(ACF) -DSTREAM_HDR='"build/short.h"' -DOVR_MODE=0 -o $@ $(SRCS)
+	$(AVR_CC) $(ACF) -DSTREAM_HDR='"build/short.h"' -DOVR_MODE=1 -o $@ $(SRCS)
 build/out_short_sim16.txt: build/glue_short_avr.elf
 	$(SIM16_RUN) $< 900 > $@
 

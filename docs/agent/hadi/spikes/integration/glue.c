@@ -27,7 +27,8 @@
  *   S ...            pass statistics
  *   DONE
  * Build defines: STREAM_HDR (quoted header from make_stream.py), DRAIN_PERIOD (default 10),
- * OVR_MODE (0 = as API_glue.md: after the drain, 1 = at the first delivered sample, 2 = 1 plus
+ * OVR_MODE (0 = SUPERSEDED order, after the drain: kept only to demonstrate S3-1 finding 1;
+ * 1 = DEFAULT, the corrected API_glue.md order: at the first delivered sample; 2 = 1 plus
  * trigger_resync when no window was dropped and the trigger is not LOCKED).
  */
 #include <stdint.h>
@@ -51,7 +52,7 @@
 #define DRAIN_PERIOD 10u
 #endif
 #ifndef OVR_MODE
-#define OVR_MODE 0
+#define OVR_MODE 1   /* corrected order (API_glue.md after S3-1); 0 = superseded order, bug demo only */
 #endif
 #define UL(x) ((unsigned long)(x))
 
@@ -244,7 +245,7 @@ static bool poll_once(void)
     }
     if ((uint8_t)n > max_per_drain) { max_per_drain = (uint8_t)n; }
     if (more) { st_more++; }
-    if ((OVR_MODE == 0) && (d.ovr != 0u)) {   /* API_glue.md order: after the drain */
+    if ((OVR_MODE == 0) && (d.ovr != 0u)) {   /* superseded order (bug demo, run stall0 only) */
         handle_overrun(last_idx);
     }
     if (capture_state() == CAPTURE_READY) {

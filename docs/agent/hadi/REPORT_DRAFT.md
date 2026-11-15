@@ -104,9 +104,11 @@ Public API (CONTRACTS "API"): `gesture_init`, `gesture_set_trigger`, `gesture_po
   stall1     24    22  92%  91%     0     2     0      0       22      0
   short       8     7  88% 100%     0     0     1      0        7      0
   ```
-  Host and sim16 outputs are identical, and the Python replay matches the C output. Observations: dead time after a
-  trigger ≈ 1.7 s; slow-start gestures trigger 10–40 samples late; learned templates override too eagerly with the
-  provisional C5 constants (Q8); training on fixed-onset windows scores 99 % but 82 % on trigger-cut windows.
+  Host and sim16 outputs are identical, and the Python replay matches the C output. Observations (checked by review S4-3R): the
+  few "false" windows are late triggers on long gestures, not triggers on idle (idle, bumps and tilts produced none);
+  dead time after a trigger ≈ 1.7 s; slow-start gestures trigger late; with the provisional C5 constants learned templates
+  replace correct built-in results (overall 91 % → 48 % on one stream; Q8 has the measured alternatives); accuracy is
+  99 % on windows whose onset sits where training put it and 82 % when the trigger lands early or late.
 - **Proxy memory** (avr-gcc, `docs/agent/hadi/measurements.md`; not the PIC24): static RAM of the finished modules
   2512 B against 2500 B in the C7 budget for the same items.
 
