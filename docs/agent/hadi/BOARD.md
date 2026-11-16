@@ -210,8 +210,8 @@ T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "pre
 | T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | in progress | `firmware/test/c2_stream/**` | – |
 | T-c2txR | Review C2 TX | review-25 | backlog | `reviews/T-c2txR.md` | – |
 | W2-6 | Continuous SAMPLES recording + offline trigger cut (`trigger_ref.run`/`cut_windows`) in the recorder | – | backlog (after W2-4, T-trig) | `tools/…` | T, R |
-| 3.7 | `gesture.c` glue + recording-mode app (`firmware/app/`), host-tested with fake LIS3DH | – | backlog (after T-trig, T-c2tx) | `firmware/src/gesture.*` | T, R |
-| HAL | PIC24 HAL (I2C1, UART1 TX ring + ISR, INT pins, config words) for the recording build; UNVERIFIED until Hadi builds with XC16 | – | backlog | `firmware/hal/` | R |
+| 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | – | backlog (after T-trig, T-c2tx merge) | `firmware/src/gesture.*` | 3.7T, 3.7R |
+| HAL | PIC24 HAL + `firmware/app/main_record.c` + Mac `firmware/build/Makefile` + `gesture_port.h` (spec `briefs/HAL_spec.md`); UNVERIFIED until Hadi builds with XC16 | impl-hal | in progress | `firmware/{hal,app,build}/**`, `firmware/src/gesture_port.h` | HAL-R |
 
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
