@@ -104,7 +104,9 @@ bool trigger_feed(trigger_t *t, const int16_t s[3]);
 
 /**
  * Tell the trigger that the capture buffer was released (or the window dropped for an overrun).
- * Moves LOCKED to REARM. Ignored in any other state.
+ * Moves LOCKED to REARM. Ignored in any other state (WARMUP, ARMED, REARM). The caller must never
+ * deliver a stale release after trigger_resync(): once warm-up has finished and a new trigger has
+ * fired, a late release would unlock that NEW trigger early.
  * @param t trigger instance (NULL: nothing happens)
  * @return none
  */
@@ -112,7 +114,9 @@ void trigger_release(trigger_t *t);
 
 /**
  * Restart after a gap in the sample stream not covered by an open window: the baseline is
- * re-seeded from the next sample and the warm-up runs again.
+ * re-seeded from the next sample and the warm-up runs again. Resync from LOCKED unlocks the trigger
+ * (state := WARMUP, run and quiet_n cleared). The caller must therefore drop any open capture window
+ * when it resyncs, and must not send a stale trigger_release() afterwards.
  * @param t trigger instance (NULL: nothing happens)
  * @return none
  */
