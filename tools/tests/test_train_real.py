@@ -401,10 +401,8 @@ def t_eval_min_conf_and_rejection_definition():
     assert has_number(md + js, rate_gest), "rejection rate on label != 0 (%.4f) missing for min_conf %d" % (rate_gest, mc)
     acc_acc = (conf >= mc)
     if acc_acc.any():
-        a1 = float((pred[acc_acc] == y[acc_acc]).mean())              # correct / accepted
-        a2 = float(((pred == y) & acc_acc).sum() / len(y))             # rejected counted as wrong
-        assert has_number(md + js, a1) or has_number(md + js, a2), \
-            "accuracy after rejection (%.4f accepted-only or %.4f all-N) missing" % (a1, a2)
+        a1 = float((pred[acc_acc] == y[acc_acc]).mean())              # ruling R2-a: correct / ALL accepted (all labels)
+        assert has_number(md + js, a1), "accuracy after rejection (correct/accepted, all labels) %.4f missing" % a1
     rc, so, se, out0 = run_eval(h, [e], "mc0", ["--min-conf", "0"])
     assert rc == 0
     md0, js0 = report_blob(out0)
@@ -440,14 +438,16 @@ def t_eval_per_subject():
     z = np.load(e)
     y, s = z["labels"].astype(int), z["subject"].astype(int)
     _, pred, _ = host_eval(h, z["windows"])
-    assert "subject" in md.lower(), "per-subject section missing"
+    assert "accuracy per subject" in md.lower(), "per-subject section missing"
     for v in np.unique(s):
         assert has_number(md + js, float((pred[s == v] == y[s == v]).mean())), "subject %d accuracy" % v
     e2 = make_ds("ev4n", 25, per_class=10, drop=("subject", "session"))
     rc, so, se, out2 = run_eval(h, [e2], "nosubj")
     assert rc == 0, se[-300:]
     md2, js2 = report_blob(out2)
-    assert "subject" not in md2.lower() and "subject" not in js2.lower(), "per-subject section present without subject"
+    assert "accuracy per subject" not in md2.lower(), "per-subject section present without subject"
+    assert not json.loads(js2).get("per_subject"), "per_subject values present without subject"
+    assert json.loads(js).get("per_subject"), "per_subject missing in report.json with subject"
 
 
 def t_eval_device_agreement():
@@ -591,17 +591,17 @@ def t_aug_clipping_and_extremes():
     a = make_ds("a13", 7, per_class=6, windows=w)
     out, _, _ = train("aug_clip", D(a), ["--augment", "roll=45,gain=50,copies=2"])
     infer_ref.load_header(os.path.join(out, "gesture_model.h"))
-    train("aug_clip2", D(a), ["--augment", "roll=180,gain=100,copies=1"])
+    train("aug_clip2", D(a), ["--augment", "roll=180,gain=99,copies=1"])
 
 
 def t_aug_bad_values():
     """R3 (spec silent): malformed --augment must not be accepted silently (exit 1 or 2)."""
     a = make_ds("a14", 7, per_class=6)
     train("aug_ok", D(a), ["--augment", "roll=5"])      # a valid flag must work, else the exits below prove nothing
-    for fl in ["roll=abc", "frob=1", "copies=-1", "gain=-5"]:
+    for fl in ["roll=abc", "frob=1", "copies=-1", "gain=-5", "gain=100"]:
         rc, so, se = sh([sys.executable, os.path.join(TOOLS, "train.py")] + D(a) +
                         ["--out-dir", os.path.join(TMP, "augbad"), "--augment", fl] + FAST)
-        assert rc in (1, 2), "--augment %s: exit %d (spec silent, expected 2)" % (fl, rc)
+        assert rc == 2, "--augment %s: exit %d (spec silent, expected 2)" % (fl, rc)
 
 
 # ------------------------------------------------------------------------------------------ R4
