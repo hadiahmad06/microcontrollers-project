@@ -735,7 +735,7 @@ class StreamRecorder:
     def write(self):
         """Rewrite the stream file atomically."""
         smp = np.concatenate(self.chunks).astype(np.int16) if self.chunks else np.zeros((0, 3), np.int16)
-        marks = [mk for mk in self.marks if mk[0] <= self.m + (0 if self.marks_from is not None else MARK_LAG)]
+        marks = [[min(mk[0], self.m), mk[1]] for mk in self.marks if self.marks_from is None or mk[0] <= self.m]   # a lagged mark past the stream end is clamped to it
         arrays = {"samples": smp,
                   "chunk_gaps": np.array(self.gaps, dtype=np.int32).reshape(-1, 2),
                   "ovr": np.array(self.ovr, dtype=np.int32),
