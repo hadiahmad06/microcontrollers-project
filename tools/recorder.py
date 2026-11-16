@@ -129,6 +129,12 @@ def read_serial(port, baud):
         attrs[6][termios.VMIN] = 0                      # read returns what is there
         attrs[6][termios.VTIME] = 0                     # no read timeout (select does the waiting)
         termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        try:
+            import fcntl
+            fcntl.ioctl(fd, termios.TIOCEXCL)           # exclusive: a second program cannot open the port (F11)
+        except (ImportError, AttributeError, OSError):
+            pass
+        termios.tcflush(fd, termios.TCIFLUSH)           # drop bytes buffered before we opened (F11)
         while True:
             r, _, _ = select.select([fd], [], [], IDLE_S)
             if not r:
@@ -145,6 +151,47 @@ def read_serial(port, baud):
             yield b
     finally:
         os.close(fd)
+
+
+# [AI-GENERATED: Claude Code]
+class LazyLog:
+    """Raw byte log that is created on the first byte written, so a failed run leaves no file behind (W2-4F F2)."""
+
+    def __init__(self, path, enabled):
+        """Args: path: log file; enabled: falsy = never write (input file is the log)."""
+        self.path = path
+        self.enabled = bool(enabled)
+        self.f = None
+
+    def write(self, b):
+        """Append bytes (opens the file on first use, flushes every time); raises Fatal(2) if it cannot open."""
+        if not self.enabled:
+            return
+        if self.f is None:
+            try:
+                self.f = open(self.path, "ab")
+            except OSError as e:
+                raise Fatal(2, "cannot open raw log %s: %s" % (self.path, e))
+        self.f.write(b)
+        self.f.flush()
+
+    def close(self):
+        """Close the file if it was opened."""
+        if self.f:
+            self.f.close()
+
+
+def hello_hint(rec, hinted):
+    """Print the waiting-for-HELLO hint once, after the first read that produced no HELLO (F7).
+
+    Args:
+        rec: recorder with a .hello attribute. hinted: list used as a once-flag.
+    """
+    if not hinted:
+        hinted.append(1)
+        if rec.hello is None:
+            print("waiting for HELLO (the wand sends one every 2 s)", flush=True)
+# [END AI-GENERATED]
 
 
 # ----------------------------------------------------------------------------- output file
@@ -197,6 +244,7 @@ class Recorder:
         self.step_i = 0          # index of the current step
         self.in_step = 0         # windows stored in the current step
         self.waiting = False
+        self.warned_range = False
         self.q = None
         self.cols = {k: [] for k, _ in OUT_KEYS}
         self.old = None
@@ -218,6 +266,10 @@ class Recorder:
             self.session = int(ses.max()) + 1 if len(ses) else 0
         elif self.session is None:
             self.session = 0
+        if len(self.old["session"]) and bool(((self.old["session"] == self.session) &
+                                              (self.old["subject"] == self.a.subject)).any()):
+            print("warning: %s already holds subject %d session %d; dataset_tool merge refuses duplicates"
+                  % (self.a.out, self.a.subject, self.session), file=sys.stderr)
 
     def start_plan(self):
         """Print the first NEXT line and begin waiting for Enter when pausing."""
@@ -283,6 +335,10 @@ class Recorder:
         s = np.array(p["samples"], dtype=np.int16)
         if s.min() < -2048 or s.max() > 2047:             # outside the 12-bit range of the training format
             self.rejected += 1
+            if not self.warned_range:
+                self.warned_range = True
+                print("warning: window rejected, samples outside the 12-bit range -2048..2047 (is the wand in +-4 g mode?)",
+                      file=sys.stderr)
             return
         if self.waiting:
             if not self.live:
@@ -323,11 +379,21 @@ class Recorder:
             if not self.done:
                 self.announce_next()
 
+    def drain_enter(self):
+        """Throw away Enter presses already queued, so a stray Enter typed during a step cannot start the next one."""
+        if self.q is not None:
+            try:
+                while True:
+                    self.q.get_nowait()
+            except queue.Empty:
+                pass
+
     def announce_next(self):
         """After a finished step: print NEXT and wait for Enter unless --no-pause."""
         if self.a.plan:
             self.announce()
             if not self.a.no_pause:
+                self.drain_enter()
                 self.waiting = True
 
     def counters(self):
@@ -433,13 +499,10 @@ def run(args):
         rec.session = 0
     src = read_serial(args.port, args.baud) if args.port else read_file(args.input)
     logpath = args.raw_log or (os.path.splitext(args.out)[0] + ".bin")
-    log = None
-    if not (args.input and args.input != "-" and os.path.realpath(args.input) == os.path.realpath(logpath)):
-        try:
-            log = open(logpath, "ab")
-        except OSError as e:
-            raise Fatal(2, "cannot open raw log %s: %s" % (logpath, e))
+    logger = LazyLog(logpath, None if (args.input and args.input != "-" and
+                                       os.path.realpath(args.input) == os.path.realpath(logpath)) else True)
     code = 0
+    hinted = []
     try:
         rec.start_plan()
         for chunk in src:
@@ -447,25 +510,28 @@ def run(args):
                 frames = rec.dec.flush_stale()
                 rec.poll_enter()
             else:
-                if log:
-                    log.write(chunk)
-                    log.flush()
+                logger.write(chunk)
                 frames = rec.dec.feed(chunk)
             for f in frames:
                 rec.on_frame(f)
             rec.poll_enter()
+            hello_hint(rec, hinted)
             if rec.done:
                 break
     except KeyboardInterrupt:
         print("\ninterrupted; output so far is kept", file=sys.stderr)
+    except OSError as e:
+        if not args.port:
+            raise Fatal(2, "read error: %s" % e)
+        print("serial device lost (%s); keeping what was stored" % e, file=sys.stderr)
     except Fatal as e:
         code = e.code
         print("error: %s" % e, file=sys.stderr)
     finally:
         src.close()
-        if log:
-            log.close()
-    rec.write()
+        logger.close()
+    if rec.stored > 0 or args.append:
+        rec.write()
     rec.summary()
     return code
 
@@ -534,6 +600,7 @@ class StreamRecorder:
         if self.a.no_pause:
             self.next_go = time.monotonic() + self.a.every
         else:
+            self.drain_enter()
             self.waiting = True
             self.next_go = None
             if self.live and self.q is None:
@@ -546,6 +613,15 @@ class StreamRecorder:
             self.q.put(line if line else None)
             if not line:
                 return
+
+    def drain_enter(self):
+        """Throw away queued Enter presses when entering an Enter-wait (F1)."""
+        if self.q is not None:
+            try:
+                while True:
+                    self.q.get_nowait()
+            except queue.Empty:
+                pass
 
     def tick(self):
         """Advance the wall-clock plan: handle Enter, emit GO marks. Call after every chunk and idle period."""
@@ -704,36 +780,36 @@ def run_samples(args):
     rec = StreamRecorder(args, steps, live=bool(args.port), marks_from=marks_from)
     src = read_serial(args.port, args.baud) if args.port else read_file(args.input)
     logpath = args.raw_log or (os.path.splitext(args.out)[0] + ".bin")
-    log = None
-    if not (args.input and args.input != "-" and os.path.realpath(args.input) == os.path.realpath(logpath)):
-        try:
-            log = open(logpath, "ab")
-        except OSError as e:
-            raise Fatal(2, "cannot open raw log %s: %s" % (logpath, e))
+    logger = LazyLog(logpath, None if (args.input and args.input != "-" and
+                                       os.path.realpath(args.input) == os.path.realpath(logpath)) else True)
     code = 0
+    hinted = []
     try:
         rec.start()
         for chunk in src:
             if chunk is None:
                 rec.idle()
             else:
-                if log:
-                    log.write(chunk)
-                    log.flush()
+                logger.write(chunk)
                 rec.feed(chunk)
             rec.tick()
+            hello_hint(rec, hinted)
             if rec.done:
                 break
     except KeyboardInterrupt:
         print("\ninterrupted; output so far is kept", file=sys.stderr)
+    except OSError as e:
+        if not args.port:
+            raise Fatal(2, "read error: %s" % e)
+        print("serial device lost (%s); keeping what was stored" % e, file=sys.stderr)
     except Fatal as e:
         code = e.code
         print("error: %s" % e, file=sys.stderr)
     finally:
         src.close()
-        if log:
-            log.close()
-    rec.write()
+        logger.close()
+    if rec.nchunks > 0:
+        rec.write()
     rec.summary()
     return code
 # [END AI-GENERATED]
