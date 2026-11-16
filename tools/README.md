@@ -84,6 +84,21 @@ python3 tools/train.py --data ds.npz --out-dir DIR [--seed S | --seeds 1,2,3] [-
         [--lr 3e-3] [--batch 32] [--weight-decay 1e-4] [--k 64] [--eval-every 5] [--split-seed S]
 python3 tools/train.py --selftest        # prints "train selftest PASS"
 ```
+
+Real recordings (W2-5). `--data` may be repeated or a comma list (`--data a.npz --data b.npz`, or `a.npz,b.npz`):
+each file is validated, then they are concatenated in order. Extra arrays from `recorder.py` (`window_id`,
+`overruns`, `model_hash`, `dev_*`, `events`, `meta`) are ignored by training. `subject` and `session` are kept
+only if every file has them (else dropped with a warning). With `--group session` the group is (file index,
+session number), so equal session numbers in two files never merge; `--group subject` uses the subject value
+alone (one person on two days is one subject). The report lists the files with their N, the share of each class
+in train / validation / test, and (when `subject` exists) the test accuracy per subject.
+`--augment roll=DEG,gain=PCT,copies=K` (default off, any subset of keys, defaults roll=0 gain=0 copies=1) adds K
+copies of every TRAIN window: rotated about the wand X axis by a uniform angle in +-DEG degrees (grip roll,
+C1.3 frame), multiplied by a uniform gain in 1 +- PCT/100, rounded half away from zero, clipped to
+[-2048, 2047], int16. It uses its own generator seeded from the run seed (the training stream is untouched).
+Validation and test are never augmented, the normalisation (`export_model.py norm`) is computed on the
+un-augmented train features, augmented features are not cached, and the report states the augmentation.
+Without the new flags a run is unchanged (checked: same `gesture_model.h` hash as before the change).
 Onset-jitter augmentation (W2-3, SYNTHETIC): `synth_dataset.py --onset-jitter=LO,HI` (use the `=` form, the
 value starts with a minus sign) draws each gesture's onset uniformly in `[15+LO, 15+HI]` instead of `15 +- 3`
 (class 0 and the default output are unchanged: the default `.npz` is byte-identical to before, checked by hash). It
@@ -144,4 +159,19 @@ classes still have a small nonzero mean Y (cos x Hann window), a mild artefact.
 `synth_dataset.py` shapes are adapted from our own spike `docs/agent/hadi/spikes/trigger/synth.py`;
 the data is invented and must never be quoted as an accuracy result. Adam: Kingma and Ba 2015,
 arXiv:1412.6980 (textbook algorithm, no code borrowed).
+
+## evaluate_model.py: score an existing header on new data (W2-5)
+
+```
+python3 tools/evaluate_model.py --header gesture_model.h --data D.npz [--data E.npz ...] [--out-dir DIR] [--min-conf N]
+python3 tools/evaluate_model.py --selftest      # prints "evaluate_model selftest PASS"
+```
+Integer path only (`features_ref` -> `infer_ref.forward` -> `infer_ref.mlp_conf`); a window is rejected when its
+confidence is below `--min-conf` (default the header's `GM_DEFAULT_REJECT`). The report gives accuracy with a
+Wilson 95 % interval, the rejection rate and accuracy after rejection on true gestures (label != 0), the 9x9
+confusion matrix with per-class recall, per-subject accuracy when `subject` exists, and, for windows with
+`dev_flags` bit 0, the agreement of the on-device `dev_class` with the host prediction, counted only where
+`model_hash` equals the header's `GM_MODEL_HASH` (others are listed as "different model"). `--out-dir` writes
+`report.md` and `report.json`, otherwise the markdown is printed. Marked SYNTHETIC when any input is. Exit 0 ok,
+2 bad input.
 <!-- [END AI-GENERATED] -->

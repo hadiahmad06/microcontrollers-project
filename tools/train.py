@@ -29,7 +29,8 @@ Adam and softmax cross-entropy are the textbook algorithms (Kingma and Ba 2015, 
 no code was borrowed. The Wilson interval is the standard formula (Wilson 1927).
 
 Usage:
-  python3 tools/train.py --data ds.npz --out-dir DIR [--seed S | --seeds a,b,c] [--epochs E]
+  python3 tools/train.py --data ds.npz [--data more.npz | --data a.npz,b.npz] --out-dir DIR [--seed S | --seeds a,b,c] [--epochs E]
+        [--augment roll=DEG,gain=PCT,copies=K]
         [--val-frac 0.2] [--test-frac 0.2] [--group subject|session|none]
         [--fallback-set val|test] [--lr 3e-3] [--batch 32] [--weight-decay 1e-4] [--k K]
   python3 tools/train.py --selftest
@@ -100,6 +101,101 @@ def load_dataset(path):
                 raise TrainError("%s has %d entries, labels %d" % (k, len(z[k]), len(y)))
             out[k] = z[k].astype(np.int64)
     return out
+
+
+def parse_data_args(values):
+    """Turn the --data values into a list of paths (R1).
+
+    Args: values (str, or list of str; each item may be a comma list). Returns: list of str paths in
+    the order given. Raises TrainError if no path is left.
+    """
+    if isinstance(values, str):
+        values = [values]
+    out = [p.strip() for v in values for p in v.split(",") if p.strip()]
+    if not out:
+        raise TrainError("no dataset path given")
+    return out
+
+
+def load_datasets(paths):
+    """Load, validate (load_dataset) and concatenate several dataset files in order (R1).
+
+    Args: paths (list of str). Returns: dict like load_dataset plus files (list of (basename, N)) and
+    notes (list of warning strings). `subject` and `session` are kept only if every file has them.
+    The merged `session` is file_index * 65536 + session, so equal session numbers in two files are
+    different groups; `subject` is kept as is (one person on two days is one subject). `synthetic` is
+    true if any file is. For one file the result equals load_dataset's (file index 0). Extra arrays
+    in the files are ignored.
+    """
+    parts = [load_dataset(p) for p in paths]
+    notes = []
+    out = {"windows": np.concatenate([d["windows"] for d in parts]),
+           "labels": np.concatenate([d["labels"] for d in parts]),
+           "synthetic": any(d["synthetic"] for d in parts),
+           "files": [(os.path.basename(p), int(len(d["labels"]))) for p, d in zip(paths, parts)],
+           "subject": None, "session": None, "notes": notes}
+    for k in ("subject", "session"):
+        if all(d[k] is not None for d in parts):
+            if k == "session":
+                out[k] = np.concatenate([d[k] + 65536 * i for i, d in enumerate(parts)])
+            else:
+                out[k] = np.concatenate([d[k] for d in parts])
+        elif any(d[k] is not None for d in parts):
+            notes.append("'%s' dropped: not every input file has it" % k)
+    return out
+
+
+def parse_augment(spec):
+    """Parse --augment 'roll=DEG,gain=PCT,copies=K' (R3).
+
+    Args: spec (str or None; any subset of the keys, defaults roll=0, gain=0, copies=1).
+    Returns: None if spec is None, else dict(roll float, gain float, copies int). Raises TrainError
+    on an unknown key, a bad number, a negative value or copies < 1.
+    """
+    if spec is None:
+        return None
+    a = {"roll": 0.0, "gain": 0.0, "copies": 1}
+    for item in spec.split(","):
+        if not item.strip():
+            continue
+        key, _, val = item.partition("=")
+        key = key.strip()
+        if key not in a:
+            raise TrainError("--augment: unknown key %r (use roll, gain, copies)" % key)
+        try:
+            a[key] = int(val) if key == "copies" else float(val)
+        except ValueError:
+            raise TrainError("--augment: bad value %r for %s" % (val, key))
+    if a["roll"] < 0 or a["gain"] < 0 or a["copies"] < 1 or a["gain"] >= 100:
+        raise TrainError("--augment needs roll >= 0, 0 <= gain < 100, copies >= 1")
+    return a
+
+
+def augment_windows(windows, aug, seed):
+    """Make the augmented copies of a set of windows (R3, train set only).
+
+    Args: windows (int16 [n,150,3]); aug (dict from parse_augment); seed (int, the run seed).
+    Each copy of a window is rotated about the wand X axis (the tip axis, grip roll, C1.3 frame) by
+    an angle uniform in [-roll, +roll] degrees and multiplied by a gain uniform in
+    [1 - gain/100, 1 + gain/100]; the result is rounded half away from zero, clipped to
+    [-2048, 2047] and stored as int16. Uses its own generator seeded from `seed`, so the training
+    random stream is untouched. Returns: (int16 [n*copies,150,3], int array [n*copies] with the
+    index of the source window of each copy, copy-major order).
+    """
+    rng = np.random.default_rng([int(seed), 0xA06])
+    n = len(windows)
+    src = np.tile(np.arange(n), aug["copies"])
+    ang = np.radians(rng.uniform(-aug["roll"], aug["roll"], len(src)))
+    gain = rng.uniform(1.0 - aug["gain"] / 100.0, 1.0 + aug["gain"] / 100.0, len(src))
+    w = windows[src].astype(np.float64)
+    c, s_ = np.cos(ang)[:, None], np.sin(ang)[:, None]
+    y, z = w[:, :, 1].copy(), w[:, :, 2].copy()
+    w[:, :, 1] = c * y - s_ * z
+    w[:, :, 2] = s_ * y + c * z
+    w *= gain[:, None, None]
+    w = np.sign(w) * np.floor(np.abs(w) + 0.5)
+    w = np.clip(w, features_ref.X_MIN, features_ref.X_MAX)
+    return w.astype(np.int16), src
 
 
 def compute_features(windows, cache_path=None):
@@ -373,12 +469,13 @@ def _confusion(labels, pred):
     return cm.tolist()
 
 
-def evaluate_set(model, net, k, nm, feats, labels):
+def evaluate_set(model, net, k, nm, feats, labels, subjects=None):
     """Score one set with the final header (integer path) plus float diagnostics.
 
     Args: model (dict from load_model); net (dict, float weights of the same checkpoint); k (float,
     the K the net was trained with); nm (dict GM_IN_OFF / GM_IN_SH from norm.json); feats (int [n,60]
-    raw features); labels (int [n]). Returns: dict of counts and rates (JSON-serialisable): n,
+    raw features); labels (int [n]); subjects (int [n] or None: adds per_subject, a dict
+    subject -> [n, correct] on the integer path). Returns: dict of counts and rates (JSON-serialisable): n,
     int_correct, int_acc, int_ci (Wilson 95 %), float_correct, float_acc, agree_count, agreement,
     n_gestures, reject_count_gestures, reject_rate_gestures, n_class0, class0_below,
     class0_below_rate, reject_rate_all, confusion.
@@ -393,7 +490,11 @@ def evaluate_set(model, net, k, nm, feats, labels):
     gest = labels != 0
     rej = confs < model["GM_DEFAULT_REJECT"]
     n0 = int((~gest).sum())
-    return {"n": int(n), "int_correct": ok_i, "int_acc": ok_i / n, "int_ci": list(wilson_interval(ok_i, n)),
+    per_subj = None
+    if subjects is not None:
+        per_subj = {str(int(sv)): [int((subjects == sv).sum()), int(((subjects == sv) & (res["pred"] == labels)).sum())]
+                    for sv in np.unique(subjects)}
+    return {"per_subject": per_subj, "n": int(n), "int_correct": ok_i, "int_acc": ok_i / n, "int_ci": list(wilson_interval(ok_i, n)),
             "float_correct": ok_f, "float_acc": ok_f / n, "agree_count": agree, "agreement": agree / n,
             "n_gestures": int(gest.sum()), "reject_count_gestures": int((rej & gest).sum()),
             "reject_rate_gestures": float((rej & gest).sum() / max(int(gest.sum()), 1)),
@@ -439,6 +540,12 @@ def _write_report_md(path, rep):
              rep["seed"], rep["split_seed"]),
          "Network 60-%d-9, K = %g, lr %g, batch %d, weight decay %g, best candidate at epoch %d (of %d run)." % (
              rep["hidden"], rep["k"], rep["lr"], rep["batch"], rep["weight_decay"], rep["best_epoch"], rep["epochs_run"]), ""]
+    if rep.get("files"):
+        L += ["Input files: " + "; ".join("`%s` (N = %d)" % (f, n) for f, n in rep["files"]) + ".", ""]
+    aug = rep.get("augment")
+    L += ["Augmentation: " + ("roll +-%g deg about X, gain +-%g %%, %d extra copies per train window (%d augmented windows added; "
+          "validation, test and the normalisation use un-augmented data only)" % (
+              aug["roll"], aug["gain"], aug["copies"], rep["n_augmented"]) if aug else "none"), ""]
     if rep.get("synthetic_note"):
         L += ["> %s" % rep["synthetic_note"], ""]
     if rep["warnings"]:
@@ -466,6 +573,13 @@ def _write_report_md(path, rep):
         tot = sum(row)
         L.append("| %d %s | %s | %s |" % (i, CLASS_NAMES[i], " | ".join(str(v) for v in row),
                                           "%.1f %%" % (100.0 * row[i] / tot) if tot else "n/a"))
+    if te is not None and te.get("per_subject"):
+        L += ["", "## Test accuracy per subject (integer path)", ""]
+        L += ["- subject %s: %.2f %% (%d / %d)" % (sv, 100.0 * c / max(n, 1), c, n) for sv, (n, c) in te["per_subject"].items()]
+    L += ["", "## Class share per set (windows, percent of the set)", "",
+          "| class | " + " | ".join(rep["class_share"].keys()) + " |", "|---|" + "---|" * len(rep["class_share"])]
+    for i in range(N_CLASSES):
+        L.append("| %d %s | %s |" % (i, CLASS_NAMES[i], " | ".join("%.1f %%" % v[i] for v in rep["class_share"].values())))
     L += ["", "## Selection history (integer validation accuracy per candidate)", ""]
     L += ["- epoch %d: %s" % (e, ("%.2f %%" % (100 * a)) if a is not None else "exporter refused") for e, a in rep["history"]]
     with open(path, "w") as f:
@@ -494,10 +608,10 @@ def _fallback_verdict(which, m):
 
 def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2, test_frac=0.2, group=None,
                  k=DEFAULT_K, eval_every=5, patience=6, fallback_set="val", lr=3e-3, batch=32,
-                 weight_decay=1e-4, split_seed=None, synthetic_note=None, quiet=False):
+                 weight_decay=1e-4, split_seed=None, synthetic_note=None, quiet=False, augment=None):
     """Run the whole pipeline and write the output files.
 
-    Args: data (str path of the dataset .npz); out_dir (str, created); seed (int, weights init and
+    Args: data (str path of the dataset .npz, or a list of paths / comma lists: R1, concatenated in order); out_dir (str, created); seed (int, weights init and
     batches); hidden (int, must be 16); epochs (int maximum); val_frac (float in (0,1)); test_frac
     (float in [0,1), 0 = no test set, the report then says its numbers are optimistic); group (None =
     automatic, 'subject', 'session' or 'none'); k (float, the net is trained on x8 / k); eval_every
@@ -505,7 +619,8 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
     before stopping); fallback_set ('val' or 'test', the set that judges the C4.3 fallback; Q6);
     lr, batch, weight_decay (Adam learning rate, minibatch size, L2 on the weights); split_seed (int
     or None = seed); synthetic_note (str or None, copied to the report); quiet (bool, suppress
-    progress prints and warnings). Returns: the report dict. Raises TrainError on unusable input or
+    progress prints and warnings); augment (dict from parse_augment or None: R3 augmented
+    copies of the train windows, never of validation or test). Returns: the report dict. Raises TrainError on unusable input or
     if the exporter refuses every candidate.
     """
     def say(msg):
@@ -532,9 +647,16 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
     os.makedirs(out_dir, exist_ok=True)
     work = os.path.join(out_dir, "work")
     os.makedirs(work, exist_ok=True)
-    ds = load_dataset(data)
+    paths = parse_data_args(data)
+    ds = load_datasets(paths)
+    for nt in ds["notes"]:
+        warn(nt)
     gname, gmsg = resolve_group(ds, group, test_frac)
     say(gmsg)
+    if len(paths) > 1:
+        say("input files: %s" % "; ".join("%s (N = %d)" % f for f in ds["files"]))
+        if gname != "none":
+            say("groups (%s, across %d files): %d" % (gname, len(paths), len(np.unique(ds[gname]))))
     gid = ds[gname] if gname != "none" else None
     if ds["synthetic"] and not synthetic_note:
         synthetic_note = "SYNTHETIC data: pipeline test only, not an accuracy claim."
@@ -552,6 +674,7 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
         warn(warnings[-1])
     say("split: %d train / %d validation / %d test" % (len(tr), len(va), len(te)))
     ftr, fva, ytr, yva = feats[tr], feats[va], y[tr], y[va]
+    n_aug = 0
     fte, yte = feats[te], y[te]
     # normalisation from TRAIN features only; validation features only for scoring and the C5 constants
     np.save(os.path.join(work, "calib.npy"), ftr)
@@ -562,6 +685,15 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
         nj = json.load(f)
     nm = {"GM_IN_OFF": nj["off"], "GM_IN_SH": nj["sh"]}
     x8_tr = np.array([infer_ref.normalize([int(v) for v in r], nm) for r in ftr], dtype=np.float64)
+    if augment is not None:   # R3: extra train copies; the normalisation above came from the un-augmented ftr
+        aw, src = augment_windows(ds["windows"][tr], augment, seed)
+        faug = compute_features(aw)           # not cached
+        x8_aug = np.array([infer_ref.normalize([int(v) for v in r], nm) for r in faug], dtype=np.float64)
+        x8_tr = np.concatenate([x8_tr, x8_aug])
+        ytr = np.concatenate([ytr, ytr[src]])
+        n_aug = len(aw)
+        say("augmentation: %d extra train windows (roll +-%g deg, gain +-%g %%, %d copies)" % (
+            n_aug, augment["roll"], augment["gain"], augment["copies"]))
     Xtr = x8_tr / k
     # train; candidates scored on the integer path on VALIDATION
     rng = np.random.default_rng(seed)
@@ -603,11 +735,17 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
     np.savez(os.path.join(out_dir, "net.npz"), W1=bn["W1"], b1=bn["b1"], W2=bn["W2"], b2=bn["b2"], K=np.float64(k))
     model = load_model(hdr_out)
     m_val = evaluate_set(model, bn, k, nm, fva, yva)
-    m_test = evaluate_set(model, bn, k, nm, fte, yte) if te.size else None   # the ONE scoring of the test set
+    subj = ds["subject"]
+    m_test = evaluate_set(model, bn, k, nm, fte, yte, subj[te] if subj is not None else None) if te.size else None   # the ONE scoring of the test set
     fb = m_test if fallback_set == "test" else m_val
     verdict = _fallback_verdict(fallback_set, fb)
     prim = m_test if m_test is not None else m_val
-    rep = {"data": os.path.basename(data), "seed": seed, "split_seed": split_seed, "split_note": gmsg,
+    share = {}
+    for name, idx in (("train", tr), ("validation", va), ("test", te)):
+        if len(idx):
+            share[name] = [100.0 * float((y[idx] == c).sum()) / len(idx) for c in range(N_CLASSES)]
+    rep = {"data": ",".join(os.path.basename(p) for p in paths), "files": ds["files"], "augment": augment,
+           "n_augmented": n_aug, "class_share": share, "seed": seed, "split_seed": split_seed, "split_note": gmsg,
            "group": gname, "n_total": int(len(y)), "n_train": int(len(tr)), "n_val": int(len(va)),
            "n_test": int(len(te)), "hidden": hidden, "k": k, "lr": lr, "batch": batch,
            "weight_decay": weight_decay, "best_epoch": best["epoch"], "epochs_run": ep_run,
@@ -753,6 +891,64 @@ def _selftest():
         if rep2["test"] is not None or "OPTIMISTIC" not in open(os.path.join(tmp, "run2", "report.md")).read():
             print("FAIL two-way run is not labelled optimistic")
             return 1
+        # R1: two files with the SAME session numbers stay separate groups; subject groups merge
+        da, db = synth_dataset.make_dataset(30, 11), synth_dataset.make_dataset(30, 12)
+        fa, fb = os.path.join(tmp, "a.npz"), os.path.join(tmp, "b.npz")
+        np.savez(fa, **da)
+        np.savez(fb, **db, extra_junk=np.arange(len(db["labels"])), meta=np.array("x"))
+        both = load_datasets(parse_data_args([fa + "," + fb]))
+        if len(both["labels"]) != len(da["labels"]) + len(db["labels"]) or both["files"][1][1] != len(db["labels"]):
+            print("FAIL multi-file concatenation")
+            return 1
+        ng = len(np.unique(both["session"]))
+        if ng != len(np.unique(da["session"])) + len(np.unique(db["session"])):
+            print("FAIL session groups of two files merged (%d groups)" % ng)
+            return 1
+        if len(np.unique(both["subject"])) != len(np.unique(np.concatenate([da["subject"], db["subject"]]))):
+            print("FAIL subject grouping must use the value alone")
+            return 1
+        if not np.array_equal(load_datasets([fa])["session"], load_dataset(fa)["session"]):
+            print("FAIL single-file session key changed")
+            return 1
+        np.savez(os.path.join(tmp, "nosess.npz"), windows=db["windows"], labels=db["labels"])
+        if load_datasets([fa, os.path.join(tmp, "nosess.npz")])["session"] is not None:
+            print("FAIL session not dropped when a file lacks it")
+            return 1
+        # R3: determinism, clipping, train-only, norm from un-augmented train
+        aug = parse_augment("roll=15,gain=5,copies=2")
+        if parse_augment("gain=3") != {"roll": 0.0, "gain": 3.0, "copies": 1} or parse_augment(None) is not None:
+            print("FAIL parse_augment defaults")
+            return 1
+        w0 = d["windows"][:20].copy()
+        w0[0, 0] = (2047, -2048, 2047)
+        a1, s1 = augment_windows(w0, aug, 4)
+        a2, _ = augment_windows(w0, aug, 4)
+        a3, _ = augment_windows(w0, aug, 5)
+        if not np.array_equal(a1, a2) or np.array_equal(a1, a3) or a1.dtype != np.int16 or len(a1) != 40 \
+                or a1.min() < -2048 or a1.max() > 2047 or not np.array_equal(s1, np.tile(np.arange(20), 2)):
+            print("FAIL augment_windows not deterministic / not clipped / wrong shape")
+            return 1
+        if not np.array_equal(augment_windows(w0, {"roll": 0.0, "gain": 0.0, "copies": 1}, 1)[0], w0):
+            print("FAIL augment with roll=0, gain=0 must be the identity")
+            return 1
+        kw = dict(seed=2, epochs=10, eval_every=5, group="session", quiet=True)
+        ra = run_training([fa, fb], os.path.join(tmp, "ra"), **kw)
+        rb = run_training([fa, fb], os.path.join(tmp, "rb"), augment=aug, **kw)
+        run_training([fa, fb], os.path.join(tmp, "rc"), augment=aug, **kw)
+        if ra["n_augmented"] != 0 or rb["n_augmented"] != 2 * rb["n_train"] or rb["n_total"] != ra["n_total"] or rb["n_val"] != ra["n_val"]:
+            print("FAIL augmented counts (train only)")
+            return 1
+
+        def read(r, f):
+            '''Bytes of tmp/r/f. Args: r, f (str). Returns: bytes.'''
+            with open(os.path.join(tmp, r, f), "rb") as fh:
+                return fh.read()
+        if read("rb", "gesture_model.h") != read("rc", "gesture_model.h") or read("rb", "norm.json") != read("ra", "norm.json"):
+            print("FAIL augmented run not deterministic, or norm.json differs from the un-augmented run")
+            return 1
+        if "Augmentation: roll" not in read("rb", "report.md").decode() or len(rb["files"]) != 2:
+            print("FAIL report lacks augmentation / file list")
+            return 1
         print("train selftest PASS")
         return 0
     finally:
@@ -763,7 +959,9 @@ def main(argv=None):
     """CLI entry. Args: argv (list of str or None). Returns: int exit code (0 ok, 2 bad input, 3 exporter refusal by its exit code)."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--data", help="dataset .npz (windows, labels, optional subject, session)")
+    ap.add_argument("--data", action="append", help="dataset .npz (windows, labels, optional subject, session); repeat the flag or "
+                    "give a comma list to train on several files (R1)")
+    ap.add_argument("--augment", help="opt-in train-set augmentation, e.g. roll=15,gain=5,copies=1 (R3)")
     ap.add_argument("--out-dir", help="output directory")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--seeds", help="comma list of seeds, e.g. 1,2,3: one run each in OUT_DIR/seed_N plus seeds.md with mean and min/max")
@@ -790,6 +988,7 @@ def main(argv=None):
                   eval_every=a.eval_every, fallback_set=a.fallback_set, lr=a.lr, batch=a.batch,
                   weight_decay=a.weight_decay, split_seed=a.split_seed, hidden=a.hidden)
     try:
+        common["augment"] = parse_augment(a.augment)
         if a.seeds:
             try:
                 seeds = [int(s) for s in a.seeds.split(",") if s.strip() != ""]
