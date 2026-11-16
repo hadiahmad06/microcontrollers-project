@@ -660,3 +660,12 @@ which person.
 | tools/fake_wand.py | `plan_string`, `build_stream`, `load`, `pty_send`, `main`, `_selftest` | Emits a C2 byte stream from a dataset (file or pty) for tests and demos | 2026-11-16 | agent |
 | tools/dataset_tool.py | `peak_l1`, `load`, `per_window_keys`, `save`, `check_out`, `parse_index`, `cmd_info`, `cmd_merge`, `cmd_drop`, `cmd_relabel`, `cmd_csv`, `main`, `_selftest` | Dataset info, merge, drop, relabel, CSV export | 2026-11-16 | agent |
 | tools/tests/test_recording.py | `o_crc16`, `o_frame`, `o_hello`, `o_window`, `o_samples`, `o_walk`, 47 test functions, helpers | Independent spec tests for the recording tools | 2026-11-16 | agent |
+| tools/train.py | `parse_data_args`, `load_datasets`, `parse_augment`, `augment_windows`, `_selftest` (W2-5 checks), `evaluate_set` (per-subject), `run_training` (multi-file, augmentation, report additions) | Training on several recorded session files, opt-in roll/gain augmentation | 2026-11-16 | agent |
+| tools/evaluate_model.py | `load_extras`, `evaluate`, `render_markdown`, `_selftest`, `main` | Scores an existing gesture_model.h on new data with the integer path | 2026-11-16 | agent |
+| firmware/hal/pic24/board.c | `board_init`, `board_debug_pin`, `board_millis`, `board_error_blink`, `_T1Interrupt`, `board_pps_map`, `board_pins_init`, `board_timer1_init`, `board_wait_ms` | PIC24 board set-up, 1 ms tick, debug pin (UNVERIFIED, not built with XC16) | 2026-11-16 | agent |
+| firmware/hal/pic24/port_pic24.c | `port_pic24_init`, `port_tx_room`, `port_tx_write`, `port_millis`, `port_take_fifo_flag`, `port_take_click_flag`, `_U1TXInterrupt`, `_INT0Interrupt`, `_INT1Interrupt` | gesture_port.h on UART1 TX ring + INT0/INT1 (UNVERIFIED) | 2026-11-16 | agent |
+| firmware/hal/pic24/lis3dh_hal_pic24.c | `lis3dh_hal_pic24_init`, `lis3dh_hal_write`, `lis3dh_hal_read`, `i2c_reset`, `i2c_stop`, `i2c_send` | Polled I2C1 master for the LIS3DH driver (UNVERIFIED) | 2026-11-16 | agent |
+| firmware/hal/pic24/config_bits.c, p24_regs.h, test/p24_mock.h, test/gesture_api_stub.h | config pragmas, include switch, host mock | Config words and the host syntax-check mock (UNVERIFIED) | 2026-11-16 | agent |
+| firmware/app/main_record.c | `main` | Recording firmware main loop | 2026-11-16 | agent |
+| firmware/build/Makefile | `record.hex`, `bringup.hex`, `check` | XC16 build for Hadi's Mac + host syntax check | 2026-11-16 | agent |
+| firmware/test/c2_stream/* | oracle, driver, runner, stand-in | Independent C2 TX suite (host + sim16) | 2026-11-16 | agent |
