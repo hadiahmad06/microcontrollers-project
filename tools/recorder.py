@@ -166,7 +166,6 @@ def read_serial(port, baud):
         os.close(fd)
 
 
-# [AI-GENERATED: Claude Code]
 class LazyLog:
     """Raw byte log that is created on the first byte written, so a failed run leaves no file behind (W2-4F F2)."""
 
@@ -204,7 +203,6 @@ def hello_hint(rec, hinted):
         hinted.append(1)
         if rec.hello is None:
             print("waiting for HELLO (the wand sends one every 2 s)", flush=True)
-# [END AI-GENERATED]
 
 
 # ----------------------------------------------------------------------------- output file
@@ -550,7 +548,6 @@ def run(args):
 
 
 # ----------------------------------------------------------------------------- continuous recording (W2-6)
-# [AI-GENERATED: Claude Code]
 # WORKING ASSUMPTION: open_questions Q1, Q2, not decided (SAMPLES stream; offline trigger cut, briefs/W2-6_spec.md V1).
 STREAM_VERSION = 1
 MARK_LAG = 16                    # samples added to a wall-clock mark: the PC sees a sample up to one 16-sample chunk after the
@@ -850,7 +847,6 @@ def run_samples(args):
         rec.write()
     rec.summary()
     return code
-# [END AI-GENERATED]
 
 
 # ----------------------------------------------------------------------------- selftest
