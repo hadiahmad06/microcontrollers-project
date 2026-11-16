@@ -1,0 +1,5 @@
+obj/
+gesture_model.h
+*.elf
+*.hex
+*.map
