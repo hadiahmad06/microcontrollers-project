@@ -25,6 +25,10 @@ void fs_push(const int16_t s[3]);
 uint8_t fs_level(void);
 /** Set the value the next CLICK_SRC read returns (cleared on read). @param v CLICK_SRC byte */
 void fs_set_click(uint8_t v);
+/** Bus-error injection: every I2C call NACKs after n more samples were popped (n = 0: from now on). @param n pops */
+void fs_bus_fail_after(uint8_t n);
+/** Clear the bus-error injection. */
+void fs_bus_ok(void);
 /** @return number of samples pushed so far (sequence number of the next one) */
 uint16_t fs_next_seq(void);
 /** @return number of discarded-sample seq ranges recorded (max 4) */

@@ -24,6 +24,7 @@ static struct {
     uint16_t next_seq;
     uint16_t gfirst[4], gcnt[4];
     uint8_t  ngap;
+    uint8_t  fail_in, dead;   /* bus-error injection: die after fail_in more sample pops */
 } F;
 
 void fs_reset(uint8_t present_addr, uint8_t who, uint8_t corrupt_reg)
@@ -37,6 +38,8 @@ void fs_reset(uint8_t present_addr, uint8_t who, uint8_t corrupt_reg)
 
 uint8_t fs_level(void) { return F.count; }
 void fs_set_click(uint8_t v) { F.click = v; }
+void fs_bus_fail_after(uint8_t n) { F.dead = (uint8_t)(n == 0u); F.fail_in = n; }
+void fs_bus_ok(void) { F.dead = 0u; F.fail_in = 0u; }
 uint16_t fs_next_seq(void) { return F.next_seq; }
 uint8_t fs_gap_count(void) { return F.ngap; }
 void fs_gap(uint8_t i, uint16_t *first, uint16_t *cnt) { *first = F.gfirst[i]; *cnt = F.gcnt[i]; }
@@ -87,7 +90,7 @@ static uint8_t fifo_src(void)
 int8_t lis3dh_hal_write(uint8_t addr7, uint8_t reg, uint8_t val)
 {
     uint8_t r = (uint8_t)(reg & 0x3Fu);
-    if (addr7 != F.present || addr7 == 0u) { return -1; }
+    if (addr7 != F.present || addr7 == 0u || F.dead) { return -1; }
     if (r == R_WHO || (r >= R_OUT_XL && r <= R_OUT_ZH) || r == R_FIFOSRC || r == R_CLICKSRC) { return 0; }
     F.regs[r] = val;
     if (r == R_FIFOCTRL && (val >> 6) == 0u) { F.count = 0u; F.head = 0u; }   /* Bypass clears */
@@ -97,7 +100,7 @@ int8_t lis3dh_hal_write(uint8_t addr7, uint8_t reg, uint8_t val)
 int8_t lis3dh_hal_read(uint8_t addr7, uint8_t reg, uint8_t *buf, uint8_t n)
 {
     uint8_t i, cur = (uint8_t)(reg & 0x7Fu), fifo_mode, a;
-    if (addr7 != F.present || addr7 == 0u) { return -1; }
+    if (addr7 != F.present || addr7 == 0u || F.dead) { return -1; }
     fifo_mode = (uint8_t)((F.regs[R_FIFOCTRL] >> 6) != 0u && (F.regs[R_CTRL5] & 0x40u) != 0u);
     for (i = 0u; i < n; i++) {
         uint8_t b;
@@ -114,6 +117,7 @@ int8_t lis3dh_hal_read(uint8_t addr7, uint8_t reg, uint8_t *buf, uint8_t n)
                 for (a = 0u; a < 3u; a++) { F.latch[a] = F.fifo[F.head][a]; }
                 F.head = (uint8_t)((F.head + 1u) % DEPTH);
                 F.count--;
+                if (F.fail_in != 0u && --F.fail_in == 0u) { F.dead = 1u; }   /* later calls NACK */
             }
             b = ((k & 1u) == 0u) ? (uint8_t)(F.latch[k / 2u] & 0xFFu) : (uint8_t)(F.latch[k / 2u] >> 8);
         } else {

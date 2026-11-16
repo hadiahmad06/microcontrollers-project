@@ -26,7 +26,7 @@ import trigger_ref  # noqa: E402
 
 # ----------------------------------------------------------------------------- ops (mirrored in scen.h)
 OPS = ["BEGIN", "SENSOR", "CFG", "INIT", "SEG", "STALL", "POLL", "CLASSIFY", "LEARN", "REJECT",
-       "STREAM", "EVENTS", "CLICK", "AUTO"]
+       "STREAM", "EVENTS", "CLICK", "AUTO", "TRIG", "BUSERR", "BUSOK"]
 K = {n: i for i, n in enumerate(OPS)}
 QUIET = (0, 0, 0, 8)
 GA, GB, GC, GD = (140, -90, 60, 16), (-120, 100, -80, 12), (90, 90, -120, 20), (160, -60, 100, 16)
@@ -517,6 +517,70 @@ def chk_reject(o, rep, ref, cx):
     rep.check("reject: reference sees three windows", len(wins) == 3, str(len(wins)))
     exp = [ref.classify(w, {}, mc)[0] for (_, w), mc in zip(wins, (0, 255, 128))]
     classify_results(o, rep, exp, "reject threshold changes between windows")
+
+
+# 16: gesture_set_trigger (3.7TF F1) ------------------------------------------------------------------------------------
+_ops = (head(16, init=False) + [op("TRIG", 30000), op("INIT", 100, 4), op("REJECT", 0), op("STREAM", 0), op("AUTO", 1), q(80), g(GD), q(160),
+                                 op("TRIG", 0), g(GA), q(160), op("TRIG", 20000), g(GB), q(160), op("TRIG", 250), g(GC), q(160)])
+
+
+@scenario("set_trigger", _ops)
+def chk_set_trigger(o, rep, ref, cx):
+    allw = ref_windows(cx["deliv"])
+    wins = [(t, w) for t, w in allw if t < 125 or t >= 680]     # D (steps 81-120) and C (681-720); A (TRIG 0) and B (TRIG 20000) suppressed
+    rep.check("set_trigger: reference sees D, A, B, C", len(allw) == 4 and len(wins) == 2, str([t for t, _ in allw]))
+    exp = [ref.classify(w, {}, 0)[0] for _, w in wins]
+    classify_results(o, rep, exp, "call before init ignored (D captured), 0 disables, 20000 mg suppresses, 250 restores")
+
+
+# 17: stream off right after classify / mid WINDOW frame / mid HELLO (3.7TF F2) -----------------------------------------
+def _sof(name, seed, ops, nwin, rate=3):
+    @scenario(name, head(seed, rate=rate) + ops)
+    def chk(o, rep, ref, cx):
+        o.decode()
+        allw = ref_windows(cx["deliv"])
+        exp = [ref.classify(w, {}, 0)[0] for _, w in allw]
+        rep.check("%s: reference sees two windows" % name, len(allw) == 2, str(len(allw)))
+        classify_results(o, rep, exp, "every gesture classified, also the one after stream off (buffer was released)")
+        check_windows(o, rep, allw[:nwin], exp[:nwin], ref, label="frame completed after stream off")
+        hs = hello_check(o, rep, ref, n=2)     # at stream on (step ~8) and due at ~203, both before stream off (~240 / ~280)
+        rep.check("%s: no HELLO after stream off (next one would be due at ~403)" % name, len(hs) == 2 and hs[-1] < 300, str(hs))
+        clean_stream(o, rep)
+    return chk
+
+
+_sof("sof_after_classify", 17, [op("REJECT", 0), op("STREAM", 1), op("AUTO", 0), q(80), g(GA), q(120), op("CLASSIFY"), op("STREAM", 0),
+                                q(300), op("AUTO", 1), g(GB), q(160)], 1)
+_sof("sof_mid_window", 18, [op("REJECT", 0), op("STREAM", 1), op("AUTO", 0), q(80), g(GC), q(120), op("CLASSIFY"), q(40), op("STREAM", 0),
+                            q(300), op("AUTO", 1), g(GD), q(160)], 1)
+
+
+@scenario("sof_mid_hello", head(19, rate=1) + [op("REJECT", 0), op("STREAM", 1), q(17), op("STREAM", 0), q(250), op("AUTO", 1), g(GA), q(160)])
+def chk_sof_hello(o, rep, ref, cx):
+    o.decode()
+    hs = hello_check(o, rep, ref, n=1)
+    rep.check("sof_mid_hello: the HELLO was still in flight when stream went off (completed after step 17)", bool(hs) and hs[0] > 17, str(hs))
+    wins = ref_windows(cx["deliv"])
+    classify_results(o, rep, [ref.classify(w, {}, 0)[0] for _, w in wins], "gesture captured after the interrupted HELLO")
+    rep.check("sof_mid_hello: no WINDOW frame (stream off)", not o.typed(c2_proto.T_WINDOW), "")
+    clean_stream(o, rep)
+
+
+# 18: bus error inside a drain after samples were delivered (3.7TF) ---------------------------------------------------------
+_ops = (head(20) + [op("REJECT", 0), op("STREAM", 1), op("AUTO", 1), q(80), g(GA), q(40), stall(20), op("BUSERR", 3), q(3), op("BUSOK"), q(200), g(GB), q(160)])
+
+
+@scenario("bus_error", _ops)
+def chk_bus(o, rep, ref, cx):
+    o.decode()
+    rep.check("bus_error: the fake FIFO lost nothing (samples stay in the sensor while the bus is down)", not o.G, str(o.G))
+    allw = ref_windows(cx["deliv"])
+    wins = [(t, w) for t, w in allw if t >= 125]          # A (open window, dropped as a gap) is not delivered
+    rep.check("bus_error: reference sees A and B", len(allw) == 2 and len(wins) == 1, str([t for t, _ in allw]))
+    exp = [ref.classify(w, {}, 0)[0] for _, w in wins]
+    classify_results(o, rep, exp, "open window dropped when a drain fails with n < 0 after delivering samples")
+    check_windows(o, rep, wins, exp, ref, overruns=[1], label="only window B, overruns == 1")
+    clean_stream(o, rep)
 
 
 # 15: bring-up build (-DGESTURE_BRINGUP_SAMPLES=1) -----------------------------------------------------------------------

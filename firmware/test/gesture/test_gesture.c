@@ -210,6 +210,9 @@ static void run_scenario(const scen_t *sc)
             fs_set_click(o->n == 0 ? 0x60u : 0x50u);   /* CLICK_SRC: IA|DCLICK, or IA|SCLICK */
             click_flag = true;
             break;
+        case OP_TRIG:   gesture_set_trigger((uint16_t)o->n); break;
+        case OP_BUSERR: fs_bus_fail_after((uint8_t)o->n); break;
+        case OP_BUSOK:  fs_bus_ok(); break;
         case OP_AUTO:   autoclass = (o->n != 0); break;
         default: printf("V bad op %u\n", (unsigned)o->k); break;
         }
