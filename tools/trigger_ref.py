@@ -30,6 +30,8 @@ def mg_to_counts(mg):
     Returns:
         integer threshold in counts.
     """
+    if not 0 <= mg <= 65535:
+        raise ValueError("mg must be in 0..65535, got %r" % (mg,))
     if mg == 0:
         return 0
     return min((mg + 1) >> 1, THR_MAX_COUNTS)
@@ -47,7 +49,8 @@ class Trigger:
         """Initialise like trigger_init().
 
         Args:
-            cfg: dict with keys debounce, quiet, warm (extra keys ignored); None = defaults.
+            cfg: dict with ALL three keys debounce, quiet, warm required (extra keys ignored; a
+                missing key raises KeyError); None = defaults.
         Returns:
             None
         """
@@ -83,8 +86,8 @@ class Trigger:
         Returns:
             None
         """
+        self.thr = mg_to_counts(mg)  # raises ValueError outside 0..65535
         self.thr_mg = mg
-        self.thr = mg_to_counts(mg)
         self.lo = (self.thr + 1) >> 1
 
     def statistic(self):
@@ -173,12 +176,20 @@ class Trigger:
 def run(samples, cfg=None, thr_mg=DEFAULT_MG, rel_delay=135, resync_at=-1):
     """Run the trigger over a continuous recording (offline labelling, proposal 3.4).
 
+    A trigger index t is the Nth consecutive sample above threshold (N = debounce). release() is
+    called after the state hash of sample t + rel_delay has been taken, so it takes effect for
+    sample t + rel_delay + 1 and REARM quiet counting starts there (135 is one later than "window
+    complete" at t + 134; this is spike/spec behaviour). rel_delay < 0 never releases, so at most
+    one trigger fires per stream. resync_at >= 0 calls resync() BEFORE feeding sample resync_at,
+    so that sample is the new seed (no fire before resync_at + 32 with default warm) and a pending
+    release is discarded. The returned indices index into samples and feed cut_windows directly.
+
     Args:
         samples: list of (x, y, z) int tuples.
-        cfg: dict with debounce, quiet, warm, or None for defaults.
-        thr_mg: threshold in mg.
-        rel_delay: release() is called after sample (trigger index + rel_delay); < 0 never.
-        resync_at: call resync() before this sample index; < 0 never.
+        cfg: dict with all keys debounce, quiet, warm, or None for defaults.
+        thr_mg: threshold in mg, 0..65535 (ValueError otherwise).
+        rel_delay: see above; < 0 never releases.
+        resync_at: sample index before which resync() is called; < 0 never.
     Returns:
         (list of trigger indices, FNV-1a hash of the state after every sample).
     """
@@ -204,7 +215,8 @@ def run(samples, cfg=None, thr_mg=DEFAULT_MG, rel_delay=135, resync_at=-1):
 def cut_windows(samples, trigger_indices):
     """Cut 150-row windows samples[t-15 : t+135] around trigger indices.
 
-    Triggers whose window starts before 0 or runs past the end are skipped.
+    Triggers whose window starts before 0 or runs past the end are skipped. Each window holds
+    samples t-15 .. t+134 inclusive, so window[15] is sample t.
 
     Args:
         samples: list of (x, y, z) rows.
@@ -285,7 +297,10 @@ def selftest():
             si, _ = spike_ref.run(samples, scfg, thr, rel, rs)
             assert ti == si, (k, kind, ti, si)
             n += 1
-    print("selftest: %d spike-equality streams" % n)
+    if sp is None:
+        print("selftest: spike-equality SKIPPED (spike not found)")
+    else:
+        print("selftest: %d spike-equality streams" % n)
     print("trigger_ref selftest PASS")
 
 
