@@ -203,12 +203,13 @@ T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "pre
 | W2-4 | PC tools: `c2_proto.py`, `recorder.py`, `fake_wand.py`, `dataset_tool.py`, `gesture_labels.py`, `RECORDING.md` | impl-rec | in progress | `tools/…` | W2-4T, W2-4R |
 | W2-4T | Tests from spec (independent oracle) | test-rec | in progress | `tools/tests/**` | – |
 | W2-4R | Review W2-4 + W2-4T | review-23 | backlog | `reviews/W2-4R.md` | – |
-| T-trig | `firmware/src/trigger.*` + `tools/trigger_ref.py` (EMA-L1, S=3) | impl-trigger | in progress (launch retried) | `firmware/src/trigger.*`, `tools/trigger_ref.py` | T-trigT, T-trigR |
-| T-trigT | Trigger suite host + sim16, standin | test-trigger | in progress (launch retried) | `firmware/test/trigger/**` | – |
+| T-trig | `firmware/src/trigger.*` + `tools/trigger_ref.py` (EMA-L1, S=3) | impl-trigger | **done**, merged `f7fb33f`: C == Python on 300/300 streams, == spike indices on 240; main reran selftest | `firmware/src/trigger.*`, `tools/trigger_ref.py` | T-trigT, T-trigR |
+| T-trigT | Trigger suite host + sim16, standin | test-trigger | in progress | `firmware/test/trigger/**` | – |
 | T-trigR | Review trigger | review-24 | backlog | `reviews/T-trigR.md` | – |
-| T-c2tx | `firmware/src/c2_stream.*` incremental TX pump | impl-c2tx | in progress (launch retried) | `firmware/src/c2_stream.*` | T-c2txT, T-c2txR |
+| T-c2tx | `firmware/src/c2_stream.*` incremental TX pump | impl-c2tx | **done**, merged `be8c18e`: bytes == spike on 383 frames; avr sizeof 27 B, .text 1656 B (avr); main read diff | `firmware/src/c2_stream.*` | T-c2txT, T-c2txR |
 | T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | in progress | `firmware/test/c2_stream/**` | – |
 | T-c2txR | Review C2 TX | review-25 | backlog | `reviews/T-c2txR.md` | – |
+| W2-5 | train.py multi-file + grouping, `evaluate_model.py`, opt-in roll/gain augmentation (spec `briefs/W2-5_spec.md`) | impl-train (4th) | in progress | `tools/train.py`, `tools/evaluate_model.py`, README | W2-5T (test-train, in progress), W2-5R |
 | W2-6 | Continuous SAMPLES recording + offline trigger cut (`trigger_ref.run`/`cut_windows`) in the recorder | – | backlog (after W2-4, T-trig) | `tools/…` | T, R |
 | 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | – | backlog (after T-trig, T-c2tx merge) | `firmware/src/gesture.*` | 3.7T, 3.7R |
 | HAL | PIC24 HAL + `firmware/app/main_record.c` + Mac `firmware/build/Makefile` + `gesture_port.h` (spec `briefs/HAL_spec.md`); UNVERIFIED until Hadi builds with XC16 | impl-hal | in progress | `firmware/{hal,app,build}/**`, `firmware/src/gesture_port.h` | HAL-R |
