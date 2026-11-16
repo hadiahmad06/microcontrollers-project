@@ -20,6 +20,7 @@ import json
 import os
 import queue
 import select
+import stat
 import subprocess
 import sys
 import tempfile
@@ -68,15 +69,27 @@ def read_file(path):
     Args:
         path: file name or '-'.
     Yields:
-        bytes chunks.
+        bytes chunks; for a pipe, FIFO or tty also None after 50 ms without data (like read_serial).
     """
     try:
         f = sys.stdin.buffer if path == "-" else open(path, "rb")
     except OSError as e:
         raise Fatal(2, "cannot read input %s: %s" % (path, e))
     try:
+        try:
+            streaming = not stat.S_ISREG(os.fstat(f.fileno()).st_mode)    # pipe, FIFO or tty
+        except (OSError, ValueError, AttributeError):
+            streaming = False
         while True:
-            b = f.read1(4096) if hasattr(f, "read1") else f.read(4096)
+            if streaming:
+                # W2-6F3: like --port, wake every 50 ms so idle work (stall detection, flush_stale) runs while the pipe is quiet
+                r, _, _ = select.select([f.fileno()], [], [], IDLE_S)
+                if not r:
+                    yield None
+                    continue
+                b = os.read(f.fileno(), 4096)
+            else:
+                b = f.read1(4096) if hasattr(f, "read1") else f.read(4096)
             if not b:
                 return
             yield b
