@@ -219,23 +219,24 @@ def t_drop_subject_session():
 
 
 def t_session_grouping_by_file_and_value():
-    """R1: session group = (file, value); colliding numbers across files never merge."""
-    a = make_ds("a4", 1, per_class=10, sess_mod=4, drop=("subject",))
-    b = make_ds("b4", 2, per_class=10, sess_mod=4, drop=("subject",))
+    """R1: session group = (file, value); colliding numbers across files never merge (forced construction)."""
+    a = make_ds("a4", 1, per_class=10, sess_mod=2, drop=("subject",))
+    b = make_ds("b4", 2, per_class=10, sess_mod=2, drop=("subject",))
     out, _, _ = train("sess", D(a, b), ["--group", "session", "--val-frac", "0.25", "--test-frac", "0.25"])
     na = len(np.load(a)["labels"])
     sess = np.concatenate([np.load(a)["session"], np.load(b)["session"]]).astype(int)
     fid = (np.arange(len(sess)) >= na).astype(int)
     sp = np.load(os.path.join(out, "split.npz"))
     grp = {k: set(zip(fid[sp[k]].tolist(), sess[sp[k]].tolist())) for k in ("train", "val", "test")}
-    assert len(sp["test"]) > 0 and len(sp["train"]) > 0, "empty split"
+    assert len(sp["test"]) > 0 and len(sp["train"]) > 0 and len(sp["val"]) > 0, "empty split"
     assert not (grp["test"] & grp["train"]), "test shares a (file, session) group with train"
     assert not (grp["val"] & grp["train"]), "val shares a (file, session) group with train"
     assert not (grp["test"] & grp["val"]), "test shares a group with val"
-    assert rj(out)["group"] == "session"
-    vals = {k: set(s for _, s in g) for k, g in grp.items()}
-    if not (vals["test"] & vals["train"]):
-        raise Skip("no colliding session value across sets with this seed (split itself valid)")
+    assert rj(out)["group"] == "session", "group %r" % rj(out)["group"]
+    # 4 (file, value) groups in 3 sets over only 2 session values: by pigeonhole a value lands in two sets
+    vals = {k: set(v for _, v in g) for k, g in grp.items()}
+    assert (vals["test"] & vals["train"]) or (vals["val"] & vals["train"]) or (vals["test"] & vals["val"]), \
+        "no session value shared across sets: groups were merged by value alone"
 
 
 def t_subject_grouping_by_value():
@@ -635,6 +636,90 @@ def t_report_contents():
     assert "c15.npz" in rmd(out2), "input file listed even for a single file"
 
 
+# ------------------------------------------------------------------------------------------ W2-5TF2
+def t_aug_geometry():
+    """R3: roll about X (X unchanged, |(Y,Z)| preserved, angle within +-roll), via train.augment_windows."""
+    import train as tr
+    w = np.zeros((4, 150, 3), np.int16)
+    w[:, :] = (100, 500, -300)
+    aug = {"roll": 60, "gain": 0, "copies": 3}
+    out, src = tr.augment_windows(w, aug, 7)
+    assert out.shape == (12, 150, 3) and out.dtype == np.int16 and len(src) == 12
+    assert (out[:, :, 0] == 100).all(), "X (tip axis) must be unchanged"
+    r0 = np.hypot(500.0, -300.0)
+    r = np.hypot(out[:, :, 1].astype(float), out[:, :, 2].astype(float))
+    assert np.abs(r - r0).max() <= 1.0, "|(Y,Z)| not preserved: %.3f" % np.abs(r - r0).max()
+    d = np.degrees(np.arctan2(out[:, :, 2].astype(float), out[:, :, 1].astype(float)) - np.arctan2(-300.0, 500.0))
+    d = (d + 180) % 360 - 180
+    assert np.abs(d).max() <= 60.0 + 0.2, "angle %.2f outside +-60" % np.abs(d).max()
+    assert np.abs(d).max() > 20, "copies are not rotated (max angle %.2f)" % np.abs(d).max()
+    assert out[0, 0].tolist() != out[1, 0].tolist() or out[1, 0].tolist() != out[2, 0].tolist(), "all copies identical"
+    o2, _ = tr.augment_windows(w, aug, 7)
+    assert np.array_equal(out, o2), "not deterministic"
+
+
+def t_aug_rounding_half_away():
+    """R3: exact .5 results round half away from zero (random draws stubbed to the upper bound)."""
+    import train as tr
+
+    class Stub:
+        def uniform(self, lo, hi, size):
+            return np.full(size, float(hi))
+
+    w = np.zeros((1, 150, 3), np.int16)
+    w[0, 0] = (1, -1, 3)
+    w[0, 1] = (-3, 2047, -2048)
+    w[0, 2] = (0, 1, 1)
+    orig = tr.np.random.default_rng
+    tr.np.random.default_rng = lambda *a, **k: Stub()
+    try:
+        out, _ = tr.augment_windows(w, {"roll": 0, "gain": 50, "copies": 1}, 1)   # gain = 1.5 exactly, angle 0
+    finally:
+        tr.np.random.default_rng = orig
+    assert out[0, 0].tolist() == [2, -2, 5], "half away from zero (positive): %s" % out[0, 0]
+    assert out[0, 1].tolist() == [-5, 2047, -2048], "negative .5 / clipping: %s" % out[0, 1]
+    assert out[0, 2].tolist() == [0, 2, 2], "got %s" % out[0, 2]
+
+
+def t_warn_subject_not_grouping():
+    """W2-5F2: warn 'both train and test' when 2 subjects exist but grouping is by session."""
+    a = make_ds("a20", 3, per_class=10, subj_mod=2)
+    out, so, se = train("w_subj", D(a), ["--group", "session"])
+    txt = (se + so + rmd(out)).lower()
+    assert "both train and test" in txt, "no 'both train and test' warning"
+
+
+def t_warn_duplicate_file():
+    """W2-5F2: warn when the same file is given twice."""
+    a = make_ds("a21", 3, per_class=8)
+    out, so, se = train("w_dup", D(a, a))
+    txt = (se + so + rmd(out)).lower()
+    assert "duplicate" in txt or "identical" in txt, "no duplicate-file warning"
+    b = make_ds("b21", 4, per_class=8)
+    out2, so2, se2 = train("w_nodup", D(a, b))
+    assert "duplicate" not in (se2 + so2).lower(), "spurious duplicate warning for different files"
+
+
+def t_eval_rejected_device_windows():
+    """W2-5F2: dev_class -1 (device rejected) is not counted as a disagreement."""
+    h = eval_setup()
+    m = infer_ref.load_header(h)
+    z = synth_dataset.make_dataset(10, 31)
+    _, pred, _ = host_eval(h, z["windows"])
+    n = len(pred)
+    dc = pred.astype(np.int8).copy()
+    dc[:12] = -1
+    extra = {"dev_flags": np.ones(n, np.uint8), "dev_class": dc, "dev_conf": np.full(n, 100, np.uint8),
+             "model_hash": np.full(n, m["GM_MODEL_HASH"], np.uint32)}
+    e = make_ds("ev8", 31, per_class=10, extra=extra)
+    rc, so, se, out = run_eval(h, [e], "dev_rej")
+    assert rc == 0, se[-300:]
+    md, js = report_blob(out)
+    naive = (n - 12) / n
+    assert not has_number(md + js, naive), "rejected windows counted as disagreements (%.4f)" % naive
+    assert "100" in md or has_number(js, 1.0), "agreement should be 100 % over non-rejected windows"
+
+
 TESTS = [t_multi_data_forms, t_validate_each_file, t_drop_subject_session, t_session_grouping_by_file_and_value,
          t_subject_grouping_by_value, t_synthetic_flag_propagation, t_extra_arrays_and_meta,
          t_default_output_byte_identical, t_selftest_still_passes,
@@ -642,7 +727,9 @@ TESTS = [t_multi_data_forms, t_validate_each_file, t_drop_subject_session, t_ses
          t_eval_stdout_and_multi_data, t_eval_per_subject, t_eval_device_agreement, t_eval_synthetic_marking,
          t_eval_bad_input_exit2,
          t_aug_off_by_default, t_aug_deterministic_and_effective, t_aug_val_test_untouched,
-         t_aug_zero_roll_zero_gain, t_aug_clipping_and_extremes, t_aug_bad_values, t_report_contents]
+         t_aug_zero_roll_zero_gain, t_aug_clipping_and_extremes, t_aug_bad_values, t_report_contents,
+         t_aug_geometry, t_aug_rounding_half_away, t_warn_subject_not_grouping, t_warn_duplicate_file,
+         t_eval_rejected_device_windows]
 
 
 def main():
