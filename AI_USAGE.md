@@ -671,3 +671,6 @@ which person.
 | firmware/test/c2_stream/* | oracle, driver, runner, stand-in | Independent C2 TX suite (host + sim16) | 2026-11-16 | agent |
 | firmware/test/trigger/* | oracle `Model`, driver, runner, stand-in `trigger_*` | Independent trigger suite (host + sim16, trigger_ref cross-check) | 2026-11-16 | agent |
 | tools/tests/test_train_real.py | 24 test functions, helpers | Independent spec tests for W2-5 (multi-file, evaluate_model, augmentation) | 2026-11-16 | agent |
+| firmware/src/gesture.c | `gesture_init`, `gesture_set_trigger`, `gesture_poll`, `gesture_classify`, `gesture_learn`, `gesture_set_reject`, `gesture_stream_raw`, `gesture_events`, `format_boot_line`, `hello_due`, `start_hello`, `handle_overrun`, `on_sample`, `drain_once`, `tx_service`, `chunk_buf`, `format_ovr_line` | Public gesture API: drain → trigger → capture → classify, C2 streaming, bring-up SAMPLES mode | 2026-11-16 | agent |
+| firmware/src/gesture_port.h | prototypes | Board port interface (TX ring, millis, INT flags) | 2026-11-16 | agent |
+| tools/train.py, tools/evaluate_model.py | W2-5F2 changes (leak and duplicate warnings, file-index grouping, device-rejected, small-N) | Honest splits and reports on real recordings | 2026-11-16 | agent |
