@@ -168,7 +168,7 @@ python3 tools/evaluate_model.py --selftest      # prints "evaluate_model selftes
 ```
 Integer path only (`features_ref` -> `infer_ref.forward` -> `infer_ref.mlp_conf`); a window is rejected when its
 confidence is below `--min-conf` (default the header's `GM_DEFAULT_REJECT`). The report gives accuracy with a
-Wilson 95 % interval, the rejection rate and accuracy after rejection on true gestures (label != 0), the 9x9
+Wilson 95 % interval, accuracy after rejection (correct / accepted over all accepted windows, every label; plus a second line for true gestures only), the rejection rate on true gestures (label != 0), the 9x9
 confusion matrix with per-class recall, per-subject accuracy when `subject` exists, and, for windows with
 `dev_flags` bit 0, the agreement of the on-device `dev_class` with the host prediction, counted only where
 `model_hash` equals the header's `GM_MODEL_HASH` (others are listed as "different model"). `--out-dir` writes
