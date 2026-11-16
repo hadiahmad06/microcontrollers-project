@@ -11,6 +11,9 @@
 #ifndef P24_REGS_H
 #define P24_REGS_H
 
+/* Compiler-only memory barrier (no instruction emitted). GCC syntax, so valid for XC16 and the host cc. */
+#define HAL_COMPILER_BARRIER() __asm__ volatile ("" ::: "memory")
+
 #ifdef HAL_CHECK_MOCK
 #include "p24_mock.h"
 #define HAL_ISR(name) void name(void)

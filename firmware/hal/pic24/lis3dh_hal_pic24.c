@@ -18,8 +18,9 @@
 #include "lis3dh_hal.h"
 #include "p24_regs.h"
 
-/** Maximum polling iterations per wait. One I2C byte at 400 kHz is ~25 us (~400 FCY); with ~4+ FCY per
- *  iteration this bound is well over 4 ms, far above any legal clock-stretch of the LIS3DH. */
+/** Maximum polling iterations per wait. One I2C byte at 400 kHz is ~25 us (~400 FCY); at about 8-12 FCY per
+ *  iteration this bound is about 10-15 ms, far above any legal clock-stretch of the LIS3DH. A dead bus
+ *  therefore stalls the main loop 10+ ms per failed call (gesture_init probing two addresses: ~60 ms). */
 #define I2C_SPIN_MAX 20000U
 
 /** Evaluate `cond` until true or the bound is hit; on timeout recover the bus and return -1. */
@@ -43,20 +44,50 @@
 /** Transmit finished: buffer empty and shifter idle. */
 #define I2C_TX_DONE() ((I2C1STATbits.TBF == 0U) && (I2C1STATbits.TRSTAT == 0U))
 
+/** Short bounded delay of roughly 5 us at 16 MIPS (half an SCL period for the recovery pulses). */
+static void i2c_delay(void)
+{
+    uint8_t k;
+    for (k = 0U; k < 20U; k++) {
+        __builtin_nop();
+    }
+}
+
+/**
+ * Free a slave that holds SDA low (e.g. after an MCU reset mid-byte, review F7): with I2C1 OFF the pins
+ * are plain GPIO; clock SCL up to 9 times until SDA reads high. SCL is driven low or released
+ * (open-drain style through TRISB, external pull-up), never driven high. Bounded: 9 pulses.
+ */
+static void i2c_bus_recover(void)
+{
+    uint8_t n;
+    LATBbits.LATB8 = 0;                /* LATB8 = 0: when TRISB8 = 0, SCL is driven low */
+    TRISBbits.TRISB9 = 1;              /* TRISB9 = 1: SDA input, read through PORTB */
+    TRISBbits.TRISB8 = 1;              /* TRISB8 = 1: SCL released (pulled high externally) */
+    for (n = 0U; (n < 9U) && (PORTBbits.RB9 == 0U); n++) {
+        TRISBbits.TRISB8 = 0;          /* TRISB8 = 0: pull SCL low */
+        i2c_delay();
+        TRISBbits.TRISB8 = 1;          /* TRISB8 = 1: release SCL high */
+        i2c_delay();
+    }
+}
+
 /** Reset the module after a timeout/collision so the next transfer starts clean. */
 static void i2c_reset(void)
 {
     I2C1CONbits.I2CEN = 0;             /* I2CEN = 0: module off, releases SCL/SDA, clears the state machine */
+    i2c_bus_recover();                 /* free a stuck slave while the pins are GPIO */
     I2C1STAT = 0;                      /* clear BCL, IWCOL, I2COV and status flags */
     I2C1CONbits.I2CEN = 1;             /* I2CEN = 1: module back on */
 }
 
 void lis3dh_hal_pic24_init(void)
 {
-    I2C1CON = 0;                       /* I2CEN=0; 7-bit address (A10M=0); all sequences idle */
+    I2C1CON = 0;                       /* I2CEN=0 (pins are GPIO for the recovery below); 7-bit address (A10M=0); all sequences idle */
     I2C1BRG = 38;                      /* I2C1BRG = 38: FSCL = FCY / (38 + 1 + FCY/1e7) ~ 394 kHz at 16 MHz */
     I2C1CONbits.DISSLW = 0;            /* DISSLW = 0: slew-rate control ON (required at 400 kHz) */
     I2C1STAT = 0;                      /* clear flags */
+    i2c_bus_recover();                 /* SDA stuck after a reflash? clock it free before enabling I2C1 */
     I2C1CONbits.I2CEN = 1;             /* I2CEN = 1: enable the module; SCL1/SDA1 become open-drain I2C pins */
 }
 

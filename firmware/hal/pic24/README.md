@@ -26,8 +26,7 @@ make -C firmware/build check                                            # host s
 `XC16=/path/to/xc16/bin` overrides the default `/Applications/microchip/xc16/v2.10/bin`. The `.map` file
 (`record.map`) must be checked: RAM headroom >= 25 %, stack 512 B, all `const` data in one PSV page (C7).
 `MODEL` is copied to `firmware/build/gesture_model.h` (found first via `-iquote .`).
-`firmware/src/gesture.c` is built only once it exists; until then the link fails with undefined `gesture_*`
-(expected). The Makefile compiles all of `firmware/src/*.c` including `display.c`/`icons.c`; if those need
+The Makefile compiles all of `firmware/src/*.c` including `display.c`/`icons.c`; if those need
 hardware that is not wired, exclude them.
 
 ## Flash
@@ -59,7 +58,12 @@ from the model, 4 = other.
 3. Tilt test (C1 section 3.3 axes): lay the board flat; z should read about +1 g; tilt each edge up in turn and confirm x
    and y change sign as C1 3.3 / `board_axes.h` define. Bits 3..0 of each 16-bit raw value stay zero.
 4. Flash `record.hex` and record a gesture; the recorder should receive one WINDOW frame per gesture.
-5. Scope RB4 (or the SCL line) to confirm the 400 kHz I2C clock (~394 kHz) and 115200 baud on U1TX (8.7 us per bit).
+5. Symptoms: board hangs right after boot (nothing on the UART, RB4 silent) -> suspect the TX ISR storm (review F4).
+   I2C not found after a reflash -> power-cycle the board (a slave stuck holding SDA; the HAL clocks SCL up to 9 times
+   but cannot always free it) (F7).
+6. Timing rule: the main loop must reach `gesture_poll` at least every ~11 ms (128 B TX ring at 115200 baud drains in
+   about 11 ms; review T-c2txR), so never add blocking code to the loop.
+7. Scope RB4 (or the SCL line) to confirm the 400 kHz I2C clock (~394 kHz) and 115200 baud on U1TX (8.7 us per bit).
 
 ## Design notes
 - TX ring (128 B, 127 usable): lock-free single-producer/single-consumer. Main loop owns `s_head`, the TX ISR owns
@@ -74,7 +78,7 @@ from the model, 4 = other.
 Compile with XC16 first; any "undeclared identifier" is a wrong name from this list.
 - [ ] `#pragma config` setting and value names in `config_bits.c`: `JTAGEN`, `GCP`, `GWRP`, `BKBUG`, `COE`, `ICS = PGx1`,
       `FWDTEN`, `WINDIS`, `FWPSA = PR128`, `WDTPS = PS32768`, `IESO`, `FNOSC = FRCPLL`, `FCKSM = CSDCMD`,
-      `OSCIOFNC` (spec spells `OSCIOFCN`; polarity of ON/OFF unchecked), `IOL1WAY`, `I2C1SEL = PRI`, `POSCMD = NONE`.
+      `OSCIOFNC` (spec spells `OSCIOFCN`; polarity of ON/OFF unchecked), `IOL1WAY`, `I2C1SEL = PRI`, `POSCMOD = NONE` (was POSCMD).
 - [ ] Oscillator: FRCPLL gives 32 MHz Fosc / 16 MIPS; `CLKDIVbits.RCDIV = 0` really feeds the PLL 8 MHz (C6a 3.8 caveat);
       `OSCCONbits.LOCK` exists and means PLL locked.
 - [ ] PPS: `RPINR18bits.U1RXR`, `RPINR0bits.INT1R`, `RPOR6bits.RP13R`; that RPOR6 holds RP12R (low byte) and RP13R (high byte);
@@ -88,7 +92,7 @@ Compile with XC16 first; any "undeclared identifier" is a wrong name from this l
       interrupt whenever the buffer has room; `UTXEN = 1` sets U1TXIF (hence the clear after it).
 - [ ] I2C1: `I2C1CONbits.SEN/RSEN/PEN/RCEN/ACKEN/ACKDT/DISSLW/I2CEN`, `I2C1STATbits.TBF/RBF/TRSTAT/ACKSTAT/BCL/IWCOL/I2COV`,
       `I2C1BRG = 38`, `I2C1TRN`, `I2C1RCV`; DISSLW = 0 at 400 kHz; RCEN clears when a byte is in and RBF is set.
-- [ ] Linker flags in the Makefile: `-Wl,-Tp24FJ64GA002.gld,--heap=0,--stack=512`, `-Map=`, `--gc-sections`, `-mconst-in-code`,
+- [ ] Linker flags in the Makefile: `-Wl,--heap=0,--stack=512`, `-Map=` (linker script left to `-mcpu`), `-mconst-in-code`,
       `-std=gnu99` (spec says C99; XC16 headers may need GNU mode), `xc16-bin2hex record.elf`.
 - [ ] Pin conflicts on the real lab board (C6a open question 1): ICSP set, I2C pins, UART bridge.
 - [ ] Stack/RAM in `record.map` within C7 budget.

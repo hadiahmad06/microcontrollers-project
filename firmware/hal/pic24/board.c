@@ -98,11 +98,15 @@ void board_init(void)
 
     board_timer1_init();               /* started first so board_error_blink() has a time base */
 
-    /* Bounded wait for the PLL (LOCK = OSCCON bit 5); no infinite spin. */
-    for (guard = 0xFFFFU; (guard != 0U) && (OSCCONbits.LOCK == 0U); guard--) {
+    /* Let the RCDIV write take effect so a stale LOCK = 1 is not read (review F10). */
+    for (guard = 0U; guard < 200U; guard++) {
+        __builtin_nop();
+    }
+    /* Bounded wait for FRCPLL running (COSC<2:0> = 001) and PLL locked (LOCK = OSCCON bit 5); no infinite spin. */
+    for (guard = 0xFFFFU; (guard != 0U) && !((OSCCONbits.COSC == 1U) && (OSCCONbits.LOCK != 0U)); guard--) {
         /* spin */
     }
-    if (OSCCONbits.LOCK == 0U) {
+    if (!((OSCCONbits.COSC == 1U) && (OSCCONbits.LOCK != 0U))) {
         board_error_blink(1);
     }
 

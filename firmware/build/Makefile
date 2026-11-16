@@ -24,16 +24,16 @@ APP_C  := $(APP)/main_record.c
 # -iquote: build dir first so the copied gesture_model.h wins; then src and the HAL.
 INCS   := -iquote . -iquote $(SRC) -iquote $(HAL)
 CFLAGS := -mcpu=$(MCU) -std=gnu99 -Os -Wall -Wextra $(INCS) -mconst-in-code -fno-common -ffunction-sections -fdata-sections
-# --heap=0 (no malloc), --stack=512 (C7), device linker script, map file.
-LDFLAGS:= -mcpu=$(MCU) -Wl,-Tp24FJ64GA002.gld,--heap=0,--stack=512,--gc-sections
+# --heap=0 (no malloc), --stack=512 (C7), map file. The device linker script is chosen by -mcpu (review F6);
+# if flash gets tight add -Wl,--gc-sections back.
+LDFLAGS:= -mcpu=$(MCU) -Wl,--heap=0,--stack=512
 
 .PHONY: all clean check
 all: record.hex
 
 # --- model header: copied next to the objects so -iquote . finds it ---
-# Always re-copied so a changed model is never silently stale.
-.PHONY: refresh-model
-refresh-model:
+# Real file target: re-copied when MODEL changes on disk; every object depends on it (review F5).
+gesture_model.h: $(MODEL)
 	@test -n "$(MODEL)" || { echo "error: pass MODEL=path/to/gesture_model.h"; exit 1; }
 	cp "$(MODEL)" gesture_model.h
 
@@ -41,16 +41,16 @@ refresh-model:
 define IMAGE
 $(1)_OBJS := $$(patsubst %.c,$(OBJ)/$(1)/%.o,$$(notdir $(SRC_C) $(HAL_C) $(APP_C)))
 
-$(OBJ)/$(1)/%.o: $(SRC)/%.c | $(OBJ)/$(1)
+$(OBJ)/$(1)/%.o: $(SRC)/%.c gesture_model.h | $(OBJ)/$(1)
 	$(CC16) $(CFLAGS) $(2) -c $$< -o $$@
-$(OBJ)/$(1)/%.o: $(HAL)/%.c | $(OBJ)/$(1)
+$(OBJ)/$(1)/%.o: $(HAL)/%.c gesture_model.h | $(OBJ)/$(1)
 	$(CC16) $(CFLAGS) $(2) -c $$< -o $$@
-$(OBJ)/$(1)/%.o: $(APP)/%.c | $(OBJ)/$(1)
+$(OBJ)/$(1)/%.o: $(APP)/%.c gesture_model.h | $(OBJ)/$(1)
 	$(CC16) $(CFLAGS) $(2) -c $$< -o $$@
 $(OBJ)/$(1):
 	mkdir -p $$@
 
-$(1).elf: refresh-model $$($(1)_OBJS)
+$(1).elf: $$($(1)_OBJS)
 	$(CC16) $$($(1)_OBJS) $(LDFLAGS),-Map=$(1).map -o $$@
 
 $(1).hex: $(1).elf
