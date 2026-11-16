@@ -106,3 +106,13 @@ This file is append-only. See AGENTS.md §4.
 - Statement: "Adopt docs/agent/hadi/PLAN.md as the team plan; it moves to docs/agent/PLAN.md." (answered "Yes, adopt it")
 - Context: Sprint 2 follows its tickets 3.3-3.8.
 - Supersedes: none
+
+## 2026-11-16: Open questions are not accepted, but development may proceed on them
+- Statement: "I haven't explicitly accepted any of the questions in open_questions. But you can continue with thei rdevelopment anyway. Place that top-level decision in docs/agent/"
+- Context: Hadi going offline. Q1-Q8 in docs/agent/hadi/open_questions.md stay open; the agent recommendations become working assumptions for development (recorded top-level in docs/agent/WORKING_ASSUMPTIONS.md).
+- Supersedes: none (replaces the agent's own handoff rule "do not code gesture.c, the trigger module or the C2 TX pump before Q1/Q2 are answered", which was an agent note, not a decision)
+
+## 2026-11-16: Prioritise the training pipeline
+- Statement: "Continue without me, prioritize the training pipeline. I want to be able to start training in the near future."
+- Context: Hadi offline; the agent works without asking questions.
+- Supersedes: none

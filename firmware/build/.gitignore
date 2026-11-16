@@ -1,0 +1,7 @@
+# [AI-GENERATED: Claude Code]
+obj/
+gesture_model.h
+*.elf
+*.hex
+*.map
+# [END AI-GENERATED]

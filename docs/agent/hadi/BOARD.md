@@ -192,6 +192,30 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | **done**, merged: +5/+6 pts end to end (synthetic); main re-verified hash (seed 4) and the spike | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
 | W2-3R | Review W2-3 | review-22 | **done**: MERGE (0 blockers, 0 majors; wording minors F1, F2, F5 fixed) | `reviews/W2-3R.md` | PR-4 |
 
+## Sprint 6: training pipeline to real data (started 2026-11-16, session branch `claude/serene-euler-ax5wpx`)
+**Goal (Hadi, 2026-11-16: "prioritize the training pipeline"):** Hadi can flash a recording build, record labelled
+windows on a PC, merge sessions and train. Open questions are **working assumptions** (`docs/agent/WORKING_ASSUMPTIONS.md`),
+so T-trig / T-c2tx / 3.7 are no longer blocked. Specs + briefs: `docs/agent/hadi/briefs/` (COMMON.md, W2-4_spec.md,
+T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "prevent rumination").
+
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| W2-4 | PC tools: `c2_proto.py`, `recorder.py`, `fake_wand.py`, `dataset_tool.py`, `gesture_labels.py`, `RECORDING.md` | impl-rec | **done**, merged: S5 pipeline + corrupt + pty checks pass; main reran selftests | `tools/…` | W2-4T, W2-4R |
+| W2-4T | Tests from spec (independent oracle) | test-rec | **done**, merged: 47 tests, 46 passed on first run; 1 real tool bug (fake_wand count at --corrupt 0) fixed by main `81c2d7e`; ALL PASS | `tools/tests/**` | – |
+| W2-4R | Review W2-4 + W2-4T | review-23 | **done**, merged: MERGE AFTER FIXES (F1 stray Enter mislabels HIGH, F2 empty OUT after failure HIGH, F3-F9, F11) → W2-4F (impl-rec 2nd, after W2-6) + W2-4TF (test-rec: done on branch `worktree-agent-a4722bfc32e814f46` `db62afc`, 4 new tests fail until W2-4F lands; merge both together) | `reviews/W2-4R.md` | – |
+| T-trig ✅ | `firmware/src/trigger.*` + `tools/trigger_ref.py` (EMA-L1, S=3) | impl-trigger | **done**, merged `f7fb33f`: C == Python on 300/300 streams, == spike indices on 240; main reran selftest | `firmware/src/trigger.*`, `tools/trigger_ref.py` | T-trigT, T-trigR |
+| T-trigT | Trigger suite host + sim16, standin | test-trigger | **done**, merged: real impl PASS host (3 seeds) + sim16 + trigger_ref cross-check (main reran); 9 mutants caught | `firmware/test/trigger/**` | – |
+| T-trigR | Review trigger | review-24 | **done**, merged: MERGE AFTER FIXES (docs F1-F4) → T-trigF **done**, merged (objects byte-identical; suite PASS, main reran) | `reviews/T-trigR.md` | – |
+| T-c2tx | `firmware/src/c2_stream.*` incremental TX pump | impl-c2tx | **done**, merged `be8c18e`: bytes == spike on 383 frames; avr sizeof 27 B, .text 1656 B (avr); main read diff | `firmware/src/c2_stream.*` | T-c2txT, T-c2txR |
+| T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | **done**, merged: real impl PASS host + sim16 (main reran); 10/10 mutants caught | `firmware/test/c2_stream/**` | – |
+| T-c2txR | Review C2 TX | review-25 | **done**: MERGE AFTER FIXES. Ruling F1: keep `const int16_t (*)[3]`, callers cast (gesture.c told); F3 speed/size restructure, F5 doc line, F6 oracle note → SW-4 backlog | `reviews/T-c2txR.md` | – |
+| W2-5 | train.py multi-file + grouping, `evaluate_model.py`, opt-in roll/gain augmentation (spec `briefs/W2-5_spec.md`) | impl-train (4th) | **done**, merged: default header sha256 unchanged; selftests PASS (main reran) | `tools/train.py`, `tools/evaluate_model.py`, README | W2-5T (test-train: merged, 21/24 vs real code; fix rounds W2-5F tool ruling R2-a 'accuracy after rejection over all accepted windows', W2-5TF two test rulings, in progress), W2-5R |
+| PR-4 | Sprint 6 PR to `main` (hadiahmad06/microcontrollers-project#4) | main + review-30 | open; pre-merge review PR-4R in progress | `reviews/PR-4R.md` | merge if MERGE |
+| SW-4 | Sweep: c2_stream F3 restructure (header bytes in head[], flat sample index, run CRC; ~40 cyc/byte, pump .text about halved) + F5/F6 doc notes (T-c2txR); main loop must reach the pump within ~11 ms (128 B TX ring) → note in HAL README | – | backlog | `firmware/src/c2_stream.*`, tests notes | – |
+| W2-6 | Continuous SAMPLES recording + offline trigger cut (spec `briefs/W2-6_spec.md`) | impl-rec (2nd) | **done**, merged with W2-4F + W2-4TF (recording suite ALL PASS) and W2-6T (22/24; rulings → W2-6F tool may overwrite --out, W2-6TF test reads JSON marks; both **done**, merged; test_stream ALL PASS (26 tests, main reran)); W2-6R review-29 done: MERGE AFTER FIXES → W2-6F2 + W2-6TF2 merged → W2-6F3 (piped --input idles) **done**, merged; all suites PASS (main reran); W2-6 ✅; W2-5R review-27 **done**: MERGE AFTER FIXES (F1 silent subject leak, F2 stratified fallback leak, F3 vacuous collision test, F4-F7) → W2-5F2 + W2-5TF2 **done**, merged; test_train_real ALL PASS (main reran); W2-5 ✅ | `tools/…` | T, R |
+| 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | impl-gesture | **done** (3.7T merged: 219 checks PASS, 11 suites PASS; rulings 3.7T-1/-2 favour impl; 3.7R review-28 done: MERGE AFTER FIXES → 3.7F (OVR placement, chunk reset, pump before continued drain) + 3.7TF (set_trigger, stream-off, bus-error tests) **done**, merged; 271 checks, 11 suites PASS (main reran); 3.7 ✅), merged `1668941`: scratch e2e == trigger_ref + infer_ref on 10 gestures, bring-up 201 contiguous chunks; bss 160 B avr incl. trigger_t/x8/c2_tx; `make test` 10 suites PASS (main reran). 3.7T test-gesture in progress | `firmware/src/gesture.*` | 3.7T, 3.7R |
+| HAL | PIC24 HAL + `firmware/app/main_record.c` + Mac `firmware/build/Makefile` + `gesture_port.h` (spec `briefs/HAL_spec.md`); UNVERIFIED until Hadi builds with XC16 | impl-hal | **done**, merged: `make -C firmware/build check` OK (mock only); list of unsure register names in `firmware/hal/pic24/README.md` | `firmware/{hal,app,build}/**`, `firmware/src/gesture_port.h` | HAL-R (review-26: **done**, MERGE AFTER FIXES: F1 POSCMOD high; F3-F8, F10 → HAL-F **done**, merged `5548052`; check OK) |
+
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
 different subagents from the implementer.
@@ -208,25 +232,29 @@ different subagents from the implementer.
 | 3.9 | On-target verification on real hardware | Hadi + main | 3.8 |
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
-## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
-1. **Where things are:** Sprints 2-4 are MERGED into `main` (PR hadiahmad06/microcontrollers-project#1 `4cc0fe2`, PR #2 `c82ad0a`). New work continues on
-   `claude/optimistic-meitner-67qdon` (fast-forwarded to `main`); open a new PR per sprint. `make test` at the repo root runs 8 suites (host + sim16).
-2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
-   (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
-   pump into `firmware/src` before Q1/Q2 are answered; design is ready in `proposals/API_glue.md`.
-3. **After Q1/Q2:** tickets T-trig (promote `spikes/trigger` → `firmware/src/trigger.*`), T-c2tx (C2 TX pump),
-   3.7 (`gesture.c`), each with T and R tickets; then paste `drafts/C2_contract_section.md` into CONTRACTS.md (C2).
-4. **Mac-only:** S2-0b `make selftest` (spikes/sim), gate G3 (XC16 build + MDB/on-target vectors), the WS2812 asm
-   driver (WP4-b), the PIC24 HAL (I2C1/UART1/INT0/INT1/PPS/config words), measurements 3.10.
-5. **Environment:** sim16 needs `apt-get install -y simavr gcc-avr avr-libc` in a fresh cloud container (not saved
-   as a setup script; Hadi has not been asked yet because he signed off).
-6. **Process lessons:** keep a subagent's worktree until its fix round is merged; a container restart or API limit
-   kills running agents and pending question dialogs, so commit early, record decisions in open_questions.md, and
-   resume agents with SendMessage when they are still resumable (else start a fresh instance from the review file).
-   Firmware headers are on the `-iquote` path only (features.h vs glibc). simavr splits UART lines > 255 chars.
+## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-16)
+1. **Where things are:** Sprint 6 (training pipeline) runs on `claude/serene-euler-ax5wpx` (pushed; based on merged `main` 0cae026).
+   Not yet PR'd to `main`. `make test` = 10 firmware suites (host + sim16), all PASS at `bbfdffd`. Python suites:
+   `tools/tests/test_recording.py`, `tools/tests/test_train_real.py` (`ORIG_REF=e8a4291`).
+2. **Hadi 2026-11-16:** open questions are NOT accepted but are working assumptions (`docs/agent/WORKING_ASSUMPTIONS.md`);
+   prioritise the training pipeline; don't ask questions; resume after usage limits.
+3. **Done this sprint:** T-trig, T-c2tx, W2-4 (recorder/decoder/fake wand/dataset tool), W2-5 (multi-file train,
+   evaluate_model, augmentation), 3.7 gesture.c, HAL (PIC24, UNVERIFIED) + HAL-F. Reviews merged: T-trigR, T-c2txR,
+   W2-4R, W2-5R, HAL-R.
+4. **Open fix rounds / tickets:** W2-4F (in impl-rec 2nd, after W2-6) + W2-4TF (branch `worktree-agent-a4722bfc32e814f46`
+   `db62afc`, merge together); W2-5F2 + W2-5TF2; 3.7T (test-gesture) then 3.7R; W2-6 + W2-6T then W2-6R; SW-4 backlog.
+5. **Then:** PR session branch → `main` with a Sonnet pre-merge review; Hadi's Mac: `make -C firmware/build record.hex
+   MODEL=...` (see `firmware/hal/pic24/README.md` checklist), flash, `tools/RECORDING.md`.
+6. **Git identity:** author `Hadi Ahmad (Claude)` <Hadi's email> (Hadi's decision); committer `Claude <noreply@anthropic.com>`
+   (a stop hook requires it; `git config committer.name/email`). Subagent branches are replayed onto the session branch with
+   that committer (`git rebase -f`) before `merge --no-ff`.
+7. **Process lessons:** worktrees start from old `main`: subagents must `git merge claude/serene-euler-ax5wpx` first.
+   The auto-mode classifier fails transiently: retry once. Usage limits stop subagents: resume them with SendMessage.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-16 (b): **Done:** T-trig, T-c2tx, W2-4, W2-5, 3.7, HAL + all their reviews (MERGE AFTER FIXES each); 10 suites PASS. Usage limit stopped 5 agents at ~12:00 UTC; resumed after reset. **Next:** fix rounds W2-4F/TF, W2-5F2/TF2, 3.7T, W2-6/T, then reviews 3.7R, W2-6R, then the sprint PR. **Blocked:** XC16 build + flash (Hadi's Mac).
+- 2026-11-16 (a): Hadi offline: open questions become working assumptions; Sprint 6 (training pipeline) started with 7 agents.
 - 2026-11-15 (aa): **SPRINTS 3-4 CLOSED.** PR #2 merged (`c82ad0a`) after PR-3R and a clean run. Remaining work needs Hadi (Q1-Q8) or the Mac (G3, HAL, WS2812 asm). Report draft and citations are ready for the team to edit.
 - 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.

@@ -2,3 +2,6 @@
 .claude/worktrees/
 build/
 __pycache__/
+# [AI-GENERATED: Claude Code]
+!firmware/build/
+# [END AI-GENERATED]

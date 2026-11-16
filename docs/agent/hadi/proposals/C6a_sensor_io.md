@@ -159,7 +159,7 @@ All from [PIC] Registers 24-1 (CW1, p.210) and 24-2 (CW2, pp.212-213). Unprogram
 | `IOL1WAY` | OFF (0) during development (1 allows only one PPS write session) | board_init unlocks and locks PPS once; either works, OFF eases debugging | CW2 bit 4 |
 | `FNOSC` | FRCPLL (001): FRC with PLL, to reach Fosc = 32 MHz and FCY = 16 MHz | oscillator assumption, **open question 4**; if the board has a crystal use POSCMD/FNOSC accordingly | CW2 bits 10:8 |
 | `POSCMD` | 11 = primary oscillator disabled (for FRCPLL) | frees RA2/RA3 | CW2 bits 1:0 |
-| `OSCIOFCN` | 0 = OSCO is port I/O (RA3) when POSCMD = 11 | only if RA3 is used as GPIO | CW2 bit 5 |
+| `OSCIOFNC` | XC16 pragma `OSCIOFNC = ON` makes OSCO port I/O (RA3) when POSCMOD = NONE (erratum 2026-11-16, review HAL-R F1/F2: earlier text said "0 = port I/O" and "POSCMD"; from memory, check DS39881) | only if RA3 is used as GPIO | CW2 bit 5 |
 | `FWDTEN` | OFF during development | avoids resets during debugging | CW1 bit 7 |
 | `GCP`, `GWRP`, `DEBUG` | leave unprotected/enabled for debug | not pin related | CW1 |
 | `DISVREG` (pin 19) | tied to VSS in hardware (not a config bit) | on-chip regulator on; VCAP cap needed | [PIC] sec 2.4 (p.18); S1-1R |
