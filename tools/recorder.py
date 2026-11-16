@@ -540,6 +540,9 @@ def run(args):
 # [AI-GENERATED: Claude Code]
 # WORKING ASSUMPTION: open_questions Q1, Q2, not decided (SAMPLES stream; offline trigger cut, briefs/W2-6_spec.md V1).
 STREAM_VERSION = 1
+MARK_LAG = 16                    # samples added to a wall-clock mark: the PC sees a sample up to one 16-sample chunk after the
+                                 # wand took it, so the index of the last received sample lags what the user sees at GO
+STALL_S = 1.0                    # no chunk for this long = the wand stalled; GO marks pause
 STREAM_WRITE_EVERY = 16          # chunks between atomic rewrites of the stream file
 
 
@@ -574,6 +577,9 @@ class StreamRecorder:
         self.step_i = 0
         self.go_n = 0            # GOs given in the current step
         self.next_go = None      # monotonic time of the next GO
+        self.last_chunk_t = None # monotonic time of the last stored chunk
+        self.stalled = False
+        self.stall_t = 0.0
         self.finish_at = None
         self.waiting = False
         self.q = None
@@ -627,6 +633,21 @@ class StreamRecorder:
         """Advance the wall-clock plan: handle Enter, emit GO marks. Call after every chunk and idle period."""
         if self.marks_from is not None or not self.steps or self.step_i >= len(self.steps):
             return
+        now = time.monotonic()
+        ready = self.hello is not None and self.last_chunk_t is not None and now - self.last_chunk_t <= STALL_S
+        if not ready:                                           # no HELLO yet or the wand went quiet: pause the plan
+            if not self.stalled:
+                self.stalled = True
+                self.stall_t = now
+                print("waiting for wand", flush=True)
+            return
+        if self.stalled:                                        # resume the step where it paused
+            self.stalled = False
+            dt = now - self.stall_t
+            if self.next_go is not None:
+                self.next_go += dt
+            if self.finish_at:
+                self.finish_at += dt
         if self.waiting:
             if self.live:
                 try:
@@ -645,7 +666,7 @@ class StreamRecorder:
         if self.next_go is not None and time.monotonic() >= self.next_go:
             label, n = self.steps[self.step_i]
             self.go_n += 1
-            self.marks.append([self.m, label])
+            self.marks.append([self.m + MARK_LAG, label])
             print("GO %d/%s" % (self.go_n, n or "-"), flush=True)
             self.next_go += self.a.every
             if n and self.go_n >= n:
@@ -678,6 +699,7 @@ class StreamRecorder:
                     self.gaps.append([self.m, lost])
             self.last_chunk = p["chunk"]
             self.chunks.append(s)
+            self.last_chunk_t = time.monotonic()
             self.m += 16
             self.nchunks += 1
             if self.nchunks % STREAM_WRITE_EVERY == 0:
@@ -713,7 +735,7 @@ class StreamRecorder:
     def write(self):
         """Rewrite the stream file atomically."""
         smp = np.concatenate(self.chunks).astype(np.int16) if self.chunks else np.zeros((0, 3), np.int16)
-        marks = [mk for mk in self.marks if mk[0] <= self.m]
+        marks = [[min(mk[0], self.m), mk[1]] for mk in self.marks if self.marks_from is None or mk[0] <= self.m]   # a lagged mark past the stream end is clamped to it
         arrays = {"samples": smp,
                   "chunk_gaps": np.array(self.gaps, dtype=np.int32).reshape(-1, 2),
                   "ovr": np.array(self.ovr, dtype=np.int32),
@@ -750,7 +772,8 @@ def run_samples(args):
     if not args.out:
         raise Fatal(2, "--out is required")
     if args.append:
-        raise Fatal(2, "--append is not supported with --samples")
+        raise Fatal(2, "--append cannot be used with --samples: a stream file is not appendable. Record each session to its "
+                       "own stream file, cut each with cut_stream.py, then join the windows with dataset_tool.py merge")
     if args.every <= 0:
         raise Fatal(2, "--every must be > 0")
     if args.label and args.plan:
@@ -770,6 +793,8 @@ def run_samples(args):
                 marks_from = [[int(a), int(b)] for a, b in json.load(f)["marks"]]
         except (OSError, ValueError, KeyError, TypeError) as e:
             raise Fatal(2, "cannot read --marks-from %s: %s" % (args.marks_from, e))
+        args.synthetic = True                                   # marks from a file are not real GO marks (W2-6F2 F1)
+        print("warning: --marks-from is test only; the output is marked SYNTHETIC", file=sys.stderr)
     try:
         steps = ([] if marks_from is not None else
                  parse_plan(args.plan) if args.plan else [(parse_label(args.label), max(0, args.count))])

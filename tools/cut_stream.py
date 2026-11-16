@@ -33,6 +33,7 @@ import recorder  # noqa: E402
 
 ODR = 100            # samples per second (C0)
 REL_DELAY = 135
+OVR_SPAN = 16        # an OVR line at sample o means samples o-16..o may have been lost (one FIFO chunk): windows touching it are dropped
 
 
 def find_triggers(samples, resync_idx, thr_mg=trigger_ref.DEFAULT_MG, rel_delay=REL_DELAY):
@@ -96,6 +97,8 @@ def cut(stream, thr_mg=250, after_s=2.0, none_gap_s=1.0):
     smp = np.asarray(stream["samples"])
     resync = sorted(set([int(g[0]) for g in np.asarray(stream["chunk_gaps"]).reshape(-1, 2)] +
                         [int(o) for o in np.asarray(stream["ovr"]).reshape(-1)]))
+    gaps = [int(g[0]) for g in np.asarray(stream["chunk_gaps"]).reshape(-1, 2)]
+    ovrs = [int(o) for o in np.asarray(stream["ovr"]).reshape(-1)]
     marks = sorted((int(a), int(b)) for a, b in np.asarray(stream["marks"]).reshape(-1, 2))
     trigs = find_triggers(smp, resync, thr_mg)
     wins, labs, ts = [], [], []
@@ -105,7 +108,8 @@ def cut(stream, thr_mg=250, after_s=2.0, none_gap_s=1.0):
         if t - trigger_ref.PRE < 0 or t + trigger_ref.POST > len(smp):
             dropped_edge += 1
             continue
-        if any(t - trigger_ref.PRE < g < t + trigger_ref.POST for g in resync):
+        if (any(t - trigger_ref.PRE < g < t + trigger_ref.POST for g in gaps) or
+                any(t - trigger_ref.PRE <= o and t + trigger_ref.POST - 1 >= o - OVR_SPAN for o in ovrs)):
             dropped_gap += 1
             continue
         lab, k = label_window(t, marks, int(round(after_s * ODR)), int(round(none_gap_s * ODR)))
@@ -163,6 +167,11 @@ def load_stream(path):
         z = np.load(path)
         st = {k: z[k] for k in ("samples", "chunk_gaps", "ovr", "marks")}
         st["synthetic"] = int(z["synthetic"])
+        try:
+            if json.loads(str(z["meta"])).get("marks_from"):
+                st["synthetic"] = 1                      # marks came from a test file, never real (W2-6F2 F1)
+        except (KeyError, ValueError, AttributeError):
+            pass
         st["subject"] = int(z["subject"]) if "subject" in z.files else 0
         st["session"] = int(z["session"]) if "session" in z.files else 0
     except (OSError, ValueError, KeyError) as e:
