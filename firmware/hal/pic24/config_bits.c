@@ -26,8 +26,8 @@
 #pragma config IESO = OFF          /* IESO=0: no two-speed start-up */
 #pragma config FNOSC = FRCPLL      /* FNOSC<2:0>=001: fast RC oscillator with 4x PLL = 32 MHz Fosc, FCY = 16 MHz */
 #pragma config FCKSM = CSDCMD      /* FCKSM<1:0>=11: clock switching and fail-safe monitor disabled */
-#pragma config OSCIOFNC = ON       /* OSCO pin is a digital I/O (RA3): "OSCIOFCN" in C6a 3.8; polarity of ON unverified */
+#pragma config OSCIOFNC = ON       /* OSCIOFNC=1: OSCO pin is digital I/O (RA3). Spec spells it OSCIOFCN and C6a 3.8 has the polarity inverted (review F2); RA3 is unused so ON/OFF is harmless */
 #pragma config IOL1WAY = OFF       /* IOL1WAY=0: PPS may be unlocked more than once (development) */
 #pragma config I2C1SEL = PRI       /* I2C1SEL=1: I2C1 on the default pins SCL1/SDA1 (RB8/RB9) */
-#pragma config POSCMD = NONE       /* POSCMD<1:0>=11: primary oscillator disabled (RA2/RA3 free) */
+#pragma config POSCMOD = NONE      /* POSCMD<1:0>=11: primary oscillator disabled (RA2/RA3 free); XC16 names the setting POSCMOD (review F1), check config_index.html */
 // [END AI-GENERATED]

@@ -14,10 +14,15 @@
  * uint8_t (one-byte accesses are atomic on a 16-bit core) and each side only ever reads the OTHER
  * index, so a stale read is conservative: the producer may think there is less room than there is,
  * the consumer may think there is less data than there is; never the reverse. The producer stores
- * the data BEFORE it advances s_head (the compiler may not reorder volatile accesses, and the PIC24
- * has no cache or write buffer). One slot is kept empty to tell full from empty (127 usable bytes).
- * Wake-up: after publishing s_head the producer forces U1TXIF = 1; if the ISR had already drained
- * the ring and returned, the forced flag re-runs it, so no wake-up is lost.
+ * the data BEFORE it advances s_head. s_ring[] is NOT volatile, so volatile ordering alone does not
+ * cover it: HAL_COMPILER_BARRIER() sits between the ring stores and the s_head store (producer) and
+ * between the s_head test and the ring load (ISR). The PIC24 has no cache or write buffer, so a
+ * compiler barrier is enough. One slot is kept empty to tell full from empty (127 usable bytes).
+ * Wake-up and storm protection (review F4): U1TXIE stays 0 while the ring is empty. port_tx_write
+ * publishes s_head, then sets U1TXIE = 1 and U1TXIF = 1. When the ISR empties the ring it clears
+ * U1TXIE, then re-tests head != tail and re-enables if a byte was published meanwhile (no lost
+ * wake-up). Why: if U1TXIF were level-style (set whenever the buffer has room) an always-enabled
+ * ISR at priority 6 would spin on an empty ring and starve the main loop; with IE off it cannot.
  *
  * The RX side of UART1 is enabled (UARTEN) but not serviced: the recording firmware does not
  * receive. C6.1's RX ISR is NOT implemented here (open item for the demo firmware).
@@ -46,10 +51,18 @@ HAL_ISR(_U1TXInterrupt)
     IFS0bits.U1TXIF = 0;               /* U1TXIF = 0: acknowledge; cleared first so a later move re-raises it */
     t = s_tail;
     while ((t != s_head) && (U1STAbits.UTXBF == 0U)) {  /* UTXBF = 0: TX buffer has room */
+        HAL_COMPILER_BARRIER();        /* s_head test before the ring load */
         U1TXREG = (unsigned int)s_ring[t];
         t = (uint8_t)((t + 1U) & PORT_TX_MASK);
     }
     s_tail = t;
+    if (t == s_head) {                 /* ring empty: stop the interrupt until port_tx_write publishes more */
+        IEC0bits.U1TXIE = 0;           /* U1TXIE = 0: TX interrupt off (no storm on an empty ring) */
+        HAL_COMPILER_BARRIER();
+        if (t != s_head) {             /* a byte was published meanwhile: do not lose the wake-up */
+            IEC0bits.U1TXIE = 1;       /* U1TXIE = 1: back on */
+        }
+    }
 }
 
 /** INT0 interrupt (priority 5): LIS3DH INT1 rising edge. Only sets a flag. */
@@ -81,7 +94,7 @@ void port_pic24_init(void)
     U1STAbits.UTXEN = 1;               /* UTXEN = 1: transmitter on (sets U1TXIF; cleared below) */
     IPC3bits.U1TXIP = 6;               /* U1TXIP<2:0> = 6: TX interrupt priority 6 (spec H2; C6.2 nothing at 7) */
     IFS0bits.U1TXIF = 0;               /* U1TXIF = 0: drop the flag raised by UTXEN */
-    IEC0bits.U1TXIE = 1;               /* U1TXIE = 1: TX interrupt enabled (ISR returns at once on empty ring) */
+    IEC0bits.U1TXIE = 0;               /* U1TXIE = 0: stays off until port_tx_write publishes bytes (review F4) */
 
     /* ---- INT0 (RB7): rising edge, priority 5 ---- */
     INTCON2bits.INT0EP = 0;            /* INT0EP = 0: interrupt on rising edge (LIS3DH is active high) */
@@ -111,8 +124,10 @@ void port_tx_write(const uint8_t *p, uint8_t n)
         s_ring[h] = p[i];
         h = (uint8_t)((h + 1U) & PORT_TX_MASK);
     }
+    HAL_COMPILER_BARRIER();            /* ring stores must not sink below the s_head store */
     s_head = h;                        /* publish AFTER the data is stored (single-byte write, atomic) */
     if (n != 0U) {
+        IEC0bits.U1TXIE = 1;           /* U1TXIE = 1: allow the TX ISR */
         IFS0bits.U1TXIF = 1;           /* U1TXIF = 1: software-trigger the TX ISR so it picks the bytes up */
     }
 }

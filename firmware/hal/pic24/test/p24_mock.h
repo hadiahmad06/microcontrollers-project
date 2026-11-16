@@ -29,9 +29,11 @@ void __builtin_write_OSCCONL(unsigned int value); /* XC16 builtin: does the OSCC
 
 /* ---- pins ---- */
 extern volatile unsigned int AD1PCFG;
-extern volatile struct { P24_BIT(TRISB4); P24_BIT(TRISB7); P24_BIT(TRISB12); P24_BIT(TRISB13);
+extern volatile struct { P24_BIT(TRISB4); P24_BIT(TRISB7); P24_BIT(TRISB8); P24_BIT(TRISB9); P24_BIT(TRISB12); P24_BIT(TRISB13);
                          P24_BIT(TRISB14); } TRISBbits;
-extern volatile struct { P24_BIT(LATB4); P24_BIT(LATB13); } LATBbits;
+extern volatile struct { P24_BIT(LATB4); P24_BIT(LATB8); P24_BIT(LATB13); } LATBbits;
+extern volatile struct { P24_BIT(RB9); } PORTBbits;
+void __builtin_nop(void);
 extern volatile struct { unsigned int : 8; unsigned int INT1R : 5; } RPINR0bits;
 extern volatile struct { unsigned int U1RXR : 5; } RPINR18bits;
 extern volatile struct { unsigned int RP12R : 5; unsigned int : 3; unsigned int RP13R : 5; } RPOR6bits;
