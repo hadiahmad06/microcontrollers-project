@@ -183,7 +183,7 @@ def main(argv=None):
     ap.add_argument("--order", choices=("as-is", "grouped"), default="as-is")
     ap.add_argument("--hello-every", type=int, default=2)
     ap.add_argument("--text", action="append", default=[])
-    ap.add_argument("--corrupt", type=float, default=0.0)
+    ap.add_argument("--corrupt", type=float, default=None)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--print-plan", action="store_true")
     ap.add_argument("--rate", type=int, default=11520)
@@ -199,13 +199,16 @@ def main(argv=None):
     if not a.data or bool(a.out) == bool(a.pty):
         print("error: need --data and exactly one of --out / --pty", file=sys.stderr)
         return 2
+    corrupt_given = a.corrupt is not None
+    if a.corrupt is None:
+        a.corrupt = 0.0
     if not 0.0 <= a.corrupt <= 1.0 or a.rate < 1 or a.hello_every < 0:
         print("error: --corrupt must be 0..1, --rate >= 1, --hello-every >= 0", file=sys.stderr)
         return 2
     w, y = load(a.data)
     data, info = build_stream(w, y, a.order, a.hello_every, a.text, a.corrupt, a.seed, a.samples)
     print("SYNTHETIC: fake_wand output, never real data", file=sys.stderr)
-    if a.corrupt > 0:
+    if corrupt_given:  # spec S3: report the count whenever --corrupt is given (W2-4T fw_corrupt)
         print("corrupted %d of %d WINDOW frames" % (info["corrupted"], info["n"]), file=sys.stderr)
     if a.print_plan:                       # last stderr line, so `tail -1` yields the plan
         print(info["plan"], file=sys.stderr)
