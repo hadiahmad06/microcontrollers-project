@@ -1207,6 +1207,104 @@ def pipeline_corrupt_variant():
         eq(meta["counters"]["stored"], 270 - n_bad)
 
 
+# --------------------------------------------------------------------------- W2-4TF fix round
+def _enter(p):
+    try:
+        p.stdin.write(b"\n"); p.stdin.flush()
+    except BrokenPipeError:
+        pass    # recorder already exited (stray Enter started step 2): the assertions below report it
+
+
+@test
+def tf_f1_stray_enter_does_not_start_next_step():
+    # TIMING-DEPENDENT (generous 0.8 s margins). Live mode through a pty so stdin Enters are paced.
+    import time
+    stream_w = [rnd_samples(np.random.default_rng(50 + k)) for k in range(4)]
+    master, slave = os.openpty()
+    try:
+        import tty
+        tty.setraw(master)
+        port = os.ttyname(slave)
+        with tempfile.TemporaryDirectory() as t:
+            out = os.path.join(t, "r.npz")
+            p = subprocess.Popen([PY, tool("recorder.py"), "--port", port, "--out", out, "--plan",
+                                  "none:1,raise:1", "--quiet"], cwd=REPO, stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                time.sleep(1.0)
+                _enter(p)          # Enter 1: start step 1
+                time.sleep(0.8)
+                os.write(master, o_hello(0)); time.sleep(0.8)
+                _enter(p)          # stray Enter during step 1
+                time.sleep(0.8)
+                os.write(master, o_window(1, 0, stream_w[0]))   # step 1 completes
+                time.sleep(0.8)
+                os.write(master, o_window(2, 1, stream_w[1]) + o_window(3, 2, stream_w[2]))  # must be skipped
+                time.sleep(1.0)
+                _enter(p)          # Enter for step 2
+                time.sleep(0.8)
+                os.write(master, o_window(4, 3, stream_w[3]))
+                o, e = p.communicate(timeout=20)
+            finally:
+                if p.poll() is None:
+                    p.kill()
+            eq(p.returncode, 0, e.decode()[-300:])
+            d = np.load(out)
+            eq(d["window_id"].tolist(), [0, 3], "stray Enter must not start step 2")
+            eq(d["labels"].tolist(), [0, 3])
+            eq(json.loads(str(d["meta"]))["counters"]["skipped"], 2)
+    finally:
+        os.close(master); os.close(slave)
+
+
+@test
+def tf_f2_no_files_on_bad_port_or_zero_windows():
+    with tempfile.TemporaryDirectory() as t:
+        out = os.path.join(t, "X.npz")
+        rc, o, e = run([tool("recorder.py"), "--port", "/dev/nonexistent", "--out", out, "--label", "none"])
+        eq(rc, 2)
+        need(not os.path.exists(out) and not os.path.exists(os.path.join(t, "X.bin")), "no X.npz / X.bin on bad port")
+        rc, o, e = rec(t, o_hello(0), ["--label", "none"], out="X.npz")
+        need(not os.path.exists(out), "0 stored windows creates no X.npz")
+        stream, _ = make_stream(2, seed=51)
+        rc, o, e = rec(t, stream, ["--label", "none"], out="X.npz")
+        eq(rc, 0, e)
+        eq(np.load(out)["windows"].shape[0], 2)
+
+
+@test
+def tf_f6_out_of_range_samples_rejected():
+    rng = np.random.default_rng(52)
+    hi, lo = rnd_samples(rng), rnd_samples(rng)
+    hi[7, 1] = 2048
+    lo[149, 2] = -2049
+    good = rnd_samples(rng)
+    stream = o_hello(0) + o_window(1, 0, hi) + o_window(2, 1, lo) + o_window(3, 2, good)
+    with tempfile.TemporaryDirectory() as t:
+        rc, o, e = rec(t, stream, ["--label", "none"])
+        eq(rc, 0, e)
+        d = np.load(os.path.join(t, "rec.npz"))
+        eq(d["window_id"].tolist(), [2])
+        eq(json.loads(str(d["meta"]))["counters"]["rejected"], 2)
+        lines = [x for x in (o + e).lower().splitlines() if "warn" in x]
+        eq(len(lines), 1, "warning printed once: %r" % lines)
+
+
+@test
+def tf_f5_text_lines_after_crc_failure_and_cap():
+    import c2_proto as c
+    pay = struct.pack("<450h", *([0x0A41] * 450))     # payload bytes 'A\n' repeated: looks like text lines
+    bad = bytearray(o_frame(0x02, 0, struct.pack("<HBBHIBbBB", 0, 150, 15, 0, 0, 0, 0, 0, 0) + pay))
+    bad[-1] ^= 0xFF
+    d = c.Decoder()
+    feed_all(d, bytes(bad) + o_hello(1))
+    eq(d.crc_errors, 1)
+    need(not any("A" in l for l in d.text_lines), "rescanned payload leaked into text_lines: %r" % d.text_lines[:3])
+    d = c.Decoder()
+    feed_all(d, b"x" * 1000 + b"\nshort\n")
+    need(all(len(l) <= 256 for l in d.text_lines), "no text line > 256")
+
+
 # --------------------------------------------------------------------------- runner
 def main(argv):
     sel = argv[1:]
