@@ -254,7 +254,7 @@ def load(path):
     return np.load(path)
 
 
-def write_stream_npz(path, samples, gaps=(), ovr=(), marks=(), synthetic=0, name="fake_source.bin"):
+def write_stream_npz(path, samples, gaps=(), ovr=(), marks=(), synthetic=0, name="fake_source.bin", meta_extra=None):
     """Hand-built STREAM file in the V1 layout (so V2 tests never depend on the recorder)."""
     np.savez(path, samples=np.asarray(samples, np.int16).reshape(-1, 3),
              chunk_gaps=np.asarray(gaps, np.int32).reshape(-1, 2),
@@ -262,7 +262,7 @@ def write_stream_npz(path, samples, gaps=(), ovr=(), marks=(), synthetic=0, name
              marks=np.asarray(marks, np.int32).reshape(-1, 2),
              synthetic=np.uint8(synthetic),
              meta=np.array(json.dumps({"tool": "test_stream", "version": 1, "source": name,
-                                       "label_names": []})))
+                                       "label_names": [], **(meta_extra or {})})))
     return path
 
 
@@ -646,6 +646,98 @@ def test_v2_output_loads_in_train():
         d = load(t.P("ds.npz"))
         eq(ds["windows"].shape, d["windows"].shape)
         arr_eq(ds["labels"], d["labels"].astype(np.int64), "train sees the labels")
+
+
+def test_v2_f1_marks_from_forces_synthetic():
+    """W2-6R F1: --marks-from (test only) without --synthetic still gives synthetic 1, warns, and cut keeps it."""
+    sig = make_signal(16 * 40, [])
+    data, _ = build_stream(sig)
+    with Tmp() as t:
+        with open(t.P("m.json"), "w") as f:
+            json.dump({"marks": [[100, 1], [300, 2]]}, f)
+        inp = wfile(t.P("in.bin"), data)
+        rc, o, e = run([tool("recorder.py"), "--input", inp, "--out", t.P("s.npz"), "--samples", "--marks-from",
+                        t.P("m.json"), "--no-pause", "--quiet"])
+        eq(rc, 0, e[-300:])
+        d = load(t.P("s.npz"))
+        eq(int(d["synthetic"]), 1, "marks-from forces synthetic")
+        arr_eq(d["marks"], np.array([[100, 1], [300, 2]], np.int32), "marks come from the file")
+        need(re.search(r"marks-from|SYNTHETIC", e, re.I), "warning on stderr: %r" % e[-200:])
+        # cut_stream: synthetic output from a stream whose meta says marks_from, even if its synthetic flag is 0
+        sp = write_stream_npz(t.P("S.npz"), make_signal(2000, [(400, 60, (500, -300, 0))], seed=2),
+                              synthetic=0, meta_extra={"marks_from": "m.json"})
+        rc, o, e = cut(t, sp, out="c.npz")
+        eq(rc, 0, e[-300:])
+        eq(int(load(t.P("c.npz"))["synthetic"]), 1, "cut_stream forces synthetic when meta.marks_from is set")
+        rc, o, e = cut(t, t.P("s.npz"), out="c2.npz")
+        eq(rc, 0, e[-300:])
+        eq(int(load(t.P("c2.npz"))["synthetic"]), 1, "recorded --marks-from stream -> cut -> synthetic")
+
+
+def test_v1_f2_no_marks_before_hello_or_during_stall():
+    """W2-6R F2 (TIMING DEPENDENT, generous margins): with a plan, GOs do not advance before the first HELLO or while
+    no chunk arrives for a while; the recorder prints 'waiting for wand'."""
+    sig = make_signal(16 * 40, [])
+    data, _ = build_stream(sig)
+    hello, frames, fl = data[:18], data[18:], 107
+    with Tmp() as t:
+        p = subprocess.Popen([PY, tool("recorder.py"), "--input", "-", "--out", t.P("s.npz"), "--samples",
+                              "--plan", "none:60", "--no-pause", "--every", "0.15"],
+                             cwd=REPO, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            time.sleep(1.5)                        # nothing at all before the HELLO (would be ~10 GOs)
+            p.stdin.write(hello)
+            p.stdin.flush()
+            for k in range(4):                     # 40 chunks over 0.4 s
+                p.stdin.write(frames[k * 10 * fl:(k + 1) * 10 * fl])
+                p.stdin.flush()
+                time.sleep(0.1)
+            time.sleep(2.5)                        # stall: would be ~16 GOs at the same index
+            p.stdin.close()
+        except BrokenPipeError:
+            pass
+        out, err = p.communicate(timeout=60)
+        eq(p.returncode, 0, err.decode()[-300:])
+        txt = (out + err).decode("utf-8", "replace")
+        need("waiting for wand" in txt, "prints 'waiting for wand'")
+        d = load(t.P("s.npz"))
+        m = d["marks"]
+        n = d["samples"].shape[0]
+        eq(n, 640)
+        early = [int(x) for x in m[:, 0] if int(x) <= 16]
+        need(len(early) <= 2, "marks before the HELLO: %d" % len(early))
+        stalled = [int(x) for x in m[:, 0] if n <= int(x) <= n + 16]
+        need(len(stalled) <= 9, "marks placed inside the stall: %d (stall index %d)" % (len(stalled), n))
+
+
+# F3 (MARK_LAG: wall-clock marks are placed 16 samples after the arrival index) is SKIPPED on purpose: the mark index
+# depends on wall-clock arrival and cannot be made deterministic from a byte stream (with --marks-from the lag is not
+# applied).
+
+
+def test_v2_f5_ovr_window_drop_boundary():
+    """W2-6R F5: a window whose span [t-15, t+134] meets [ovr-16, ovr] is dropped; span end at ovr-17 is kept."""
+    sig = make_signal(2400, [(500, 60, (500, -300, 0))], seed=5)
+    (tt,) = ref_triggers(sig)
+    end = tt + 134
+    for ovr, keep in [(end + 17, 1), (end + 16, 0), (end + 1, 0), (end - 40, 0), (end + 60, 1)]:
+        with Tmp() as t:
+            sp = write_stream_npz(t.P("S.npz"), sig, ovr=[ovr])
+            rc, o, e = cut(t, sp)
+            eq(rc, 0, "ovr=end%+d: %s" % (ovr - end, e[-300:]))
+            n = load(t.P("ds.npz"))["windows"].shape[0] if os.path.exists(t.P("ds.npz")) else 0
+            eq(n, keep, "ovr at span end %+d" % (ovr - end))
+
+
+def test_v2_f5_ovr_resync_unchanged_triggers():
+    """ovr after the trigger does not move the trigger itself (resync only affects later samples)."""
+    sig = make_signal(2400, [(500, 60, (500, -300, 0))], seed=5)
+    (tt,) = ref_triggers(sig)
+    with Tmp() as t:
+        sp = write_stream_npz(t.P("S.npz"), sig, ovr=[tt + 134 + 17])
+        rc, o, e = cut(t, sp)
+        eq(rc, 0, e[-300:])
+        arr_eq(load(t.P("ds.npz"))["trig_sample"], np.array([tt], np.int32))
 
 
 def _summary_numbers(out, name):
