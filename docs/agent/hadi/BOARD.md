@@ -231,25 +231,29 @@ different subagents from the implementer.
 | 3.9 | On-target verification on real hardware | Hadi + main | 3.8 |
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
-## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-15)
-1. **Where things are:** Sprints 2-4 are MERGED into `main` (PR hadiahmad06/microcontrollers-project#1 `4cc0fe2`, PR #2 `c82ad0a`). New work continues on
-   `claude/optimistic-meitner-67qdon` (fast-forwarded to `main`); open a new PR per sprint. `make test` at the repo root runs 8 suites (host + sim16).
-2. **Hadi's open decisions:** `docs/agent/hadi/open_questions.md` Q1 (C2), Q2 (trigger C1b), Q3 (C1.6 conflict), Q4/Q5
-   (C5.2 / C4.3 wording), Q6 (train/val/test split wording). Do not code `gesture.c`, the trigger module or the C2 TX
-   pump into `firmware/src` before Q1/Q2 are answered; design is ready in `proposals/API_glue.md`.
-3. **After Q1/Q2:** tickets T-trig (promote `spikes/trigger` → `firmware/src/trigger.*`), T-c2tx (C2 TX pump),
-   3.7 (`gesture.c`), each with T and R tickets; then paste `drafts/C2_contract_section.md` into CONTRACTS.md (C2).
-4. **Mac-only:** S2-0b `make selftest` (spikes/sim), gate G3 (XC16 build + MDB/on-target vectors), the WS2812 asm
-   driver (WP4-b), the PIC24 HAL (I2C1/UART1/INT0/INT1/PPS/config words), measurements 3.10.
-5. **Environment:** sim16 needs `apt-get install -y simavr gcc-avr avr-libc` in a fresh cloud container (not saved
-   as a setup script; Hadi has not been asked yet because he signed off).
-6. **Process lessons:** keep a subagent's worktree until its fix round is merged; a container restart or API limit
-   kills running agents and pending question dialogs, so commit early, record decisions in open_questions.md, and
-   resume agents with SendMessage when they are still resumable (else start a fresh instance from the review file).
-   Firmware headers are on the `-iquote` path only (features.h vs glibc). simavr splits UART lines > 255 chars.
+## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-16)
+1. **Where things are:** Sprint 6 (training pipeline) runs on `claude/serene-euler-ax5wpx` (pushed; based on merged `main` 0cae026).
+   Not yet PR'd to `main`. `make test` = 10 firmware suites (host + sim16), all PASS at `bbfdffd`. Python suites:
+   `tools/tests/test_recording.py`, `tools/tests/test_train_real.py` (`ORIG_REF=e8a4291`).
+2. **Hadi 2026-11-16:** open questions are NOT accepted but are working assumptions (`docs/agent/WORKING_ASSUMPTIONS.md`);
+   prioritise the training pipeline; don't ask questions; resume after usage limits.
+3. **Done this sprint:** T-trig, T-c2tx, W2-4 (recorder/decoder/fake wand/dataset tool), W2-5 (multi-file train,
+   evaluate_model, augmentation), 3.7 gesture.c, HAL (PIC24, UNVERIFIED) + HAL-F. Reviews merged: T-trigR, T-c2txR,
+   W2-4R, W2-5R, HAL-R.
+4. **Open fix rounds / tickets:** W2-4F (in impl-rec 2nd, after W2-6) + W2-4TF (branch `worktree-agent-a4722bfc32e814f46`
+   `db62afc`, merge together); W2-5F2 + W2-5TF2; 3.7T (test-gesture) then 3.7R; W2-6 + W2-6T then W2-6R; SW-4 backlog.
+5. **Then:** PR session branch → `main` with a Sonnet pre-merge review; Hadi's Mac: `make -C firmware/build record.hex
+   MODEL=...` (see `firmware/hal/pic24/README.md` checklist), flash, `tools/RECORDING.md`.
+6. **Git identity:** author `Hadi Ahmad (Claude)` <Hadi's email> (Hadi's decision); committer `Claude <noreply@anthropic.com>`
+   (a stop hook requires it; `git config committer.name/email`). Subagent branches are replayed onto the session branch with
+   that committer (`git rebase -f`) before `merge --no-ff`.
+7. **Process lessons:** worktrees start from old `main`: subagents must `git merge claude/serene-euler-ax5wpx` first.
+   The auto-mode classifier fails transiently: retry once. Usage limits stop subagents: resume them with SendMessage.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-16 (b): **Done:** T-trig, T-c2tx, W2-4, W2-5, 3.7, HAL + all their reviews (MERGE AFTER FIXES each); 10 suites PASS. Usage limit stopped 5 agents at ~12:00 UTC; resumed after reset. **Next:** fix rounds W2-4F/TF, W2-5F2/TF2, 3.7T, W2-6/T, then reviews 3.7R, W2-6R, then the sprint PR. **Blocked:** XC16 build + flash (Hadi's Mac).
+- 2026-11-16 (a): Hadi offline: open questions become working assumptions; Sprint 6 (training pipeline) started with 7 agents.
 - 2026-11-15 (aa): **SPRINTS 3-4 CLOSED.** PR #2 merged (`c82ad0a`) after PR-3R and a clean run. Remaining work needs Hadi (Q1-Q8) or the Mac (G3, HAL, WS2812 asm). Report draft and citations are ready for the team to edit.
 - 2026-11-15 (z): **Done:** S4-1 citations, S4-2 report draft (main wrote it after a harness rule blocked the subagent), S4-3 review + fixes. **Next:** SW-3 citation sweep, then the sprint 3-4 PR to `main`. **Waiting for Hadi:** Q1-Q8.
 - 2026-11-15 (y): **Done:** S3-1 (merged); API_glue.md corrected; Q8 added. **Sprint 3 stopping point; Sprint 4 started** (citations, report draft, S3-1 review). **Waiting for Hadi:** Q1-Q8.
