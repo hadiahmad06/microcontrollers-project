@@ -204,12 +204,12 @@ T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "pre
 | W2-4T | Tests from spec (independent oracle) | test-rec | **done**, merged: 47 tests, 46 passed on first run; 1 real tool bug (fake_wand count at --corrupt 0) fixed by main `81c2d7e`; ALL PASS | `tools/tests/**` | – |
 | W2-4R | Review W2-4 + W2-4T | review-23 | in progress | `reviews/W2-4R.md` | – |
 | T-trig | `firmware/src/trigger.*` + `tools/trigger_ref.py` (EMA-L1, S=3) | impl-trigger | **done**, merged `f7fb33f`: C == Python on 300/300 streams, == spike indices on 240; main reran selftest | `firmware/src/trigger.*`, `tools/trigger_ref.py` | T-trigT, T-trigR |
-| T-trigT | Trigger suite host + sim16, standin | test-trigger | in progress | `firmware/test/trigger/**` | – |
-| T-trigR | Review trigger | review-24 | backlog | `reviews/T-trigR.md` | – |
+| T-trigT | Trigger suite host + sim16, standin | test-trigger | **done**, merged: real impl PASS host (3 seeds) + sim16 + trigger_ref cross-check (main reran); 9 mutants caught | `firmware/test/trigger/**` | – |
+| T-trigR | Review trigger | review-24 | in progress | `reviews/T-trigR.md` | – |
 | T-c2tx | `firmware/src/c2_stream.*` incremental TX pump | impl-c2tx | **done**, merged `be8c18e`: bytes == spike on 383 frames; avr sizeof 27 B, .text 1656 B (avr); main read diff | `firmware/src/c2_stream.*` | T-c2txT, T-c2txR |
 | T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | **done**, merged: real impl PASS host + sim16 (main reran); 10/10 mutants caught | `firmware/test/c2_stream/**` | – |
 | T-c2txR | Review C2 TX | review-25 | in progress | `reviews/T-c2txR.md` | – |
-| W2-5 | train.py multi-file + grouping, `evaluate_model.py`, opt-in roll/gain augmentation (spec `briefs/W2-5_spec.md`) | impl-train (4th) | **done**, merged: default header sha256 unchanged; selftests PASS (main reran) | `tools/train.py`, `tools/evaluate_model.py`, README | W2-5T (test-train, in progress), W2-5R |
+| W2-5 | train.py multi-file + grouping, `evaluate_model.py`, opt-in roll/gain augmentation (spec `briefs/W2-5_spec.md`) | impl-train (4th) | **done**, merged: default header sha256 unchanged; selftests PASS (main reran) | `tools/train.py`, `tools/evaluate_model.py`, README | W2-5T (test-train: merged, 21/24 vs real code; fix rounds W2-5F tool ruling R2-a 'accuracy after rejection over all accepted windows', W2-5TF two test rulings, in progress), W2-5R |
 | W2-6 | Continuous SAMPLES recording + offline trigger cut (`trigger_ref.run`/`cut_windows`) in the recorder | – | backlog (after W2-4, T-trig) | `tools/…` | T, R |
 | 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | impl-gesture | in progress (3.7T: test-gesture in progress) | `firmware/src/gesture.*` | 3.7T, 3.7R |
 | HAL | PIC24 HAL + `firmware/app/main_record.c` + Mac `firmware/build/Makefile` + `gesture_port.h` (spec `briefs/HAL_spec.md`); UNVERIFIED until Hadi builds with XC16 | impl-hal | **done**, merged: `make -C firmware/build check` OK (mock only); list of unsure register names in `firmware/hal/pic24/README.md` | `firmware/{hal,app,build}/**`, `firmware/src/gesture_port.h` | HAL-R |

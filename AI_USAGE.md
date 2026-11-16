@@ -669,3 +669,5 @@ which person.
 | firmware/app/main_record.c | `main` | Recording firmware main loop | 2026-11-16 | agent |
 | firmware/build/Makefile | `record.hex`, `bringup.hex`, `check` | XC16 build for Hadi's Mac + host syntax check | 2026-11-16 | agent |
 | firmware/test/c2_stream/* | oracle, driver, runner, stand-in | Independent C2 TX suite (host + sim16) | 2026-11-16 | agent |
+| firmware/test/trigger/* | oracle `Model`, driver, runner, stand-in `trigger_*` | Independent trigger suite (host + sim16, trigger_ref cross-check) | 2026-11-16 | agent |
+| tools/tests/test_train_real.py | 24 test functions, helpers | Independent spec tests for W2-5 (multi-file, evaluate_model, augmentation) | 2026-11-16 | agent |
