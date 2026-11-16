@@ -192,6 +192,27 @@ Q1/Q2 are answered. **Out of scope:** product code that depends on Q1/Q2 (trigge
 | W2-3 | Onset-jitter augmentation (opt-in, default byte-identical) + side-by-side evaluation in the integration spike (S3-1 finding 5) | impl-train (3rd instance) | **done**, merged: +5/+6 pts end to end (synthetic); main re-verified hash (seed 4) and the spike | `tools/synth_dataset.py`, `tools/README.md`, `spikes/integration/**` | W2-3R |
 | W2-3R | Review W2-3 | review-22 | **done**: MERGE (0 blockers, 0 majors; wording minors F1, F2, F5 fixed) | `reviews/W2-3R.md` | PR-4 |
 
+## Sprint 6: training pipeline to real data (started 2026-11-16, session branch `claude/serene-euler-ax5wpx`)
+**Goal (Hadi, 2026-11-16: "prioritize the training pipeline"):** Hadi can flash a recording build, record labelled
+windows on a PC, merge sessions and train. Open questions are **working assumptions** (`docs/agent/WORKING_ASSUMPTIONS.md`),
+so T-trig / T-c2tx / 3.7 are no longer blocked. Specs + briefs: `docs/agent/hadi/briefs/` (COMMON.md, W2-4_spec.md,
+T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "prevent rumination").
+
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|----|-------|----------|--------|-----------|-------------------|
+| W2-4 | PC tools: `c2_proto.py`, `recorder.py`, `fake_wand.py`, `dataset_tool.py`, `gesture_labels.py`, `RECORDING.md` | impl-rec | in progress | `tools/…` | W2-4T, W2-4R |
+| W2-4T | Tests from spec (independent oracle) | test-rec | in progress | `tools/tests/**` | – |
+| W2-4R | Review W2-4 + W2-4T | review-23 | backlog | `reviews/W2-4R.md` | – |
+| T-trig | `firmware/src/trigger.*` + `tools/trigger_ref.py` (EMA-L1, S=3) | impl-trigger | in progress (launch retried) | `firmware/src/trigger.*`, `tools/trigger_ref.py` | T-trigT, T-trigR |
+| T-trigT | Trigger suite host + sim16, standin | test-trigger | in progress (launch retried) | `firmware/test/trigger/**` | – |
+| T-trigR | Review trigger | review-24 | backlog | `reviews/T-trigR.md` | – |
+| T-c2tx | `firmware/src/c2_stream.*` incremental TX pump | impl-c2tx | in progress (launch retried) | `firmware/src/c2_stream.*` | T-c2txT, T-c2txR |
+| T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | in progress | `firmware/test/c2_stream/**` | – |
+| T-c2txR | Review C2 TX | review-25 | backlog | `reviews/T-c2txR.md` | – |
+| W2-6 | Continuous SAMPLES recording + offline trigger cut (`trigger_ref.run`/`cut_windows`) in the recorder | – | backlog (after W2-4, T-trig) | `tools/…` | T, R |
+| 3.7 | `gesture.c` glue + recording-mode app (`firmware/app/`), host-tested with fake LIS3DH | – | backlog (after T-trig, T-c2tx) | `firmware/src/gesture.*` | T, R |
+| HAL | PIC24 HAL (I2C1, UART1 TX ring + ISR, INT pins, config words) for the recording build; UNVERIFIED until Hadi builds with XC16 | – | backlog | `firmware/hal/` | R |
+
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
 different subagents from the implementer.
