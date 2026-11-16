@@ -60,7 +60,8 @@ def evaluate(model, paths, min_conf=None):
     Args: model (dict from infer_ref.load_header); paths (list of str); min_conf (int or None =
     GM_DEFAULT_REJECT; a window with MLP confidence below it is rejected).
     Returns: report dict (JSON-serialisable) with files, n, synthetic, min_conf, correct, acc, ci,
-    gestures {n, rejected, reject_rate, accepted, accepted_correct, acc_after_reject}, confusion,
+    gestures {n, rejected, reject_rate (label != 0 only), accepted, accepted_correct, acc_after_reject (gestures only)},
+    accepted_all, accepted_all_correct, acc_after_reject (all labels, R2-a), acc_after_reject_gestures, confusion,
     recall (list, None where a class has no window), per_subject (dict or None), device (dict).
     Raises train.TrainError on unreadable or invalid data.
     """
@@ -97,6 +98,10 @@ def evaluate(model, paths, min_conf=None):
             "gestures": {"n": ng, "rejected": int((rej & gest).sum()), "reject_rate": float((rej & gest).sum() / max(ng, 1)),
                          "accepted": int(acc_g.sum()), "accepted_correct": int((acc_g & (pred == y)).sum()),
                          "acc_after_reject": float((acc_g & (pred == y)).sum() / max(int(acc_g.sum()), 1))},
+            # ruling R2-a: accuracy after rejection = correct / accepted over ALL accepted windows (every label)
+            "accepted_all": int((~rej).sum()), "accepted_all_correct": int(((~rej) & (pred == y)).sum()),
+            "acc_after_reject": float(((~rej) & (pred == y)).sum() / max(int((~rej).sum()), 1)),
+            "acc_after_reject_gestures": float((acc_g & (pred == y)).sum() / max(int(acc_g.sum()), 1)),
             "confusion": cm, "recall": recall, "per_subject": per_subject, "device": dev,
             "class_counts": [int((y == c).sum()) for c in range(N_CLASSES)]}
 
@@ -111,8 +116,12 @@ def render_markdown(rep):
     L += ["- Accuracy (integer path, all %d windows): **%.2f %%** (%d / %d), Wilson 95 %% interval %.1f to %.1f %%" % (
         rep["n"], 100 * rep["acc"], rep["correct"], rep["n"], 100 * rep["ci"][0], 100 * rep["ci"][1])]
     g = rep["gestures"]
-    L += ["- True gestures (label != 0): %d. Rejection rate %.2f %% (%d / %d); accuracy after rejection %.2f %% (%d / %d accepted)" % (
-        g["n"], 100 * g["reject_rate"], g["rejected"], g["n"], 100 * g["acc_after_reject"], g["accepted_correct"], g["accepted"]), ""]
+    L += ["- Accuracy after rejection (all labels, conf >= %d): %.2f %% (%d / %d accepted)" % (
+        rep["min_conf"], 100 * rep["acc_after_reject"], rep["accepted_all_correct"], rep["accepted_all"]),
+          "- True gestures (label != 0): %d. Rejection rate %.2f %% (%d / %d)" % (
+        g["n"], 100 * g["reject_rate"], g["rejected"], g["n"]),
+          "- Accuracy after rejection, true gestures only: %.2f %% (%d / %d accepted)" % (
+        100 * rep["acc_after_reject_gestures"], g["accepted_correct"], g["accepted"]), ""]
     L += ["## Confusion matrix (rows = true, columns = predicted)", "",
           "| true \\ pred | " + " | ".join(str(i) for i in range(N_CLASSES)) + " | recall |", "|---|" + "---|" * (N_CLASSES + 1)]
     for i, row in enumerate(rep["confusion"]):
