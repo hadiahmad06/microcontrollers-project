@@ -674,3 +674,9 @@ which person.
 | firmware/src/gesture.c | `gesture_init`, `gesture_set_trigger`, `gesture_poll`, `gesture_classify`, `gesture_learn`, `gesture_set_reject`, `gesture_stream_raw`, `gesture_events`, `format_boot_line`, `hello_due`, `start_hello`, `handle_overrun`, `on_sample`, `drain_once`, `tx_service`, `chunk_buf`, `format_ovr_line` | Public gesture API: drain → trigger → capture → classify, C2 streaming, bring-up SAMPLES mode | 2026-11-16 | agent |
 | firmware/src/gesture_port.h | prototypes | Board port interface (TX ring, millis, INT flags) | 2026-11-16 | agent |
 | tools/train.py, tools/evaluate_model.py | W2-5F2 changes (leak and duplicate warnings, file-index grouping, device-rejected, small-N) | Honest splits and reports on real recordings | 2026-11-16 | agent |
+| tools/recorder.py | `check_hello`, `StreamRecorder`, `run_samples`, `LazyLog`, `hello_hint`, `Recorder.drain_enter` | Continuous SAMPLES capture with GO marks (W2-6); review fixes W2-4F | 2026-11-16 | agent |
+| tools/cut_stream.py | `find_triggers`, `label_window`, `cut`, `report`, `save`, `load_stream`, `_selftest`, `main` | Offline trigger cut and labelling of continuous recordings | 2026-11-16 | agent |
+| tools/fake_wand.py | `build_stream` (gap, marks), CLI `--marks-out`, `--marks-lead`, `--gap` | Test stream source for continuous recording | 2026-11-16 | agent |
+| tools/c2_proto.py | `Decoder` (W2-4F: text cap, no text from CRC rescans) | Decoder hardening | 2026-11-16 | agent |
+| firmware/test/gesture/* | fake port, fake sensor, scenario driver, runner | Independent gesture.c suite (host + sim16) | 2026-11-16 | agent |
+| tools/tests/test_stream.py | 24 tests, oracle helpers | Independent continuous-recording tests | 2026-11-16 | agent |
