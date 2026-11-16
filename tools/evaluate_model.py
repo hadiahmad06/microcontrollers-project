@@ -85,11 +85,14 @@ def evaluate(model, paths, min_conf=None):
         per_subject = {str(int(s)): [int((ds["subject"] == s).sum()), int(((ds["subject"] == s) & (pred == y)).sum())]
                        for s in np.unique(ds["subject"])}
     on_dev = (ex["dev_flags"] & 1) != 0
-    same = on_dev & (ex["model_hash"] == int(model["GM_MODEL_HASH"]))
-    other = on_dev & ~same
+    same_all = on_dev & (ex["model_hash"] == int(model["GM_MODEL_HASH"]))
+    unk = same_all & (ex["dev_class"] < 0)       # F4: GESTURE_UNKNOWN (-1): the device rejected the window
+    same = same_all & ~unk
+    other = on_dev & ~same_all
     dev = {"n_with_device_result": int(on_dev.sum()), "n_same_model": int(same.sum()),
            "n_different_model": int(other.sum()) if ex["has_hash"] else 0,
            "n_no_model_hash": int(other.sum()) if not ex["has_hash"] else 0,
+           "n_device_rejected": int(unk.sum()),
            "agree": int((ex["dev_class"][same] == pred[same]).sum())}
     ok = res["correct"]
     return {"files": ds["files"], "n": int(n), "synthetic": bool(ds["synthetic"]), "notes": ds["notes"],
@@ -112,7 +115,9 @@ def render_markdown(rep):
     if rep["synthetic"]:
         L += ["> SYNTHETIC data: pipeline test only, not an accuracy claim.", ""]
     L += ["Header model hash %s, rejection threshold (MLP confidence) %d. Input files: %s." % (
-        rep["model_hash"], rep["min_conf"], "; ".join("`%s` (N = %d)" % f for f in rep["files"])), ""]
+        rep["model_hash"], rep["min_conf"], "; ".join("`%s` (N = %d)" % f for f in rep["files"])), "",
+          "Rejection here uses the MLP confidence only (MLP-only, no k-NN gate or learned templates); the firmware "
+          "`classify_decide` may overturn a weak MLP result, so device results can differ.", ""]
     L += ["- Accuracy (integer path, all %d windows): **%.2f %%** (%d / %d), Wilson 95 %% interval %.1f to %.1f %%" % (
         rep["n"], 100 * rep["acc"], rep["correct"], rep["n"], 100 * rep["ci"][0], 100 * rep["ci"][1])]
     g = rep["gestures"]
@@ -129,7 +134,8 @@ def render_markdown(rep):
         L.append("| %d %s | %s | %s |" % (i, CLASS_NAMES[i], " | ".join(str(v) for v in row), "%.1f %%" % (100 * r) if r is not None else "n/a"))
     if rep["per_subject"]:
         L += ["", "## Accuracy per subject", ""]
-        L += ["- subject %s: %.2f %% (%d / %d)" % (s, 100.0 * c / max(n, 1), c, n) for s, (n, c) in rep["per_subject"].items()]
+        L += ["- subject %s: %.2f %% (%d / %d)%s" % (s, 100.0 * c / max(n, 1), c, n, " (small N)" if n < 30 else "")
+              for s, (n, c) in rep["per_subject"].items()]
     d = rep["device"]
     L += ["", "## On-device agreement", ""]
     if d["n_with_device_result"] == 0:
@@ -138,6 +144,8 @@ def render_markdown(rep):
         if d["n_same_model"]:
             L += ["- Same model (hash match): %d windows, device class equals host prediction in %d (%.2f %%)" % (
                 d["n_same_model"], d["agree"], 100.0 * d["agree"] / d["n_same_model"])]
+        if d["n_device_rejected"]:
+            L += ["- device rejected: %d windows (same model) have dev_class GESTURE_UNKNOWN (-1); not counted as disagreements" % d["n_device_rejected"]]
         if d["n_different_model"]:
             L += ["- different model: %d windows with a device result carry another GM_MODEL_HASH and are not compared" % d["n_different_model"]]
         if d["n_no_model_hash"]:
@@ -194,6 +202,14 @@ def _selftest():
         d = evaluate(model, [dev])["device"]
         if (d["n_with_device_result"], d["n_same_model"], d["n_different_model"], d["agree"]) != (100, 60, 40, 40):
             print("FAIL device agreement counts: %s" % d)
+            return 1
+        dcl2 = dcl.astype(np.int8)
+        dcl2[:10] = -1
+        dev2 = os.path.join(tmp, "dev2.npz")
+        np.savez(dev2, **te, dev_flags=flags, dev_class=dcl2, model_hash=mh)
+        d2 = evaluate(model, [dev2])["device"]
+        if (d2["n_same_model"], d2["n_device_rejected"], d2["n_different_model"], d2["agree"]) != (50, 10, 40, 30):
+            print("FAIL device-rejected counts: %s" % d2)
             return 1
         if "different model" not in render_markdown(evaluate(model, [dev])):
             print("FAIL 'different model' not reported")

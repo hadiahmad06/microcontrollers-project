@@ -133,7 +133,20 @@ def load_datasets(paths):
            "labels": np.concatenate([d["labels"] for d in parts]),
            "synthetic": any(d["synthetic"] for d in parts),
            "files": [(os.path.basename(p), int(len(d["labels"]))) for p, d in zip(paths, parts)],
-           "subject": None, "session": None, "notes": notes}
+           "subject": None, "session": None, "notes": notes,
+           "file": np.concatenate([np.full(len(d["labels"]), i, dtype=np.int64) for i, d in enumerate(parts)])}
+    if len(parts) > 1:   # F6: identical or shared windows across files leak between sets when grouped by file
+        rows = [set(hashlib.sha1(np.ascontiguousarray(w).tobytes()).digest() for w in d["windows"]) for d in parts]
+        for i in range(len(parts)):
+            for j in range(i + 1, len(parts)):
+                if parts[i]["windows"].shape == parts[j]["windows"].shape and np.array_equal(parts[i]["windows"], parts[j]["windows"]):
+                    notes.append("input files %s and %s have byte-identical windows (the same recording twice?): "
+                                 "duplicates will leak between train and test" % (out["files"][i][0], out["files"][j][0]))
+                else:
+                    sh = len(rows[i] & rows[j])
+                    if sh:
+                        notes.append("%d window(s) appear in both %s and %s: duplicates can leak between train and test" % (
+                            sh, out["files"][i][0], out["files"][j][0]))
     for k in ("subject", "session"):
         if all(d[k] is not None for d in parts):
             if k == "session":
@@ -232,8 +245,8 @@ def resolve_group(ds, group, test_frac):
     Args: ds (dict from load_dataset); group (None = automatic, or 'subject', 'session', 'none');
     test_frac (float, decides how many groups are needed). Returns: (name, message) with name in
     'subject', 'session', 'none' and message a one-line description to print and put in the report.
-    Automatic mode takes subject, else session, provided it has enough groups; otherwise it falls
-    back to a stratified split and says why. Raises TrainError for an explicitly requested array
+    Automatic mode takes subject, else session, provided it has enough groups; otherwise, with enough input
+    files, it groups by file index (name 'file'); otherwise it falls back to a stratified split and says why. Raises TrainError for an explicitly requested array
     the dataset lacks.
     """
     need = min_groups(test_frac)
@@ -251,6 +264,9 @@ def resolve_group(ds, group, test_frac):
         if n >= need:
             return cand, "grouping: by %s (automatic: the dataset has it, %d groups)" % (cand, n)
         why.append("%s has only %d groups (need %d)" % (cand, n, need))
+    nfiles = len(np.unique(ds["file"])) if ds.get("file") is not None else 1
+    if nfiles >= need:   # F2: several input files: group by file index before falling back to stratified
+        return "file", "grouping: by input file (automatic: %s; %d files)" % ("; ".join(why) if why else "no usable subject or session array", nfiles)
     msg = "grouping: none (automatic: %s): stratified split, siblings from one session may land on both sides and inflate the numbers" % (
         "; ".join(why) if why else "the dataset has no subject or session array")
     return "none", msg
@@ -575,7 +591,8 @@ def _write_report_md(path, rep):
                                           "%.1f %%" % (100.0 * row[i] / tot) if tot else "n/a"))
     if te is not None and te.get("per_subject"):
         L += ["", "## Test accuracy per subject (integer path)", ""]
-        L += ["- subject %s: %.2f %% (%d / %d)" % (sv, 100.0 * c / max(n, 1), c, n) for sv, (n, c) in te["per_subject"].items()]
+        L += ["- subject %s: %.2f %% (%d / %d)%s" % (sv, 100.0 * c / max(n, 1), c, n, " (small N)" if n < 30 else "")
+              for sv, (n, c) in te["per_subject"].items()]
     L += ["", "## Class share per set (windows, percent of the set)", "",
           "| class | " + " | ".join(rep["class_share"].keys()) + " |", "|---|" + "---|" * len(rep["class_share"])]
     for i in range(N_CLASSES):
@@ -649,8 +666,6 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
     os.makedirs(work, exist_ok=True)
     paths = parse_data_args(data)
     ds = load_datasets(paths)
-    for nt in ds["notes"]:
-        warn(nt)
     gname, gmsg = resolve_group(ds, group, test_frac)
     say(gmsg)
     if len(paths) > 1:
@@ -658,6 +673,11 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
         if gname != "none":
             say("groups (%s, across %d files): %d" % (gname, len(paths), len(np.unique(ds[gname]))))
     gid = ds[gname] if gname != "none" else None
+    extra_warn = []
+    if ds["subject"] is not None and len(np.unique(ds["subject"])) >= 2 and gname != "subject":   # F1
+        extra_warn.append("subjects appear in both train and test; per-person generalisation is NOT measured")
+    if gname == "none" and group is None:   # F2: automatic fallback to a stratified split
+        extra_warn.append(gmsg)
     if ds["synthetic"] and not synthetic_note:
         synthetic_note = "SYNTHETIC data: pipeline test only, not an accuracy claim."
     t0 = time.time()
@@ -666,7 +686,7 @@ def run_training(data, out_dir, seed=1, hidden=N_HIDDEN, epochs=60, val_frac=0.2
     y = ds["labels"]
     tr, va, te = split_indices(y, gid, val_frac, test_frac, split_seed)
     np.savez(os.path.join(out_dir, "split.npz"), train=tr, val=va, test=te)
-    warnings = missing_class_warnings(y, {"train": tr, "validation": va, "test": te})
+    warnings = list(ds["notes"]) + extra_warn + missing_class_warnings(y, {"train": tr, "validation": va, "test": te})
     for w in warnings:
         warn(w)
     if te.size == 0:
@@ -948,6 +968,22 @@ def _selftest():
             return 1
         if "Augmentation: roll" not in read("rb", "report.md").decode() or len(rb["files"]) != 2:
             print("FAIL report lacks augmentation / file list")
+            return 1
+        # F1/F2/F6/F7: leakage warning, file-index grouping, duplicate files
+        lg = run_training([fa, fb], os.path.join(tmp, "lg"), seed=2, epochs=5, eval_every=5, quiet=True)
+        if lg["group"] != "subject" and not any("NOT measured" in w for w in lg["warnings"]):
+            print("FAIL no subject-leak warning")
+            return 1
+        for dd, nm_ in ((da, "fa2"), (db, "fb2")):
+            np.savez(os.path.join(tmp, nm_ + ".npz"), windows=dd["windows"], labels=dd["labels"])
+        fl = run_training([os.path.join(tmp, "fa2.npz"), os.path.join(tmp, "fb2.npz"), os.path.join(tmp, "fa2.npz")],
+                          os.path.join(tmp, "fl"), seed=2, epochs=5, eval_every=5, val_frac=0.2, test_frac=0.2, quiet=True)
+        if fl["group"] != "file" or not any("byte-identical" in w for w in fl["warnings"]):
+            print("FAIL file-index grouping or duplicate-file warning (group %s)" % fl["group"])
+            return 1
+        st = run_training(fa, os.path.join(tmp, "st"), seed=2, epochs=5, eval_every=5, group="none", quiet=True)
+        if not any("NOT measured" in w for w in st["warnings"]):
+            print("FAIL subject-leak warning with --group none")
             return 1
         print("train selftest PASS")
         return 0
