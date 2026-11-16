@@ -210,7 +210,7 @@ T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "pre
 | T-c2txT | C2 TX suite host + sim16, standin | test-c2tx | **done**, merged: real impl PASS host + sim16 (main reran); 10/10 mutants caught | `firmware/test/c2_stream/**` | – |
 | T-c2txR | Review C2 TX | review-25 | **done**: MERGE AFTER FIXES. Ruling F1: keep `const int16_t (*)[3]`, callers cast (gesture.c told); F3 speed/size restructure, F5 doc line, F6 oracle note → SW-4 backlog | `reviews/T-c2txR.md` | – |
 | W2-5 | train.py multi-file + grouping, `evaluate_model.py`, opt-in roll/gain augmentation (spec `briefs/W2-5_spec.md`) | impl-train (4th) | **done**, merged: default header sha256 unchanged; selftests PASS (main reran) | `tools/train.py`, `tools/evaluate_model.py`, README | W2-5T (test-train: merged, 21/24 vs real code; fix rounds W2-5F tool ruling R2-a 'accuracy after rejection over all accepted windows', W2-5TF two test rulings, in progress), W2-5R |
-| PR-4 | Sprint 6 PR to `main` (hadiahmad06/microcontrollers-project#4) | main + review-30 | open; pre-merge review PR-4R in progress | `reviews/PR-4R.md` | merge if MERGE |
+| PR-4 | Sprint 6 PR to `main` (hadiahmad06/microcontrollers-project#4) | main + review-30 | **MERGED** 2026-11-16 as `2048e26` after PR-4R = MERGE (minors fixed `830164f`) and a clean run | `reviews/PR-4R.md` | merge if MERGE |
 | SW-4 | Sweep: c2_stream F3 restructure (header bytes in head[], flat sample index, run CRC; ~40 cyc/byte, pump .text about halved) + F5/F6 doc notes (T-c2txR); main loop must reach the pump within ~11 ms (128 B TX ring) → note in HAL README | – | backlog | `firmware/src/c2_stream.*`, tests notes | – |
 | W2-6 | Continuous SAMPLES recording + offline trigger cut (spec `briefs/W2-6_spec.md`) | impl-rec (2nd) | **done**, merged with W2-4F + W2-4TF (recording suite ALL PASS) and W2-6T (22/24; rulings → W2-6F tool may overwrite --out, W2-6TF test reads JSON marks; both **done**, merged; test_stream ALL PASS (26 tests, main reran)); W2-6R review-29 done: MERGE AFTER FIXES → W2-6F2 + W2-6TF2 merged → W2-6F3 (piped --input idles) **done**, merged; all suites PASS (main reran); W2-6 ✅; W2-5R review-27 **done**: MERGE AFTER FIXES (F1 silent subject leak, F2 stratified fallback leak, F3 vacuous collision test, F4-F7) → W2-5F2 + W2-5TF2 **done**, merged; test_train_real ALL PASS (main reran); W2-5 ✅ | `tools/…` | T, R |
 | 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | impl-gesture | **done** (3.7T merged: 219 checks PASS, 11 suites PASS; rulings 3.7T-1/-2 favour impl; 3.7R review-28 done: MERGE AFTER FIXES → 3.7F (OVR placement, chunk reset, pump before continued drain) + 3.7TF (set_trigger, stream-off, bus-error tests) **done**, merged; 271 checks, 11 suites PASS (main reran); 3.7 ✅), merged `1668941`: scratch e2e == trigger_ref + infer_ref on 10 gestures, bring-up 201 contiguous chunks; bss 160 B avr incl. trigger_t/x8/c2_tx; `make test` 10 suites PASS (main reran). 3.7T test-gesture in progress | `firmware/src/gesture.*` | 3.7T, 3.7R |
@@ -233,17 +233,15 @@ different subagents from the implementer.
 | 3.10 | Cycles / RAM / flash measurement | Hadi | 3.9 |
 
 ## HANDOFF NOTES FOR THE NEXT SESSION (kept current by the main agent; newest state, 2026-11-16)
-1. **Where things are:** Sprint 6 (training pipeline) runs on `claude/serene-euler-ax5wpx` (pushed; based on merged `main` 0cae026).
-   Not yet PR'd to `main`. `make test` = 10 firmware suites (host + sim16), all PASS at `bbfdffd`. Python suites:
-   `tools/tests/test_recording.py`, `tools/tests/test_train_real.py` (`ORIG_REF=e8a4291`).
+1. **Where things are:** Sprint 6 is MERGED into `main` (PR hadiahmad06/microcontrollers-project#4, `2048e26`). New work continues on
+   `claude/serene-euler-ax5wpx` restarted from `main`; open a new PR per sprint. `make test` = 11 suites; Python suites in `tools/tests/`.
 2. **Hadi 2026-11-16:** open questions are NOT accepted but are working assumptions (`docs/agent/WORKING_ASSUMPTIONS.md`);
    prioritise the training pipeline; don't ask questions; resume after usage limits.
 3. **Done this sprint:** T-trig, T-c2tx, W2-4 (recorder/decoder/fake wand/dataset tool), W2-5 (multi-file train,
    evaluate_model, augmentation), 3.7 gesture.c, HAL (PIC24, UNVERIFIED) + HAL-F. Reviews merged: T-trigR, T-c2txR,
    W2-4R, W2-5R, HAL-R.
-4. **Open fix rounds / tickets:** W2-4F (in impl-rec 2nd, after W2-6) + W2-4TF (branch `worktree-agent-a4722bfc32e814f46`
-   `db62afc`, merge together); W2-5F2 + W2-5TF2; 3.7T (test-gesture) then 3.7R; W2-6 + W2-6T then W2-6R; SW-4 backlog.
-5. **Then:** PR session branch → `main` with a Sonnet pre-merge review; Hadi's Mac: `make -C firmware/build record.hex
+4. **Open tickets:** SW-4 (c2_stream speed/size restructure, T-c2txR F3/F5/F6). Everything else of Sprint 6 is done.
+5. **Next (Hadi's Mac, the critical path to training):** `make -C firmware/build record.hex
    MODEL=...` (see `firmware/hal/pic24/README.md` checklist), flash, `tools/RECORDING.md`.
 6. **Git identity:** author `Hadi Ahmad (Claude)` <Hadi's email> (Hadi's decision); committer `Claude <noreply@anthropic.com>`
    (a stop hook requires it; `git config committer.name/email`). Subagent branches are replayed onto the session branch with
@@ -253,6 +251,7 @@ different subagents from the implementer.
 
 ## Standup log
 _(newest first: done · next · blocked)_
+- 2026-11-16 (c): **SPRINT 6 CLOSED.** PR #4 merged (`2048e26`) after PR-4R = MERGE. Pipeline ready: flash `record.hex`/`bringup.hex` (UNVERIFIED HAL), record with `tools/recorder.py`, train with `tools/train.py`. **Blocked:** XC16 build, flash and bench checks need Hadi's Mac.
 - 2026-11-16 (b): **Done:** T-trig, T-c2tx, W2-4, W2-5, 3.7, HAL + all their reviews (MERGE AFTER FIXES each); 10 suites PASS. Usage limit stopped 5 agents at ~12:00 UTC; resumed after reset. **Next:** fix rounds W2-4F/TF, W2-5F2/TF2, 3.7T, W2-6/T, then reviews 3.7R, W2-6R, then the sprint PR. **Blocked:** XC16 build + flash (Hadi's Mac).
 - 2026-11-16 (a): Hadi offline: open questions become working assumptions; Sprint 6 (training pipeline) started with 7 agents.
 - 2026-11-15 (aa): **SPRINTS 3-4 CLOSED.** PR #2 merged (`c82ad0a`) after PR-3R and a clean run. Remaining work needs Hadi (Q1-Q8) or the Mac (G3, HAL, WS2812 asm). Report draft and citations are ready for the team to edit.
