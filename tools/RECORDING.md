@@ -46,3 +46,25 @@ python3 tools/recorder.py --port <that path> --out /tmp/rec.npz --plan "<plan li
 ```
 `fake_wand.py` output is synthetic; always record it with `--synthetic`.
 <!-- [END AI-GENERATED] -->
+
+<!-- [AI-GENERATED: Claude Code] -->
+## 6. Continuous recording (bring-up firmware, SAMPLES)
+WORKING ASSUMPTION: open_questions Q1, Q2, not decided. The bring-up firmware (`-DGESTURE_BRINGUP_SAMPLES=1`) sends
+only SAMPLES frames. Record the whole stream, then cut windows offline (so the same recording can be re-cut with other
+trigger settings):
+```
+python3 tools/recorder.py --port /dev/cu.usbserial-XXXX --samples --out data/stream1.npz --plan "swipe_right:20,none:20" [--every 2.5]
+python3 tools/cut_stream.py --stream data/stream1.npz --out data/s1.npz [--thr-mg 250] [--window-after-mark 2.0] [--none-gap 1.0]
+```
+- The recorder prints `NEXT: <NAME> xN`, waits for Enter (unless `--no-pause`), then prints `GO i/N` every `--every`
+  seconds; perform ONE gesture after each GO. Each GO stores a mark (sample index, label) in the stream file.
+- The stream file holds `samples`, `chunk_gaps` (where chunks were lost), `ovr` (sample index of each `OVR n` line) and `marks`.
+- `cut_stream.py` runs the reference trigger (re-synced at every gap and OVR), cuts 150-sample windows and labels each by
+  the latest mark at most 2 s before the trigger; a trigger with no mark within 1 s is `none`; anything else is dropped as
+  ambiguous. Windows that straddle a gap are dropped. It prints per label: marks, windows, marks with no window (missed
+  gesture, e.g. performed too softly or too early) and marks with two or more windows.
+- Test without a wand: `fake_wand.py --data ds.npz --samples --gap 60 --marks-lead 15 --marks-out m.json --out w.bin`, then
+  `recorder.py --input w.bin --samples --marks-from m.json --no-pause --synthetic --label none --out st.npz` (`--marks-from`
+  is test only: it takes the true marks from the fake wand instead of the wall clock; `--gap` puts rest samples between
+  windows so the trigger can re-arm).
+<!-- [END AI-GENERATED] -->
