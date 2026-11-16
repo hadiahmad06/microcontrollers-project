@@ -99,6 +99,12 @@ C1.3 frame), multiplied by a uniform gain in 1 +- PCT/100, rounded half away fro
 Validation and test are never augmented, the normalisation (`export_model.py norm`) is computed on the
 un-augmented train features, augmented features are not cached, and the report states the augmentation.
 Without the new flags a run is unchanged (checked: same `gesture_model.h` hash as before the change).
+Warnings (W2-5F2, in the report banner and on stderr): when `subject` has at least 2 values but the split is not
+grouped by subject, "subjects appear in both train and test; per-person generalisation is NOT measured"; an
+automatic fallback to a stratified split puts its message in the warnings too. In automatic mode with several
+input files and no usable subject / session array, the split is grouped by input file index (`grouping: by input
+file`) before the stratified fallback. Two input files with byte-identical `windows`, or windows that appear in
+two files, produce a warning (duplicates leak between sets). Per-subject lines with N < 30 carry "(small N)".
 Onset-jitter augmentation (W2-3, SYNTHETIC): `synth_dataset.py --onset-jitter=LO,HI` (use the `=` form, the
 value starts with a minus sign) draws each gesture's onset uniformly in `[15+LO, 15+HI]` instead of `15 +- 3`
 (class 0 and the default output are unchanged: the default `.npz` is byte-identical to before, checked by hash). It
@@ -172,6 +178,9 @@ Wilson 95 % interval, accuracy after rejection (correct / accepted over all acce
 confusion matrix with per-class recall, per-subject accuracy when `subject` exists, and, for windows with
 `dev_flags` bit 0, the agreement of the on-device `dev_class` with the host prediction, counted only where
 `model_hash` equals the header's `GM_MODEL_HASH` (others are listed as "different model"). `--out-dir` writes
-`report.md` and `report.json`, otherwise the markdown is printed. Marked SYNTHETIC when any input is. Exit 0 ok,
+`report.md` and `report.json`, otherwise the markdown is printed. Rejection is MLP-confidence only ("MLP-only, no k-NN
+gate"; firmware `classify_decide` may overturn a weak MLP result), and this is stated in report.md. Windows whose
+`dev_class` is GESTURE_UNKNOWN (-1, the recorder stores int8) are reported separately as "device rejected" and are
+not counted as disagreements; per-subject lines with N < 30 carry "(small N)". Marked SYNTHETIC when any input is. Exit 0 ok,
 2 bad input.
 <!-- [END AI-GENERATED] -->
