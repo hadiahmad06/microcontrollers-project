@@ -315,7 +315,7 @@ static void tx_service(uint16_t now)
     }
 #else
     if (!c2_tx_busy(&tx)) {
-        if (bu_ovr_pend != 0u) {
+        if ((bu_ovr_pend != 0u) && (bu_full == 0u)) {   /* 3.7F F3: text only between chunks, at the gap */
             format_ovr_line(bu_ovr_total);
             if (c2_tx_start_text(&tx, txt)) {
                 bu_ovr_pend = 0u;
@@ -405,6 +405,9 @@ bool gesture_poll(void)
     now = port_millis();
     /* (1) drain: INT0 watermark flag (always read, it is read-and-clear), the 50 ms backstop, or more data left */
     fifo_flag = port_take_fifo_flag();
+    if ((fl & F_MORE) != 0u) {
+        tx_service(now);   /* 3.7F F5: the last drain left data; pump the TX ring before the next long drain */
+    }
     if (fifo_flag || ((fl & F_MORE) != 0u) || ((uint16_t)(now - last_drain_ms) >= GESTURE_BACKSTOP_MS)) {
 #ifdef GESTURE_BRINGUP_SAMPLES
         if ((bu_full & (uint8_t)(1u << bu_cur)) != 0u) {
@@ -520,6 +523,9 @@ void gesture_stream_raw(bool on)
     }
     if (on && ((fl & F_STREAM) == 0u)) {
         fl = (uint8_t)(fl | F_STREAM | F_HELLO);   /* a HELLO goes out as soon as the sender is idle */
+#ifdef GESTURE_BRINGUP_SAMPLES
+        bu_fill = 0u;   /* 3.7F F4: drop a stale partial chunk; the filling buffer is never in flight (full bit clear) */
+#endif
     } else if (!on) {
         fl = (uint8_t)(fl & (uint8_t)~(F_STREAM | F_HELLO));   /* a pending or running WINDOW still completes */
     }
