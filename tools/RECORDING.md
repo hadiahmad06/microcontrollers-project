@@ -79,4 +79,16 @@ python3 tools/cut_stream.py --stream data/stream1.npz --out data/s1.npz [--thr-m
   `recorder.py --input w.bin --samples --marks-from m.json --no-pause --synthetic --label none --out st.npz` (`--marks-from`
   is test only: it takes the true marks from the fake wand instead of the wall clock; `--gap` puts rest samples between
   windows so the trigger can re-arm).
+- Marks: each GO mark index is the number of samples received so far plus `MARK_LAG` = 16, because the PC receives a
+  sample up to one 16-sample chunk after the wand took it, so the received count lags what the user sees at GO.
+- Wand stalls: no `GO` and no mark is made until a HELLO has arrived and a chunk arrived within the last second. The
+  recorder prints `waiting for wand` once per stall and resumes the step where it paused.
+- Gaps and OVR: windows whose span contains a chunk gap are dropped, and windows whose span touches `[ovr-16, ovr]` (an
+  `OVR n` line means up to one chunk may be missing before it) are dropped too. Deliberate, not a bug.
+- `--marks-from` is test only: the recorder forces `synthetic=1` (with a warning) and `cut_stream.py` keeps it synthetic.
+  `--append` is not available with `--samples`; record one stream file per session, cut each, then `dataset_tool.py merge`.
+- Two label traps (defaults kept: `--window-after-mark 2.0`, `--none-gap 1.0`): (1) a gesture made late (more than 2 s
+  after GO) is labelled `none` or dropped; (2) a hand movement that returns the hand to rest right after the gesture can
+  trigger a second window, which is labelled with the same mark. Advice: keep still during the pause between GOs and
+  return the hand slowly after each gesture.
 <!-- [END AI-GENERATED] -->
