@@ -5,8 +5,13 @@ WORKING ASSUMPTION: open_questions Q1 (C2 as proposed), not decided. Needs the C
 Python 3 and numpy only; pyserial is optional (a POSIX fallback is built in, Linux/macOS).
 
 ## 1. Check the link
-Plug the wand into the PC (UART1, 115200 8N1, e.g. `/dev/ttyUSB0`). The wand sends HELLO beacons every 2 s, so a
-dry run that records nothing but prints the decoder summary shows whether the link works:
+Plug the wand into the PC (UART1, 115200 8N1) through its USB-serial adapter (install the adapter's driver first).
+Linux: `/dev/ttyUSB0`. macOS: list the ports with `ls /dev/cu.*` and use `/dev/cu.usbserial-*` or `/dev/cu.usbmodem*`
+(NOT `/dev/tty.*`: those block waiting for a carrier). pyserial is optional (`pip install pyserial`); without it a
+built-in POSIX fallback is used. Only one program may hold a port: close any serial terminal first.
+The wand sends HELLO beacons every 2 s, so a short test run shows whether the link works (the recorder prints
+`waiting for HELLO` until one arrives; with `--count 1` it stops after one window and stores that window, delete the
+test file afterwards; with no window recorded no output file is created):
 `python3 tools/recorder.py --port /dev/ttyUSB0 --out /tmp/test.npz --label none --count 1`
 
 ## 2. Record a session (guided)
@@ -17,7 +22,12 @@ python3 tools/recorder.py --port /dev/ttyUSB0 --out data/s1.npz --subject 1 --se
 The recorder prints `NEXT: <GESTURE> xN (press Enter to start)`; press Enter, then perform the gesture N times
 (each trigger sends one window). Windows that arrive while it waits for Enter are skipped. Ctrl-C stops cleanly; the
 file is rewritten after every window, so nothing is lost. A raw copy of all bytes goes to `data/s1.bin`
-(replay with `--input data/s1.bin`).
+(replay with `--input data/s1.bin`). The raw log is APPENDED to, never truncated: use a new `--out` name (or
+`--raw-log`) per session, or the log will mix sessions.
+
+Timing hazard: the first window of a step is stored as soon as it arrives after Enter, and the last window of a step ends
+the step at once. A gesture you started before pressing Enter, or the one you make right after the last count, lands in
+the wrong step; wait for the `[NAME i/N]` line before each gesture and do not start the next gesture before the next `NEXT:` line.
 
 One label only: `--label swipe_right --count 20`. Add more later with `--append` (session number increments).
 An existing OUT without `--append` is refused.
@@ -45,4 +55,26 @@ python3 tools/fake_wand.py --data /tmp/ds.npz --pty --order grouped --print-plan
 python3 tools/recorder.py --port <that path> --out /tmp/rec.npz --plan "<plan line>" --no-pause --synthetic
 ```
 `fake_wand.py` output is synthetic; always record it with `--synthetic`.
+<!-- [END AI-GENERATED] -->
+
+<!-- [AI-GENERATED: Claude Code] -->
+## 6. Continuous recording (bring-up firmware, SAMPLES)
+WORKING ASSUMPTION: open_questions Q1, Q2, not decided. The bring-up firmware (`-DGESTURE_BRINGUP_SAMPLES=1`) sends
+only SAMPLES frames. Record the whole stream, then cut windows offline (so the same recording can be re-cut with other
+trigger settings):
+```
+python3 tools/recorder.py --port /dev/cu.usbserial-XXXX --samples --out data/stream1.npz --plan "swipe_right:20,none:20" [--every 2.5]
+python3 tools/cut_stream.py --stream data/stream1.npz --out data/s1.npz [--thr-mg 250] [--window-after-mark 2.0] [--none-gap 1.0]
+```
+- The recorder prints `NEXT: <NAME> xN`, waits for Enter (unless `--no-pause`), then prints `GO i/N` every `--every`
+  seconds; perform ONE gesture after each GO. Each GO stores a mark (sample index, label) in the stream file.
+- The stream file holds `samples`, `chunk_gaps` (where chunks were lost), `ovr` (sample index of each `OVR n` line) and `marks`.
+- `cut_stream.py` runs the reference trigger (re-synced at every gap and OVR), cuts 150-sample windows and labels each by
+  the latest mark at most 2 s before the trigger; a trigger with no mark within 1 s is `none`; anything else is dropped as
+  ambiguous. Windows that straddle a gap are dropped. It prints per label: marks, windows, marks with no window (missed
+  gesture, e.g. performed too softly or too early) and marks with two or more windows.
+- Test without a wand: `fake_wand.py --data ds.npz --samples --gap 60 --marks-lead 15 --marks-out m.json --out w.bin`, then
+  `recorder.py --input w.bin --samples --marks-from m.json --no-pause --synthetic --label none --out st.npz` (`--marks-from`
+  is test only: it takes the true marks from the fake wand instead of the wall clock; `--gap` puts rest samples between
+  windows so the trigger can re-arm).
 <!-- [END AI-GENERATED] -->

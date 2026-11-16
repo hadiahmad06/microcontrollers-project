@@ -73,8 +73,8 @@ Quantization scheme: Jacob et al. 2018, arXiv:1712.05877; reference spec
 
 Dataset format (WP2 tools): one `.npz` with `windows` int16 `[N,150,3]` (C1 wand frame, values in
 [-2048, 2047]), `labels` uint8 `[N]` (0..8, C5), optional `subject` uint8 `[N]` and `session` uint16
-`[N]` for grouped splits, optional scalar `synthetic` (1 stamps the report as synthetic). The recorder
-(C2, undecided) will write this format.
+`[N]` for grouped splits, optional scalar `synthetic` (1 stamps the report as synthetic). `tools/recorder.py` (C2 as proposed,
+not decided) writes this format; see `tools/RECORDING.md`.
 
 ```
 python3 tools/synth_dataset.py --out ds.npz --per-class 120 --seed 1   # SYNTHETIC, pipeline test only

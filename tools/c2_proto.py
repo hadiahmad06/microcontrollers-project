@@ -146,12 +146,17 @@ class Decoder:
         self.garbage = self.bad_header = self.crc_errors = self.frames = self.seq_gaps = 0
         self.text_lines = []
         self._line = []
+        self._skip_text = 0          # bytes of a failed candidate frame: counted as garbage, not text (F5)
         self._last_seq = None
 
     def _hunt_drop(self):
         """Drop the front byte while hunting for sync: count garbage and collect ASCII text."""
         b = self.buf.pop(0)
         self.garbage += 1
+        if self._skip_text > 0:
+            self._skip_text -= 1
+            self._line = []
+            return
         if b == 0x0A:
             if self._line:
                 self.text_lines.append("".join(self._line))
@@ -159,7 +164,8 @@ class Decoder:
         elif b == 0x0D:
             pass
         elif 0x20 <= b <= 0x7E:
-            self._line.append(chr(b))
+            if len(self._line) < 256:     # cap the line buffer (F5)
+                self._line.append(chr(b))
         else:
             self._line = []
 
@@ -204,9 +210,11 @@ class Decoder:
             if crc16(buf[2:total - CRC_LEN]) != rx:
                 del buf[0]
                 self.crc_errors += 1
+                self._skip_text = total - 1       # the rest of the failed frame must not become text (F5)
                 continue
             payload = bytes(buf[HEADER_LEN:HEADER_LEN + ln])
             del buf[:total]
+            self._skip_text = 0
             if self._last_seq is not None:
                 self.seq_gaps += (seq - self._last_seq - 1) & 0xFF
             self._last_seq = seq

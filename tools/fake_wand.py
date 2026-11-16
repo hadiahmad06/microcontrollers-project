@@ -9,9 +9,11 @@ docs/agent/hadi/spikes/uart/c2_ref.py).
 Usage:
   python3 tools/fake_wand.py --data DS.npz (--out FILE | --pty) [--order as-is|grouped] [--hello-every K]
         [--text "LINE"] [--corrupt P] [--seed S] [--print-plan] [--rate BPS] [--samples]
+        [--marks-out FILE] [--marks-lead N] [--gap N]
   python3 tools/fake_wand.py --selftest
 """
 import argparse
+import json
 import os
 import random
 import sys
@@ -42,7 +44,8 @@ def plan_string(labels):
     return ",".join("%s:%d" % (LABELS[a], n) for a, n in runs)
 
 
-def build_stream(windows, labels, order="as-is", hello_every=2, text=(), corrupt=0.0, seed=1, samples=False):
+def build_stream(windows, labels, order="as-is", hello_every=2, text=(), corrupt=0.0, seed=1, samples=False,
+                 gap=0, marks_lead=0):
     """Build the byte stream of a wand that sends the given windows.
 
     Args:
@@ -50,8 +53,14 @@ def build_stream(windows, labels, order="as-is", hello_every=2, text=(), corrupt
         hello_every: a HELLO after every K windows (SAMPLES chunks in bring-up mode); 0 = only the first.
         text: iterable of ASCII lines sent first. corrupt: probability that a WINDOW frame has one bit flipped.
         seed: RNG seed for the corruption. samples: bring-up mode (SAMPLES chunks of 16 instead of WINDOWs).
+        gap: samples mode only; `gap` rest samples (the next window's first sample repeated) are put before every
+            window, so the trigger can re-arm between gestures (back-to-back windows lock it out).
+        marks_lead: samples mode only; each mark sits this many samples before the true onset (a GO precedes the
+            gesture by the reaction time; 0 = the true onset).
     Returns:
-        (bytes, info) where info has n, corrupted, order_labels (list) and plan (str).
+        (bytes, info) where info has n, corrupted, order_labels (list), plan (str) and marks (samples mode:
+        list of [sample index of the true onset (window start + 15) - marks_lead, label], one per source window,
+        indices into the continuous stream before the trailing partial chunk is dropped).
     """
     labels = np.asarray(labels)
     idx = np.argsort(labels, kind="stable") if order == "grouped" else np.arange(len(labels))
@@ -68,8 +77,18 @@ def build_stream(windows, labels, order="as-is", hello_every=2, text=(), corrupt
 
     out += c2_proto.encode_hello(nxt())
     corrupted = 0
+    marks = []
     if samples:
-        stream = np.concatenate([np.asarray(windows[i]) for i in idx]) if len(idx) else np.zeros((0, 3), np.int16)
+        parts, pos = [], 0
+        for i in idx:
+            wi = np.asarray(windows[i])
+            if gap:
+                parts.append(np.repeat(wi[:1], gap, axis=0))
+                pos += gap
+            marks.append([pos + 15 - marks_lead, int(labels[i])])
+            parts.append(wi)
+            pos += len(wi)
+        stream = np.concatenate(parts).astype(np.int16) if parts else np.zeros((0, 3), np.int16)
         for c in range(len(stream) // 16):
             out += c2_proto.encode_samples(nxt(), c, stream[c * 16:(c + 1) * 16])
             if hello_every and (c + 1) % hello_every == 0:
@@ -85,7 +104,7 @@ def build_stream(windows, labels, order="as-is", hello_every=2, text=(), corrupt
                 out += c2_proto.encode_hello(nxt())
     order_labels = [int(labels[i]) for i in idx]
     return bytes(out), {"n": len(idx), "corrupted": corrupted, "order_labels": order_labels,
-                        "plan": plan_string(order_labels)}
+                        "plan": plan_string(order_labels), "marks": marks}
 
 
 def load(path):
@@ -164,12 +183,22 @@ def _selftest():
     flat = w.reshape(-1, 3)
     check(len(ch) == len(flat) // 16 and [c["chunk"] for c in ch] == list(range(len(ch))), "chunks")
     check(all(np.array_equal(np.array(c["samples"]), flat[16 * k:16 * k + 16]) for k, c in enumerate(ch)), "chunk data")
+    data, info = build_stream(w[:3], y[:3], samples=True, gap=20, marks_lead=5)
+    d = c2_proto.Decoder(accept_samples=True)
+    fl = np.array([s for f in d.feed(data) if f.ftype == c2_proto.T_SAMPLES
+                   for s in c2_proto.parse_samples(f.payload)["samples"]])
+    check(info["marks"] == [[20 + 10, int(y[0])], [190 + 10, int(y[1])], [360 + 10, int(y[2])]], "marks %s" % info["marks"])
+    check(np.array_equal(fl[20:170], w[0]) and np.all(fl[:20] == w[0][0]) and np.array_equal(fl[190:340], w[1]), "gap layout")
     # CLI: --out
     with tempfile.TemporaryDirectory() as t:
         ds, op = os.path.join(t, "d.npz"), os.path.join(t, "s.bin")
         np.savez(ds, windows=w, labels=y)
         rc = main(["--data", ds, "--out", op, "--order", "grouped"])
         check(rc == 0 and open(op, "rb").read(), "cli --out")
+        mo = os.path.join(t, "m.json")
+        rc = main(["--data", ds, "--out", op, "--samples", "--marks-out", mo, "--gap", "10"])
+        mk = json.load(open(mo)) if os.path.exists(mo) else {}
+        check(rc == 0 and len(mk.get("marks", [])) == n and mk["marks"][0] == [25, int(y[0])], "cli --marks-out")
     return fails
 
 
@@ -188,6 +217,9 @@ def main(argv=None):
     ap.add_argument("--print-plan", action="store_true")
     ap.add_argument("--rate", type=int, default=11520)
     ap.add_argument("--samples", action="store_true")
+    ap.add_argument("--marks-out", help="samples mode: write the true onset sample and label of every window as JSON")
+    ap.add_argument("--marks-lead", type=int, default=0, help="samples mode: marks this many samples before the onset")
+    ap.add_argument("--gap", type=int, default=0, help="samples mode: rest samples before every window")
     a = ap.parse_args(argv)
     if a.selftest:
         fails = _selftest()
@@ -205,8 +237,14 @@ def main(argv=None):
     if not 0.0 <= a.corrupt <= 1.0 or a.rate < 1 or a.hello_every < 0:
         print("error: --corrupt must be 0..1, --rate >= 1, --hello-every >= 0", file=sys.stderr)
         return 2
+    if (a.marks_out or a.gap or a.marks_lead) and not a.samples or a.gap < 0 or a.marks_lead < 0:
+        print("error: --marks-out/--gap/--marks-lead need --samples and must be >= 0", file=sys.stderr)
+        return 2
     w, y = load(a.data)
-    data, info = build_stream(w, y, a.order, a.hello_every, a.text, a.corrupt, a.seed, a.samples)
+    data, info = build_stream(w, y, a.order, a.hello_every, a.text, a.corrupt, a.seed, a.samples, a.gap, a.marks_lead)
+    if a.marks_out:
+        with open(a.marks_out, "w") as f:
+            json.dump({"marks": info["marks"], "label_names": list(LABELS), "gap": a.gap, "marks_lead": a.marks_lead}, f)
     print("SYNTHETIC: fake_wand output, never real data", file=sys.stderr)
     if corrupt_given:  # spec S3: report the count whenever --corrupt is given (W2-4T fw_corrupt)
         print("corrupted %d of %d WINDOW frames" % (info["corrupted"], info["n"]), file=sys.stderr)

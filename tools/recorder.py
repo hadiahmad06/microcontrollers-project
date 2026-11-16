@@ -129,6 +129,12 @@ def read_serial(port, baud):
         attrs[6][termios.VMIN] = 0                      # read returns what is there
         attrs[6][termios.VTIME] = 0                     # no read timeout (select does the waiting)
         termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        try:
+            import fcntl
+            fcntl.ioctl(fd, termios.TIOCEXCL)           # exclusive: a second program cannot open the port (F11)
+        except (ImportError, AttributeError, OSError):
+            pass
+        termios.tcflush(fd, termios.TCIFLUSH)           # drop bytes buffered before we opened (F11)
         while True:
             r, _, _ = select.select([fd], [], [], IDLE_S)
             if not r:
@@ -145,6 +151,47 @@ def read_serial(port, baud):
             yield b
     finally:
         os.close(fd)
+
+
+# [AI-GENERATED: Claude Code]
+class LazyLog:
+    """Raw byte log that is created on the first byte written, so a failed run leaves no file behind (W2-4F F2)."""
+
+    def __init__(self, path, enabled):
+        """Args: path: log file; enabled: falsy = never write (input file is the log)."""
+        self.path = path
+        self.enabled = bool(enabled)
+        self.f = None
+
+    def write(self, b):
+        """Append bytes (opens the file on first use, flushes every time); raises Fatal(2) if it cannot open."""
+        if not self.enabled:
+            return
+        if self.f is None:
+            try:
+                self.f = open(self.path, "ab")
+            except OSError as e:
+                raise Fatal(2, "cannot open raw log %s: %s" % (self.path, e))
+        self.f.write(b)
+        self.f.flush()
+
+    def close(self):
+        """Close the file if it was opened."""
+        if self.f:
+            self.f.close()
+
+
+def hello_hint(rec, hinted):
+    """Print the waiting-for-HELLO hint once, after the first read that produced no HELLO (F7).
+
+    Args:
+        rec: recorder with a .hello attribute. hinted: list used as a once-flag.
+    """
+    if not hinted:
+        hinted.append(1)
+        if rec.hello is None:
+            print("waiting for HELLO (the wand sends one every 2 s)", flush=True)
+# [END AI-GENERATED]
 
 
 # ----------------------------------------------------------------------------- output file
@@ -197,6 +244,7 @@ class Recorder:
         self.step_i = 0          # index of the current step
         self.in_step = 0         # windows stored in the current step
         self.waiting = False
+        self.warned_range = False
         self.q = None
         self.cols = {k: [] for k, _ in OUT_KEYS}
         self.old = None
@@ -218,6 +266,10 @@ class Recorder:
             self.session = int(ses.max()) + 1 if len(ses) else 0
         elif self.session is None:
             self.session = 0
+        if len(self.old["session"]) and bool(((self.old["session"] == self.session) &
+                                              (self.old["subject"] == self.a.subject)).any()):
+            print("warning: %s already holds subject %d session %d; dataset_tool merge refuses duplicates"
+                  % (self.a.out, self.a.subject, self.session), file=sys.stderr)
 
     def start_plan(self):
         """Print the first NEXT line and begin waiting for Enter when pausing."""
@@ -283,6 +335,10 @@ class Recorder:
         s = np.array(p["samples"], dtype=np.int16)
         if s.min() < -2048 or s.max() > 2047:             # outside the 12-bit range of the training format
             self.rejected += 1
+            if not self.warned_range:
+                self.warned_range = True
+                print("warning: window rejected, samples outside the 12-bit range -2048..2047 (is the wand in +-4 g mode?)",
+                      file=sys.stderr)
             return
         if self.waiting:
             if not self.live:
@@ -323,11 +379,21 @@ class Recorder:
             if not self.done:
                 self.announce_next()
 
+    def drain_enter(self):
+        """Throw away Enter presses already queued, so a stray Enter typed during a step cannot start the next one."""
+        if self.q is not None:
+            try:
+                while True:
+                    self.q.get_nowait()
+            except queue.Empty:
+                pass
+
     def announce_next(self):
         """After a finished step: print NEXT and wait for Enter unless --no-pause."""
         if self.a.plan:
             self.announce()
             if not self.a.no_pause:
+                self.drain_enter()
                 self.waiting = True
 
     def counters(self):
@@ -397,6 +463,9 @@ def build_parser():
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--raw-log")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--samples", action="store_true", help="continuous SAMPLES recording (stream file, see RECORDING.md)")
+    ap.add_argument("--every", type=float, default=2.5, help="--samples: seconds between GO marks")
+    ap.add_argument("--marks-from", help="--samples, TEST ONLY: take the marks from a fake_wand --marks-out file")
     return ap
 
 
@@ -430,13 +499,10 @@ def run(args):
         rec.session = 0
     src = read_serial(args.port, args.baud) if args.port else read_file(args.input)
     logpath = args.raw_log or (os.path.splitext(args.out)[0] + ".bin")
-    log = None
-    if not (args.input and args.input != "-" and os.path.realpath(args.input) == os.path.realpath(logpath)):
-        try:
-            log = open(logpath, "ab")
-        except OSError as e:
-            raise Fatal(2, "cannot open raw log %s: %s" % (logpath, e))
+    logger = LazyLog(logpath, None if (args.input and args.input != "-" and
+                                       os.path.realpath(args.input) == os.path.realpath(logpath)) else True)
     code = 0
+    hinted = []
     try:
         rec.start_plan()
         for chunk in src:
@@ -444,27 +510,309 @@ def run(args):
                 frames = rec.dec.flush_stale()
                 rec.poll_enter()
             else:
-                if log:
-                    log.write(chunk)
-                    log.flush()
+                logger.write(chunk)
                 frames = rec.dec.feed(chunk)
             for f in frames:
                 rec.on_frame(f)
             rec.poll_enter()
+            hello_hint(rec, hinted)
             if rec.done:
                 break
     except KeyboardInterrupt:
         print("\ninterrupted; output so far is kept", file=sys.stderr)
+    except OSError as e:
+        if not args.port:
+            raise Fatal(2, "read error: %s" % e)
+        print("serial device lost (%s); keeping what was stored" % e, file=sys.stderr)
     except Fatal as e:
         code = e.code
         print("error: %s" % e, file=sys.stderr)
     finally:
         src.close()
-        if log:
-            log.close()
-    rec.write()
+        logger.close()
+    if rec.stored > 0 or args.append:
+        rec.write()
     rec.summary()
     return code
+
+
+# ----------------------------------------------------------------------------- continuous recording (W2-6)
+# [AI-GENERATED: Claude Code]
+# WORKING ASSUMPTION: open_questions Q1, Q2, not decided (SAMPLES stream; offline trigger cut, briefs/W2-6_spec.md V1).
+STREAM_VERSION = 1
+STREAM_WRITE_EVERY = 16          # chunks between atomic rewrites of the stream file
+
+
+def check_hello(h):
+    """Check a parsed HELLO against the fixed C0/C1.5 values; raises Fatal(3) naming the first wrong field."""
+    for k, want in (("proto_ver", 1), ("odr_hz", 100), ("range_g", 4), ("n_samples", 150), ("pre_trig", 15)):
+        if h[k] != want:
+            raise Fatal(3, "HELLO mismatch: %s = %d, expected %d" % (k, h[k], want))
+
+
+class StreamRecorder:
+    """Continuous SAMPLES recorder: keeps every sample, chunk gaps, OVR lines and time-based label marks."""
+
+    def __init__(self, args, steps, live, marks_from=None):
+        """Args: args (namespace); steps: [(label_id, count; 0 = unbounded)] or [];
+        live: serial source; marks_from: list of [sample, label] replacing the wall-clock marks (tests)."""
+        self.a = args
+        self.steps = steps
+        self.live = live
+        self.marks_from = marks_from
+        self.dec = c2_proto.Decoder(accept_samples=True)
+        self.hello = None
+        self.chunks = []         # list of int16 [16,3]
+        self.m = 0               # samples stored
+        self.last_chunk = None
+        self.gaps = []           # [sample index, chunks lost]
+        self.ovr = []            # sample index of each OVR line
+        self.marks = []          # [sample index, label]
+        self.rejected = 0
+        self.nlines = 0
+        self.nchunks = 0
+        self.step_i = 0
+        self.go_n = 0            # GOs given in the current step
+        self.next_go = None      # monotonic time of the next GO
+        self.finish_at = None
+        self.waiting = False
+        self.q = None
+        self.started = datetime.datetime.now().isoformat(timespec="seconds")
+
+    @property
+    def done(self):
+        """True when the plan is finished and the last gesture had its time."""
+        if self.marks_from is not None:
+            return False
+        return bool(self.steps) and self.step_i >= len(self.steps) and time.monotonic() >= (self.finish_at or 0)
+
+    def start(self):
+        """Begin the plan (print the first NEXT; wait for Enter unless --no-pause). With --marks-from: load marks."""
+        if self.marks_from is not None:
+            self.marks = [list(m) for m in self.marks_from]
+            return
+        self._begin_step()
+
+    def _begin_step(self):
+        label, n = self.steps[self.step_i]
+        print("NEXT: %s x%s  (press Enter to start)" % (LABELS[label].upper(), n or "unlimited"), flush=True)
+        self.go_n = 0
+        if self.a.no_pause:
+            self.next_go = time.monotonic() + self.a.every
+        else:
+            self.drain_enter()
+            self.waiting = True
+            self.next_go = None
+            if self.live and self.q is None:
+                self.q = queue.Queue()
+                threading.Thread(target=self._stdin_loop, daemon=True).start()
+
+    def _stdin_loop(self):
+        while True:
+            line = sys.stdin.readline()
+            self.q.put(line if line else None)
+            if not line:
+                return
+
+    def drain_enter(self):
+        """Throw away queued Enter presses when entering an Enter-wait (F1)."""
+        if self.q is not None:
+            try:
+                while True:
+                    self.q.get_nowait()
+            except queue.Empty:
+                pass
+
+    def tick(self):
+        """Advance the wall-clock plan: handle Enter, emit GO marks. Call after every chunk and idle period."""
+        if self.marks_from is not None or not self.steps or self.step_i >= len(self.steps):
+            return
+        if self.waiting:
+            if self.live:
+                try:
+                    line = self.q.get_nowait()
+                except queue.Empty:
+                    return
+            else:
+                line = sys.stdin.readline()
+                line = line if line else None
+            self.waiting = False
+            if line is None:                                    # stdin closed: stop
+                self.step_i = len(self.steps)
+                self.finish_at = 0
+                return
+            self.next_go = time.monotonic() + self.a.every
+        if self.next_go is not None and time.monotonic() >= self.next_go:
+            label, n = self.steps[self.step_i]
+            self.go_n += 1
+            self.marks.append([self.m, label])
+            print("GO %d/%s" % (self.go_n, n or "-"), flush=True)
+            self.next_go += self.a.every
+            if n and self.go_n >= n:
+                self.step_i += 1
+                self.finish_at = self.next_go                   # leave time for the last gesture
+                if self.step_i < len(self.steps):
+                    self._begin_step()
+
+    def on_frame(self, f):
+        """Handle one decoded frame: HELLO (checked) or SAMPLES chunk (gap detection)."""
+        if f.ftype == c2_proto.T_HELLO:
+            h = c2_proto.parse_hello(f.payload)
+            self.hello = h
+            check_hello(h)
+            if h["feature_ver"] != features_ref.FEATURES_VERSION:
+                print("warning: wand feature_ver %d != tools/features_ref.FEATURES_VERSION %d"
+                      % (h["feature_ver"], features_ref.FEATURES_VERSION), file=sys.stderr)
+        elif f.ftype == c2_proto.T_SAMPLES:
+            p = c2_proto.parse_samples(f.payload)
+            if self.hello is None or p["n"] != 16:
+                self.rejected += 1
+                return
+            s = np.array(p["samples"], dtype=np.int16)
+            if s.min() < -2048 or s.max() > 2047:
+                self.rejected += 1
+                return
+            if self.last_chunk is not None:
+                lost = (p["chunk"] - self.last_chunk - 1) & 0xFFFF
+                if lost:
+                    self.gaps.append([self.m, lost])
+            self.last_chunk = p["chunk"]
+            self.chunks.append(s)
+            self.m += 16
+            self.nchunks += 1
+            if self.nchunks % STREAM_WRITE_EVERY == 0:
+                self.write()
+
+    def feed(self, data):
+        """Feed bytes one at a time so an OVR text line gets the exact sample index; handles the frames."""
+        for b in data:
+            for f in self.dec.feed(bytes((b,))):
+                self.on_frame(f)
+            self._lines()
+
+    def idle(self):
+        """No byte for 50 ms: apply the PC-side stale rule."""
+        for f in self.dec.flush_stale():
+            self.on_frame(f)
+        self._lines()
+
+    def _lines(self):
+        tl = self.dec.text_lines
+        while self.nlines < len(tl):
+            t = tl[self.nlines].strip()
+            self.nlines += 1
+            if t.startswith("OVR ") or t == "OVR":
+                self.ovr.append(self.m)
+
+    def counters(self):
+        """Decoder counters plus rejected and the sample count, as a dict."""
+        d = self.dec
+        return {"garbage": d.garbage, "bad_header": d.bad_header, "crc_errors": d.crc_errors, "frames": d.frames,
+                "seq_gaps": d.seq_gaps, "rejected": self.rejected, "samples": self.m, "chunks": self.nchunks}
+
+    def write(self):
+        """Rewrite the stream file atomically."""
+        smp = np.concatenate(self.chunks).astype(np.int16) if self.chunks else np.zeros((0, 3), np.int16)
+        marks = [mk for mk in self.marks if mk[0] <= self.m]
+        arrays = {"samples": smp,
+                  "chunk_gaps": np.array(self.gaps, dtype=np.int32).reshape(-1, 2),
+                  "ovr": np.array(self.ovr, dtype=np.int32),
+                  "marks": np.array(marks, dtype=np.int32).reshape(-1, 2),
+                  "subject": np.uint8(self.a.subject), "session": np.uint16(self.a.session or 0)}
+        meta = {"tool": "recorder.py", "version": STREAM_VERSION, "mode": "samples", "started": self.started,
+                "source": self.a.port or self.a.input, "hello": self.hello, "counters": self.counters(),
+                "label_names": list(LABELS), "marks_from": self.a.marks_from}
+        write_npz(self.a.out, arrays, 1 if self.a.synthetic else 0, meta)
+
+    def summary(self):
+        """Print the end-of-run summary."""
+        c = self.counters()
+        per = {}
+        for _, lab in self.marks:
+            per[lab] = per.get(lab, 0) + 1
+        print("stream: %d samples (%d chunks), %d gaps, %d OVR lines, %d marks: %s" % (
+            self.m, self.nchunks, len(self.gaps), len(self.ovr), len(self.marks),
+            ", ".join("%s=%d" % (LABELS[k], v) for k, v in sorted(per.items())) or "-"))
+        print("rejected %d, frames %d, garbage bytes %d, bad_header %d, crc_errors %d, SEQ gaps %d" % (
+            c["rejected"], c["frames"], c["garbage"], c["bad_header"], c["crc_errors"], c["seq_gaps"]))
+
+
+def run_samples(args):
+    """Run one continuous (--samples) recording session.
+
+    Args:
+        args: argparse namespace of build_parser().
+    Returns:
+        exit code (0 ok, 3 HELLO mismatch); raises Fatal(2) for bad arguments.
+    """
+    if bool(args.port) == bool(args.input):
+        raise Fatal(2, "give exactly one of --port / --input")
+    if not args.out:
+        raise Fatal(2, "--out is required")
+    if args.append:
+        raise Fatal(2, "--append is not supported with --samples")
+    if args.every <= 0:
+        raise Fatal(2, "--every must be > 0")
+    if args.label and args.plan:
+        raise Fatal(2, "give only one of --label / --plan")
+    if args.count and args.plan:
+        raise Fatal(2, "--count is for --label; a plan has its own counts")
+    if not args.marks_from and not (args.label or args.plan):
+        raise Fatal(2, "--samples needs --label or --plan (or --marks-from)")
+    if not (0 <= args.subject <= 255) or (args.session is not None and not 0 <= args.session <= 65535):
+        raise Fatal(2, "--subject must be 0..255 and --session 0..65535")
+    if args.input == "-" and args.plan and not args.no_pause:
+        raise Fatal(2, "--input - needs --no-pause with --plan")
+    marks_from = None
+    if args.marks_from:
+        try:
+            with open(args.marks_from) as f:
+                marks_from = [[int(a), int(b)] for a, b in json.load(f)["marks"]]
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            raise Fatal(2, "cannot read --marks-from %s: %s" % (args.marks_from, e))
+    try:
+        steps = ([] if marks_from is not None else
+                 parse_plan(args.plan) if args.plan else [(parse_label(args.label), max(0, args.count))])
+    except ValueError as e:
+        raise Fatal(2, str(e))
+    if os.path.exists(args.out):
+        raise Fatal(2, "%s exists; use another --out" % args.out)
+    rec = StreamRecorder(args, steps, live=bool(args.port), marks_from=marks_from)
+    src = read_serial(args.port, args.baud) if args.port else read_file(args.input)
+    logpath = args.raw_log or (os.path.splitext(args.out)[0] + ".bin")
+    logger = LazyLog(logpath, None if (args.input and args.input != "-" and
+                                       os.path.realpath(args.input) == os.path.realpath(logpath)) else True)
+    code = 0
+    hinted = []
+    try:
+        rec.start()
+        for chunk in src:
+            if chunk is None:
+                rec.idle()
+            else:
+                logger.write(chunk)
+                rec.feed(chunk)
+            rec.tick()
+            hello_hint(rec, hinted)
+            if rec.done:
+                break
+    except KeyboardInterrupt:
+        print("\ninterrupted; output so far is kept", file=sys.stderr)
+    except OSError as e:
+        if not args.port:
+            raise Fatal(2, "read error: %s" % e)
+        print("serial device lost (%s); keeping what was stored" % e, file=sys.stderr)
+    except Fatal as e:
+        code = e.code
+        print("error: %s" % e, file=sys.stderr)
+    finally:
+        src.close()
+        logger.close()
+    if rec.nchunks > 0:
+        rec.write()
+    rec.summary()
+    return code
+# [END AI-GENERATED]
 
 
 # ----------------------------------------------------------------------------- selftest
@@ -526,6 +874,31 @@ def _selftest():
         check(r.returncode == 2, "bad label rc 2")
         r = run_rec("--out", os.path.join(t, "d.npz"), "--label", "none")
         check(r.returncode == 2, "no source rc 2")
+        # --samples: gap, OVR line, marks-from
+        sm = rng.integers(-2048, 2048, size=(16 * 20, 3)).astype(np.int16)
+        parts = [c2_proto.encode_hello(0)]
+        for c in range(20):
+            if c == 8:
+                parts.append(b"OVR 3\n")
+            if c in (5, 6):
+                continue                                     # two lost chunks
+            parts.append(c2_proto.encode_samples(1 + c, c, sm[16 * c:16 * c + 16]))
+        sp3 = os.path.join(t, "s3.bin")
+        open(sp3, "wb").write(b"".join(parts))
+        mj = os.path.join(t, "m.json")
+        json.dump({"marks": [[10, 1], [100, 2], [100000, 3]]}, open(mj, "w"))
+        o3 = os.path.join(t, "st.npz")
+        r = run_rec("--input", sp3, "--out", o3, "--samples", "--marks-from", mj, "--synthetic")
+        check(r.returncode == 0, "samples rc %d %s" % (r.returncode, r.stderr))
+        if r.returncode == 0:
+            z = np.load(o3)
+            keep = [c for c in range(20) if c not in (5, 6)]
+            check(np.array_equal(z["samples"], np.concatenate([sm[16 * c:16 * c + 16] for c in keep])), "stream samples")
+            check(z["chunk_gaps"].tolist() == [[80, 2]], "chunk_gaps %s" % z["chunk_gaps"].tolist())
+            check(z["ovr"].tolist() == [96], "ovr %s" % z["ovr"].tolist())
+            check(z["marks"].tolist() == [[10, 1], [100, 2]] and int(z["synthetic"]) == 1, "marks")
+        r = run_rec("--input", sp3, "--out", os.path.join(t, "x.npz"), "--samples")
+        check(r.returncode == 2, "samples without label rc 2")
     return fails
 
 
@@ -540,7 +913,7 @@ def main(argv=None):
         print("recorder selftest PASS")
         return 0
     try:
-        return run(args)
+        return run_samples(args) if args.samples else run(args)
     except Fatal as e:
         print("error: %s" % e, file=sys.stderr)
         return e.code
