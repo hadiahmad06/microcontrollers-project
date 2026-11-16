@@ -71,7 +71,9 @@ python3 tools/cut_stream.py --stream data/stream1.npz --out data/s1.npz [--thr-m
 - The stream file holds `samples`, `chunk_gaps` (where chunks were lost), `ovr` (sample index of each `OVR n` line) and `marks`.
 - `cut_stream.py` runs the reference trigger (re-synced at every gap and OVR), cuts 150-sample windows and labels each by
   the latest mark at most 2 s before the trigger; a trigger with no mark within 1 s is `none`; anything else is dropped as
-  ambiguous. Windows that straddle a gap are dropped. It prints per label: marks, windows, marks with no window (missed
+  ambiguous. Windows that straddle a gap or an OVR line are dropped on purpose (W2-6, deliberate: the samples on the two sides of a gap
+  are not contiguous, so such a window would be a false gesture shape; reviewers: this is not a bug). An existing `--out` is
+  overwritten (it is derived data you re-cut with other settings); `--out` equal to `--stream` is refused. It prints per label: marks, windows, marks with no window (missed
   gesture, e.g. performed too softly or too early) and marks with two or more windows.
 - Test without a wand: `fake_wand.py --data ds.npz --samples --gap 60 --marks-lead 15 --marks-out m.json --out w.bin`, then
   `recorder.py --input w.bin --samples --marks-from m.json --no-pause --synthetic --label none --out st.npz` (`--marks-from`

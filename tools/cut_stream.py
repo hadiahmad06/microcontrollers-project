@@ -230,7 +230,8 @@ def _selftest():
               z["trig_sample"].dtype == np.int32 and int(z["subject"][0]) == 2 and int(z["session"][0]) == 3,
               "cli")
         check(json.loads(str(z["meta"]))["source"] == "s.npz", "meta source")
-        check(main(["--stream", sp, "--out", op]) == 2, "existing out refused")
+        check(main(["--stream", sp, "--out", op]) == 0, "existing out overwritten")
+        check(main(["--stream", sp, "--out", sp]) == 2 and os.path.getsize(sp) > 0, "out == stream refused")
     return fails
 
 
@@ -257,9 +258,9 @@ def main(argv=None):
     if not 0 < a.thr_mg <= 65535 or a.window_after_mark <= 0 or a.none_gap < 0:
         print("error: bad --thr-mg / --window-after-mark / --none-gap", file=sys.stderr)
         return 2
-    if os.path.exists(a.out):
-        print("error: %s exists" % a.out, file=sys.stderr)
-        return 2
+    if os.path.exists(a.out) and os.path.samefile(a.out, a.stream):
+        print("error: --out must not be the --stream input", file=sys.stderr)
+        return 2                               # an existing different --out is overwritten (derived data; temp + os.replace)
     st = load_stream(a.stream)
     res = cut(st, a.thr_mg, a.window_after_mark, a.none_gap)
     report(res)
