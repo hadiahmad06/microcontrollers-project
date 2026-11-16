@@ -289,7 +289,7 @@ def chk_pre_init(o, rep, ref, cx):
     rep.check("pre_init: poll before init is false", R[0] == ("poll", 0), str(R[:1]))
     rep.check("pre_init: classify before init is UNKNOWN (with and without pointer)",
               R[1][0] == "classify" and R[1][1] == -1 and R[2][0] == "classify" and R[2][1] == -1, str(R[1:3]))
-    rep.check("pre_init: learn before init is 0", R[3] == ("learn", 0), str(R[3]))
+    rep.check("pre_init: learn before init is -2 (ruling 3.7T-1)", R[3] == ("learn", -2), str(R[3]))
     rep.check("pre_init: events before init is 0", R[4] == ("events", 0), str(R[4]))
     rep.check("pre_init: second poll false, init returns 0", R[5] == ("poll", 0) and R[6] == ("init", 0), str(R[5:7]))
     rep.check("pre_init: learn with no window is -2", R[7] == ("learn", -2), str(R[7]))
@@ -460,7 +460,7 @@ def chk_events(o, rep, ref, cx):
 
 
 # 10: overrun: windows straddling a gap are dropped; overrun count in WINDOW ------------------------------------------
-_ops = (head(10) + [op("REJECT", 0), op("STREAM", 1), op("AUTO", 1), q(50), stall(40), q(60), g(GA), q(20), stall(45), q(250), g(GB), q(160)])
+_ops = (head(10) + [op("REJECT", 0), op("STREAM", 1), op("AUTO", 1), q(50), stall(40), q(60), g(GA), q(77), stall(45), q(250), g(GB), q(160)])
 
 
 @scenario("overrun", _ops)
@@ -551,7 +551,7 @@ def chk_bring(sc, o, rep, ref):
         it = iter(cx["deliv"])
         rep.check("%s: sent rows are an in-order subsequence of the delivered samples, rows after the gap present" % nm,
                   all(any(r == s for s in it) for r in rows) and len(rows) >= 100, "rows %d" % len(rows))
-        rep.check("%s: text line OVR 1 queued after the overrun" % nm, "OVR 1" in o.dec.text_lines, str(o.dec.text_lines))
+        rep.check("%s: text line OVR 2 queued (ruling 3.7T-2: FIFO overrun + drain that lost rows)" % nm, "OVR 2" in o.dec.text_lines, str(o.dec.text_lines))
     rep.check("%s: no CRC/header errors, no TX overflow" % nm, o.dec.crc_errors == 0 and o.dec.bad_header == 0 and not o.V, str(o.V))
 
 
