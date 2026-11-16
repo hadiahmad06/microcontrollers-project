@@ -690,6 +690,9 @@ def _read_marks_file(path):
     AMBIGUITY: the file format is not specified; this reader accepts the obvious ones."""
     with open(path, "rb") as f:
         head = f.read(6)
+    if head[:1] == b"{":
+        with open(path, "r", encoding="utf-8") as f:
+            return [(int(a), int(b)) for a, b in json.load(f)["marks"]]
     if head[:2] == b"PK" or head[:6] == b"\x93NUMPY":
         z = np.load(path)
         a = (z["marks"] if "marks" in z.files else z[z.files[0]]) if hasattr(z, "files") else z
@@ -703,12 +706,12 @@ def _read_marks_file(path):
     return rows
 
 
-def _wand_stream(t, per_class):
+def _wand_stream(t, per_class, extra=()):
     """synth dataset -> fake_wand --samples --marks-out -> recorder --samples. Returns (src, marks, stream npz)."""
     rc, o, e = run([tool("synth_dataset.py"), "--out", t.P("ds.npz"), "--per-class", str(per_class), "--seed", "3"])
     eq(rc, 0, e[-300:])
     rc, o, e = run([tool("fake_wand.py"), "--data", t.P("ds.npz"), "--out", t.P("w.bin"), "--samples",
-                    "--marks-out", t.P("marks.txt")])
+                    "--marks-out", t.P("marks.txt")] + list(extra))
     eq(rc, 0, e[-300:])
     need(os.path.exists(t.P("marks.txt")), "--marks-out file written")
     rc, o, e = run([tool("recorder.py"), "--input", t.P("w.bin"), "--out", t.P("s.npz"), "--samples",
@@ -723,15 +726,28 @@ def test_v3_marks_out_matches_source_windows():
         n = src["windows"].shape[0]
         flat = src["windows"].reshape(-1, 3)
         arr_eq(s["samples"], flat[:s["samples"].shape[0]], "recorded stream = concatenated source windows")
-        # AMBIGUITY: rows for all N windows, or only those that fit whole inside the stream
         need(len(marks) in (n, s["samples"].shape[0] // 150), "one mark per source window (got %d of %d)" % (len(marks), n))
         eq([m[1] for m in marks], [int(x) for x in src["labels"][:len(marks)]], "labels = source labels in order")
-        idx = [m[0] for m in marks]
-        need(all(a < b for a, b in zip(idx, idx[1:])), "onset samples strictly increasing")
-        # AMBIGUITY: "true onset sample of each source window" is 150k (start) or 150k+15 (trigger index) or so;
-        # only containment in window k is enforced.
-        for k, i in enumerate(idx):
-            need(150 * k <= i < 150 * (k + 1), "onset %d of window %d lies inside it" % (i, k))
+        eq([m[0] for m in marks], [150 * k + 15 for k in range(len(marks))], "onset = window start + 15")
+
+
+def test_v3_marks_lead_and_gap():
+    """marks = true onset - --marks-lead; --gap N puts N rest samples before every window."""
+    with Tmp() as t:
+        src, marks, s = _wand_stream(t, 2, ["--marks-lead", "7", "--gap", "20"])
+        n = src["windows"].shape[0]
+        need(len(marks) >= n - 1, "one mark per window")
+        eq([m[0] for m in marks], [k * 170 + 20 + 15 - 7 for k in range(len(marks))], "onset with gap and lead")
+        arr_eq(s["samples"][20:170], src["windows"][0], "window 0 follows 20 rest samples")
+
+
+def test_v2_out_equal_stream_exits_2():
+    sig = make_signal(2000, [(400, 60, (500, -300, 0))], seed=2)
+    with Tmp() as t:
+        sp = write_stream_npz(t.P("S.npz"), sig)
+        rc, o, e = run([tool("cut_stream.py"), "--stream", sp, "--out", sp])
+        eq(rc, 2, e[-300:])
+        arr_eq(load(sp)["samples"], sig, "input stream untouched")
 
 
 def test_v3_marks_out_through_cut_matches_oracle():
