@@ -252,6 +252,8 @@ class Replay:
 
     def pump_once(self, room, poll):
         """Spec X2 pump: n = min(room, 32, remaining); frame end idles the sender in the same call."""
+        # Deliberate over-constraint (review T-c2txR F6): the spec says "up to" min(room, 32) bytes, so an
+        # implementation returning fewer would be correct but fail here. The suite pins the real behaviour.
         n = min(room, PUMP_MAX, len(self.q) - self.pos) if self.busy else 0
         chunk = self.q[self.pos:self.pos + n]
         self.pos += n

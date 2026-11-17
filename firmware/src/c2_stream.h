@@ -53,11 +53,13 @@ typedef struct {
     uint16_t    pos;        /* next byte index within the frame (or text) */
     uint16_t    window_id;  /* id the NEXT window will get */
     uint16_t    chunk;      /* chunk counter the NEXT SAMPLES frame will get */
+    uint16_t    body_end;   /* frame index of the first CRC byte: 6 + LEN */
     const void *src;        /* caller buffer (rows) or text, read while pumping */
     uint8_t     kind;       /* 0 idle, 1 hello, 2 window, 3 samples, 4 text */
     uint8_t     seq;        /* SEQ the NEXT frame will get */
     uint8_t     release;    /* WINDOW finished and not yet taken */
-    uint8_t     head[14];   /* snapshot of the leading payload bytes of the frame */
+    uint8_t     head_n;     /* bytes of the frame held in head[]: 6 + leading payload bytes */
+    uint8_t     head[20];   /* snapshot: 6 header bytes (sync, TYPE, LEN, SEQ), then up to 14 payload bytes */
 } c2_tx_t;
 
 /**
@@ -132,6 +134,7 @@ uint8_t c2_tx_pump(c2_tx_t *tx, uint8_t *out, uint8_t room);
 
 /**
  * Take the release flag: true exactly once after each WINDOW's last byte was pumped.
+ * Calls are not counted; take the release before starting the next WINDOW.
  * @param tx sender state
  * @return true if a WINDOW just finished (the caller may now reuse its buffer)
  */

@@ -681,3 +681,4 @@ which person.
 | firmware/test/gesture/* | fake port, fake sensor, scenario driver, runner | Independent gesture.c suite (host + sim16) | 2026-11-16 | agent |
 | tools/tests/test_stream.py | 24 tests, oracle helpers | Independent continuous-recording tests | 2026-11-16 | agent |
 | firmware/models/synthetic_bootstrap_model.h, firmware/models/README.md | generated model arrays, notes | SYNTHETIC bootstrap header (tools/train.py output) for the first recording build | 2026-11-16 | agent |
+| firmware/src/c2_stream.c | `begin_frame`, `c2_tx_pump`, `c2_tx_start_hello`, `c2_tx_start_window`, `c2_tx_start_samples` (rewritten); `head_len`, `payload_len`, `frame_byte` (removed) | SW-4: header bytes kept in head[], flat sample index, one CRC call per pump run; wire bytes unchanged | 2026-11-16 | agent |
