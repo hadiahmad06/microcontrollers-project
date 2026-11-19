@@ -116,3 +116,8 @@ This file is append-only. See AGENTS.md §4.
 - Statement: "Continue without me, prioritize the training pipeline. I want to be able to start training in the near future."
 - Context: Hadi offline; the agent works without asking questions.
 - Supersedes: none
+
+## 2026-11-18: LIS3DH breakout has no INT2; overrule C6.1
+- Statement: "my LIS3DH only has Vin 3Vo GND SCL SDA SDO CS INT A1 A2 A3" / "option 1: overrule. note it in some todo place, we can do big fixes later."
+- Context: Adafruit LIS3DH breakout exposes only INT (= INT1). CONTRACTS.md C6.1 routed the click to INT2 → RB12. The click path is now a working assumption (poll CLICK_SRC on each FIFO drain); firmware fix deferred to docs/agent/hadi/TODO.md.
+- Supersedes: none (overrules the CONTRACTS.md C6.1 INT2 line of 2026-11-14)
