@@ -216,6 +216,12 @@ T-trig_spec.md, T-c2tx_spec.md). Subagent budget ~60 tool calls each (Hadi: "pre
 | 3.7 | `gesture.c` glue (spec `briefs/3.7_spec.md`), host-tested with fake LIS3DH + fake port | impl-gesture | **done** (3.7T merged: 219 checks PASS, 11 suites PASS; rulings 3.7T-1/-2 favour impl; 3.7R review-28 done: MERGE AFTER FIXES → 3.7F (OVR placement, chunk reset, pump before continued drain) + 3.7TF (set_trigger, stream-off, bus-error tests) **done**, merged; 271 checks, 11 suites PASS (main reran); 3.7 ✅), merged `1668941`: scratch e2e == trigger_ref + infer_ref on 10 gestures, bring-up 201 contiguous chunks; bss 160 B avr incl. trigger_t/x8/c2_tx; `make test` 10 suites PASS (main reran). 3.7T test-gesture in progress | `firmware/src/gesture.*` | 3.7T, 3.7R |
 | HAL | PIC24 HAL + `firmware/app/main_record.c` + Mac `firmware/build/Makefile` + `gesture_port.h` (spec `briefs/HAL_spec.md`); UNVERIFIED until Hadi builds with XC16 | impl-hal | **done**, merged: `make -C firmware/build check` OK (mock only); list of unsure register names in `firmware/hal/pic24/README.md` | `firmware/{hal,app,build}/**`, `firmware/src/gesture_port.h` | HAL-R (review-26: **done**, MERGE AFTER FIXES: F1 POSCMOD high; F3-F8, F10 → HAL-F **done**, merged `5548052`; check OK) |
 
+## Sprint 7: bench bring-up (started 2026-11-18, branch `claude/rgb-led-accelerometer-netlist-5dd65b`)
+| ID | Title | Assignee | Status | Writes to | Follow-up tickets |
+|---|---|---|---|---|---|
+| B7-1 | APP_MODE debug modes 0-4, WS2812 driver, HC-06 baud helper, no-INT2 overrule | main | review fixes in; awaiting bench test of modes 0/2/4 + HC-06 (TODO T-3: no separate test ticket) | `firmware/app/main.c`, `firmware/hal/pic24/ws2812_*`, `config_bits.c`, `models/gesture_model.h` | B7-1R |
+| B7-1R | Review of PR #6 (hadiahmad06/microcontrollers-project#6) | review-31 | done: MERGE AFTER FIXES; F1-F6 fixed by main 2026-11-18, F7 n/a (human-written line) | `reviews/B7-1R.md` | none |
+
 ## Backlog (later sprints)
 Each implementation ticket gets its own test (T) and review (R) ticket, assigned to
 different subagents from the implementer.

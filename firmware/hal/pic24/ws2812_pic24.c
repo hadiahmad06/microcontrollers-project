@@ -25,8 +25,9 @@ bool ws2812_show(const uint8_t *bytes, uint16_t n)
 {
     uint16_t saved_ipl;
 
-    /* >= 2 ticks of the 1 ms timer guarantees >= 1 ms of low line since the last frame (reset >= 300 us). */
-    if (s_sent && (uint16_t)(board_millis() - s_last_ms) < 2U) {
+    /* >= 3 ticks of the 1 ms timer: >= 1 ms of low line even if a tick was pending (not yet counted) when
+     * s_last_ms was read (review B7-1R F3). WS2812 reset needs >= 300 us. */
+    if (s_sent && (uint16_t)(board_millis() - s_last_ms) < 3U) {
         return false;
     }
 

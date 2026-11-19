@@ -8,7 +8,7 @@
  *   1: DEBUG 8x8 RGB LED: colour fills, then one pixel walking 0..63 (checks wiring, order, colour)
  *   2: DEBUG accelerometer: drain the LIS3DH, print "x,y,z" per sample on UART1 (115200), "TAP" on a
  *      double tap; RB4 (pin 11) is high during each I2C drain, for the logic analyser
- *   3: DEBUG LED + accelerometer: gravity-zeroed level. At start-up (hold still ~0.3 s) the resting reading
+ *   3: DEBUG LED + accelerometer: gravity-zeroed level. At start-up (hold still ~0.5 s) the resting reading
  *      is taken as zero, so the blob sits in the centre at rest. X moves it left -> right, Y top -> bottom,
  *      Z (change from rest) sets its size and colour like a heat map: blue (-Z) / green (rest) / red (+Z).
  *      Double tap = re-zero (brief white flash). Marble style: rolls downhill, lags behind a push
@@ -20,7 +20,8 @@
  * HC06_SET_115200 = 1: at boot, send "AT+BAUD8" at 9600 baud to switch a factory HC-06 to 115200, then run the
  * selected mode. Flash it ONCE with the HC-06 NOT connected over Bluetooth (LED blinking), then set it back to 0.
  *
- * Debug pin RB4 (pin 11): toggles on every frame in modes 1 and 3; see board_error_blink codes in board.h
+ * Debug pin RB4 (pin 11): toggles on every frame in mode 1; in modes 2 and 3 it is high during each I2C drain
+ * (mode 3 also toggles it per frame, so use mode 2 for clean drain timing); see board_error_blink codes in board.h
  * (2 blinks = LIS3DH not found).
  */
 #include <stdbool.h>
@@ -47,7 +48,7 @@
 #endif
 
 #ifndef HC06_SET_115200
-#define HC06_SET_115200 0
+#define HC06_SET_115200 1
 #endif
 
 /** WS2812 wire bytes for one frame (display_render output). */
@@ -73,7 +74,7 @@ static bool show_frame(void)
 #if (APP_MODE == 1) || (APP_MODE == 3)
 /**
  * Fill every pixel with one colour.
- * @param r red 0..255 (capped to DISPLAY_CAP by display_set)
+ * @param r red 0..255 (full scale; display_render scales it by DISPLAY_CAP / 255)
  * @param g green 0..255
  * @param b blue 0..255
  */
@@ -98,6 +99,10 @@ static int16_t s_last[3];
 #if APP_MODE == 3
 /** Samples averaged for the resting (gravity) baseline: 32 at 100 Hz = 0.32 s. */
 #define LEVEL_CAL_N 32
+/** Samples ignored before the baseline starts (0.2 s: lets a double tap / hand settle). */
+#define LEVEL_CAL_SKIP 20
+/** s_cal_n value at which the baseline is valid. */
+#define LEVEL_CAL_END (LEVEL_CAL_SKIP + LEVEL_CAL_N)
 /** Counts per pixel of travel: 2 mg/LSB, so 125 counts = 0.25 g per pixel (+-1 g reaches the edges). */
 #define LEVEL_COUNTS_PER_PX 125
 /*
@@ -118,7 +123,7 @@ static int16_t s_last[3];
 
 /** Running sums for the baseline. */
 static int32_t s_cal_sum[3];
-/** Samples summed so far; == LEVEL_CAL_N once the baseline is valid. */
+/** Samples seen since the re-zero; == LEVEL_CAL_END once the baseline is valid. */
 static uint8_t s_cal_n;
 /** Resting reading (gravity), subtracted from every sample. */
 static int16_t s_base[3];
@@ -126,7 +131,7 @@ static int16_t s_base[3];
 static int16_t s_filt[3];
 
 /**
- * Restart the baseline: the next LEVEL_CAL_N samples become the new zero (hold still).
+ * Restart the baseline: skip LEVEL_CAL_SKIP samples, then the next LEVEL_CAL_N become the new zero (hold still).
  */
 static void level_recal(void)
 {
@@ -145,12 +150,14 @@ static void level_recal(void)
 static void level_feed(const int16_t s[3])
 {
     uint8_t k;
-    if (s_cal_n < LEVEL_CAL_N) {
-        for (k = 0U; k < 3U; k++) {
-            s_cal_sum[k] += s[k];
+    if (s_cal_n < LEVEL_CAL_END) {
+        if (s_cal_n >= LEVEL_CAL_SKIP) {
+            for (k = 0U; k < 3U; k++) {
+                s_cal_sum[k] += s[k];
+            }
         }
         s_cal_n++;
-        if (s_cal_n == LEVEL_CAL_N) {
+        if (s_cal_n == LEVEL_CAL_END) {
             for (k = 0U; k < 3U; k++) {
                 s_base[k] = (int16_t)(s_cal_sum[k] / LEVEL_CAL_N);
             }
@@ -199,13 +206,13 @@ static void level_draw(bool flash)
 
     display_clear();
     if (flash) {
-        fill(4U, 4U, 4U);
+        fill(32U, 32U, 32U);           /* dim white flash (renders as 4 of 255) */
     }
-    if (s_cal_n < LEVEL_CAL_N) {
-        display_set(3U, 3U, 8U, 8U, 8U);   /* calibrating: dim white centre, hold still */
-        display_set(3U, 4U, 8U, 8U, 8U);
-        display_set(4U, 3U, 8U, 8U, 8U);
-        display_set(4U, 4U, 8U, 8U, 8U);
+    if (s_cal_n < LEVEL_CAL_END) {
+        display_set(3U, 3U, 64U, 64U, 64U);   /* calibrating: dim white centre, hold still */
+        display_set(3U, 4U, 64U, 64U, 64U);
+        display_set(4U, 3U, 64U, 64U, 64U);
+        display_set(4U, 4U, 64U, 64U, 64U);
         return;
     }
 
@@ -224,10 +231,10 @@ static void level_draw(bool flash)
     if (az > 500) {
         az = 500;                                   /* saturate at 1 g change */
     }
-    hot = (uint8_t)((az * 32) / 500);               /* 0..32 */
+    hot = (uint8_t)((az * 255) / 500);              /* 0..255 */
     red = (s_filt[2] > 0) ? hot : 0U;               /* +Z: green -> red */
     blu = (s_filt[2] < 0) ? hot : 0U;               /* -Z: green -> blue */
-    grn = (uint8_t)(32U - hot);
+    grn = (uint8_t)(255U - hot);
     {
         int32_t r = 12 + (az * 40) / 500;           /* radius 0.75 px at rest (centre 2x2) .. 3.25 px at 1 g */
         r2 = r * r;
@@ -377,7 +384,7 @@ static void uart1_puts_polled(const char *str)
 static void hc06_set_115200(void)
 {
     display_clear();
-    display_set(0U, 0U, 0U, 0U, 32U);
+    display_set(0U, 0U, 0U, 0U, 255U);
     while (!show_frame()) {
         /* wait for the WS2812 gap */
     }
@@ -433,8 +440,8 @@ int main(void)
 #elif APP_MODE == 1
     {
         static const uint8_t colours[7][3] = {
-            {32U, 0U, 0U}, {0U, 32U, 0U}, {0U, 0U, 32U}, {32U, 32U, 32U},
-            {32U, 32U, 0U}, {0U, 32U, 32U}, {32U, 0U, 32U}
+            {255U, 0U, 0U}, {0U, 255U, 0U}, {0U, 0U, 255U}, {255U, 255U, 255U},
+            {255U, 255U, 0U}, {0U, 255U, 255U}, {255U, 0U, 255U}
         };
         uint16_t t0 = board_millis();
         uint8_t step = 0U;           /* 0..6 = colour fills (500 ms each), 7..70 = walking pixel (60 ms each) */
@@ -457,7 +464,7 @@ int main(void)
                     uint8_t p = (uint8_t)(step - 7U);
                     display_clear();
                     /* pixel 0 = row 0 col 0 should light first; red on row 0 helps spot orientation */
-                    display_set((uint8_t)(p / 8U), (uint8_t)(p % 8U), (p < 8U) ? 32U : 0U, 32U, 0U);
+                    display_set((uint8_t)(p / 8U), (uint8_t)(p % 8U), (p < 8U) ? 255U : 0U, 255U, 0U);
                 }
                 if (show_frame()) {
                     dirty = false;
@@ -491,7 +498,7 @@ int main(void)
 
         for (;;) {
             if (sensor_service()) {
-                level_recal();                  /* double tap: re-zero (hold still ~0.3 s) */
+                level_recal();                  /* double tap: re-zero (hold still ~0.5 s) */
                 tap_on = true;
                 tap_ms = board_millis();
             }
