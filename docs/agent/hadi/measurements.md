@@ -21,3 +21,8 @@ size; static RAM is (same C objects), except that AVR keeps `const` data in RAM 
 Static RAM of the modules written so far is 2512 B; C7's matching lines sum to 2500 B (+12 B of state). Still missing
 from the measurement: gesture.c, trigger, C2 TX pump and rings (C7: 160 B), I2C/UART driver state, stack (512 B), C runtime.
 <!-- [END AI-GENERATED] -->
+
+## 2026-11-18: mode 3 display orientation (bench, Hadi)
+- APP_MODE 3 with LED_FLIP_X = 0, LED_FLIP_Y = 1: both axes marble style (tilt -> blob rolls downhill, push -> blob lags).
+- Freefall -> large blue blob (Z change = -1 g), as expected.
+- Valid only for the breadboard's current mounting of the LIS3DH breakout and the 8x8 matrix.
