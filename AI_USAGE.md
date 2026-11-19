@@ -681,3 +681,19 @@ which person.
 | firmware/test/gesture/* | fake port, fake sensor, scenario driver, runner | Independent gesture.c suite (host + sim16) | 2026-11-16 | agent |
 | tools/tests/test_stream.py | 24 tests, oracle helpers | Independent continuous-recording tests | 2026-11-16 | agent |
 | firmware/models/synthetic_bootstrap_model.h, firmware/models/README.md | generated model arrays, notes | SYNTHETIC bootstrap header (tools/train.py output) for the first recording build | 2026-11-16 | agent |
+| firmware/app/main.c | main | Bench entry point; APP_MODE 0-3 selects regular / LED debug / accel debug / LED+accel debug | 2026-11-18 | agent |
+| firmware/app/main.c | show_frame | Render framebuffer and send it to the matrix, toggle RB4 | 2026-11-18 | agent |
+| firmware/app/main.c | fill | Fill every pixel with one colour | 2026-11-18 | agent |
+| firmware/app/main.c | fmt_i16 | int16 to decimal ASCII (no printf) | 2026-11-18 | agent |
+| firmware/app/main.c | on_sample | LIS3DH drain callback; keeps last sample, prints x,y,z in mode 2 | 2026-11-18 | agent |
+| firmware/app/main.c | sensor_service | Drain FIFO on INT1 or 50 ms backstop, poll latched click | 2026-11-18 | agent |
+| firmware/app/main.c | level_recal | Restart the gravity baseline (mode 3) | 2026-11-18 | agent |
+| firmware/app/main.c | level_feed | Average resting baseline, then low-pass the offset from it (mode 3) | 2026-11-18 | agent |
+| firmware/app/main.c | level_clamp | Clamp a 1/16-pixel coordinate to the matrix | 2026-11-18 | agent |
+| firmware/app/main.c | level_draw | X/Y blob position, Z heat-map size and colour (mode 3) | 2026-11-18 | agent |
+| firmware/hal/pic24/ws2812_pic24.c | ws2812_init | RB15 as low output for WS2812 data | 2026-11-18 | agent |
+| firmware/hal/pic24/ws2812_pic24.c | ws2812_show | Send a frame with IPL 7, enforce reset gap | 2026-11-18 | agent |
+| firmware/hal/pic24/ws2812_send.s | _ws2812_send_asm | Cycle-counted WS2812 bit-bang at FCY 16 MHz | 2026-11-18 | agent |
+| firmware/models/gesture_model.h | (header) | Forwards to the synthetic bootstrap model for MPLAB builds | 2026-11-18 | agent |
+| firmware/app/main.c | wait_ms, uart1_puts_polled, hc06_set_115200 | One-shot HC-06 switch from 9600 to 115200 baud at boot | 2026-11-18 | agent |
+| firmware/app/main.c | main (APP_MODE 4) | Recording mode: raw stream for tools/recorder.py plus icon on the matrix | 2026-11-18 | agent |

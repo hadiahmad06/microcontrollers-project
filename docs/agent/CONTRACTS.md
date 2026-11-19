@@ -231,12 +231,16 @@ except C6.4 (open).
 - **I2C:** I2C1 on pins 17/18 (SCL1 RB8, SDA1 RB9), config `JTAGEN = OFF`; external pull-ups 2.2 to 4.7 kΩ
   (BENCH C-4). **400 kHz with I2C1BRG = 38** (394 kHz); fall back to 100 kHz (BRG 157) if wiring is poor (BENCH C-9).
 - **LIS3DH address:** compile-time constant; `init` probes 0x18 and 0x19 and verifies WHO_AM_I (0x0F) = 0x33.
-- **Interrupts:** LIS3DH INT1 → PIC INT0 (RB7, pin 16, fixed); LIS3DH INT2 → PIC INT1 via PPS from RB12 (pin 23).
-  INT1 = FIFO watermark (+ overrun); INT2 = click. Rising edge (LIS3DH active high).
+- **Interrupts:** LIS3DH INT1 → PIC INT0 (RB7, pin 16, fixed). INT1 = FIFO watermark (+ overrun), rising edge
+  (LIS3DH active high). **No INT2:** the board's LIS3DH is the Adafruit breakout, which brings out only INT (= INT1).
+  The click (double tap) needs a new path; working assumption until decided: CTRL_REG6 = 0x00 and `CLICK_SRC` is
+  read on every FIFO drain (the click is latched, so none is lost). Firmware still to change: `docs/agent/hadi/TODO.md` T-1.
+  - Decided: 2026-11-18 by Hadi (overrule). Not contested.
+  - Previously: "LIS3DH INT1 → PIC INT0 (RB7, pin 16, fixed); LIS3DH INT2 → PIC INT1 via PPS from RB12 (pin 23). INT1 = FIFO watermark (+ overrun); INT2 = click. Rising edge (LIS3DH active high)." (2026-11-14, Hadi). Overruled 2026-11-18 by Hadi.
 - **UART1:** 115200 baud, BRGH = 1, U1BRG = 34 (114286, −0.79 %). RX ISR loops `while (U1STAbits.URXDA)`.
 - **Click (double tap) start values** (tune on the bench): CLICK_CFG = 0x2A (double click X, Y, Z),
   CLICK_THS = 0xB0 (latch + 48 counts = 1.5 g), TIME_LIMIT = 0x04, TIME_LATENCY = 0x10, TIME_WINDOW = 0x30,
-  CTRL_REG6 = 0x80 (click on INT2). Narrow the axes after bench tests.
+  CTRL_REG6 = 0x80 (click on INT2) — superseded by the no-INT2 entry above (2026-11-18). Narrow the axes after bench tests.
 - **Config words:** C6a §3.8 (JTAGEN off, ICS = PGx1, I2C1SEL = 1, IOL1WAY off during development, FNOSC = FRCPLL,
   POSCMD = 11, FWDTEN off). Adopt after the lab-board check (BENCH C-1, C-2, C-5). `AD1PCFG = 0xFFFF` in
   `board_init`. DISVREG (pin 19) tied to VSS with a VCAP capacitor (BENCH C-6).
@@ -248,7 +252,7 @@ except C6.4 (open).
 | 11 (RB4) | debug / timing pin |
 | 16 (RB7, INT0) | LIS3DH INT1 |
 | 17, 18 (RB8, RB9) | I2C1 SCL, SDA |
-| 23 (RB12, RP12) | LIS3DH INT2 → INT1 |
+| 23 (RB12, RP12) | spare (was LIS3DH INT2 until 2026-11-18: not broken out on the breakout) |
 | 24 (RB13, RP13) | UART1 TX |
 | 25 (RB14, RP14) | UART1 RX |
 | 26 (RB15) | WS2812 data |

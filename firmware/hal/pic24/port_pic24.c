@@ -106,7 +106,8 @@ void port_pic24_init(void)
     INTCON2bits.INT1EP = 0;            /* INT1EP = 0: interrupt on rising edge */
     IPC5bits.INT1IP = 4;               /* INT1IP<2:0> = 4: click interrupt priority 4 (C6.2) */
     IFS1bits.INT1IF = 0;               /* INT1IF = 0: no stale flag */
-    IEC1bits.INT1IE = 1;               /* INT1IE = 1: enabled */
+    IEC1bits.INT1IE = 0;               /* INT1IE = 0: disabled. The LIS3DH breakout has no INT2, RB12 floats
+                                          (CONTRACTS C6.1, overruled 2026-11-18; TODO T-1) */
     /* A pin already high at enable time gives no edge; gesture_poll's 50 ms drain timer covers the FIFO. */
 }
 
@@ -150,10 +151,11 @@ bool port_take_fifo_flag(void)
 bool port_take_click_flag(void)
 {
     uint8_t f;
+    uint8_t ie = (uint8_t)IEC1bits.INT1IE;   /* previous enable state (0 while INT2 is not wired, TODO T-1) */
     IEC1bits.INT1IE = 0;               /* INT1IE = 0: hold the ISR off for the read-and-clear */
     f = s_click_flag;
     s_click_flag = 0U;
-    IEC1bits.INT1IE = 1;               /* INT1IE = 1: re-enable */
+    IEC1bits.INT1IE = ie;              /* INT1IE: restore the previous state (review B7-1R F1: never force it on) */
     return f != 0U;
 }
 // [END AI-GENERATED]

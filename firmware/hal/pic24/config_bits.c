@@ -15,7 +15,7 @@
 #pragma config GCP = OFF           /* GCP=1: general code protect off */
 #pragma config GWRP = OFF          /* GWRP=1: general write protect off */
 #pragma config BKBUG = OFF         /* DEBUG bit: background debugger disabled (MPLAB X may override at debug time) */
-#pragma config COE = OFF           /* COE=1: no clip-on emulation mode */
+/* COE removed 2026-11-18: not a valid XC16 setting for PIC24FJ64GA002 (xc16 v2.10 config_docs/24FJ64GA002.html) */
 #pragma config ICS = PGx1          /* ICS<1:0>=11: emulator/debugger on PGC1/PGD1 (pins 5/4); must match the programmer header */
 #pragma config FWDTEN = OFF        /* FWDTEN=0: watchdog off (development) */
 #pragma config WINDIS = OFF        /* WINDIS=1: watchdog non-window mode (irrelevant while FWDTEN = OFF) */

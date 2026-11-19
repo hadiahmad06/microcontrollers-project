@@ -18,7 +18,8 @@ OBJ    := obj
 
 # firmware/src/*.c excluding nothing (spec H2); gesture.c is picked up automatically once it exists.
 SRC_C  := $(wildcard $(SRC)/*.c)
-HAL_C  := $(wildcard $(HAL)/*.c)
+# ws2812_pic24.c needs ws2812_send.s, which this Makefile does not assemble; the recording build does not use it.
+HAL_C  := $(filter-out $(HAL)/ws2812_pic24.c,$(wildcard $(HAL)/*.c))
 APP_C  := $(APP)/main_record.c
 
 # -iquote: build dir first so the copied gesture_model.h wins; then src and the HAL.
@@ -26,7 +27,8 @@ INCS   := -iquote . -iquote $(SRC) -iquote $(HAL)
 CFLAGS := -mcpu=$(MCU) -std=gnu99 -Os -Wall -Wextra $(INCS) -mconst-in-code -fno-common -ffunction-sections -fdata-sections
 # --heap=0 (no malloc), --stack=512 (C7), map file. The device linker script is chosen by -mcpu (review F6);
 # if flash gets tight add -Wl,--gc-sections back.
-LDFLAGS:= -mcpu=$(MCU) -Wl,--heap=0,--stack=512
+# --script: -mcpu alone does not pull in the SFR symbols (_IFS0bits, ...); C7 requires the device script.
+LDFLAGS:= -mcpu=$(MCU) -Wl,--script=p$(MCU).gld,--heap=0,--stack=512
 
 .PHONY: all clean check
 all: record.hex
